@@ -1,13 +1,14 @@
 [tool.poetry]
-name = "pythonproject"
+name = "tytocogsv3"
 version = "0.1.0"
-description = ""
+description = "Cogs for Red-DiscordBot"
 authors = ["SootyOwl <tyto@tyto.cc>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.10"
 Red-DiscordBot = "^3.4.16"
+openai = "^0.11.5"
 
 
 [build-system]
