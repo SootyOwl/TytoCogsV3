@@ -1,13 +1,10 @@
 import logging
 import re
-from typing import Union
 
 import discord
 import openai
-from redbot import VersionInfo, version_info
 from redbot.core import Config
 from redbot.core import commands
-
 
 log = logging.getLogger("red.tytocogsv3.gpt3chatbot")
 
@@ -46,10 +43,10 @@ class GPT3ChatBot(commands.Cog):
         super().__init__(*args, **kwargs)
         self.bot = bot
         self.config = Config.get_conf(self, identifier=259390542)  # randomly generated identifier
-        default_global = {
-            "auto": False
+        default_global = {  # default global settings
+            "auto": False  # auto-reply to DMs
         }
-        default_guild = {
+        default_guild = {  # default per-guild settings
             "auto": False,
             "channels": [],
             "allowlist": [],
