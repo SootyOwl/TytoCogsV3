@@ -212,13 +212,14 @@ class GPT3ChatBot(commands.Cog):
         chat_log = await group.chat_log()
         deq_chat_log = deque(chat_log)
         log.debug(f"current length {len(deq_chat_log)=}")
-
+        # memory purge
         if not len(deq_chat_log) <= (mem := await self.config.memory()):
             log.debug(f"length at {mem=}, popping oldest log:")
             log.debug(deq_chat_log.popleft())
-            deq_chat_log.append(new_response)
-            # back to list for saving
-            await self.config.member(author).chat_log.set(list(deq_chat_log))
+        # memory add
+        deq_chat_log.append(new_response)
+        # back to list for saving
+        await group.chat_log.set(list(deq_chat_log))
 
     @commands.command(name="clearmylogs")
     async def clear_personal_history(self, ctx):
