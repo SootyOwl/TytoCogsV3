@@ -201,8 +201,32 @@ class GPT3ChatBot(commands.Cog):
             # back to list for saving
             await self.config.member(author).chat_log.set(list(deq_chat_log))
 
-    @commands.command(name="clear_log")
+    @commands.command(name="clearmylogs", aliases=["cml"])
     async def clear_personal_history(self, ctx):
         """Clear chat log."""
         await self.config.member(ctx.author).clear()
+        return await ctx.tick()
+
+    @commands.command(name="listpersonas", aliases=["lp"])
+    async def list_personas(self, ctx: commands.Context):
+        "Lists available personas."
+        personas_mbed = discord.Embed(
+            title="My personas", description="A list of configured personas by name, with description."
+        )
+        for persona in (persona_dict := await self.config.personalities()).keys():
+            personas_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
+
+        return await ctx.send(embed=personas_mbed)
+
+    @commands.command(name="setpersona", aliases=["sp"])
+    async def change_member_personality(self, ctx: commands.Context, persona: str):
+        """Change persona in replies to you."""
+        persona_dict = await self.config.personalities()
+        if persona.capitalize() not in persona_dict.keys():
+            return await ctx.send(
+                content="Not a valid persona. Use [p]list_personas.\n"
+                        f"Your current persona is `{await self.config.member(ctx.author).personality()}`"
+            )
+
+        await self.config.member(ctx.author).personality.set(persona)
         return await ctx.tick()
