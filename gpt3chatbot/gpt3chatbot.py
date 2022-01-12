@@ -209,7 +209,7 @@ class GPT3ChatBot(commands.Cog):
         await self.config.member(ctx.author).clear()
         return await ctx.tick()
 
-    @commands.command(name="listpersonas", aliases=["lp"])
+    @commands.command(name="listpersonas", aliases=["plist"])
     async def list_personas(self, ctx: commands.Context):
         """Lists available personas."""
         personas_mbed = discord.Embed(
@@ -220,14 +220,29 @@ class GPT3ChatBot(commands.Cog):
 
         return await ctx.send(embed=personas_mbed)
 
-    @commands.command(name="setpersona", aliases=["sp"])
+
+    @commands.command(name="getpersona", aliases=["pget"])
+    async def get_personas(self, ctx: commands.Context):
+        """Get current persona."""
+        persona_mbed = discord.Embed(
+            title="My persona", description="Your currently configured persona's name, with description."
+        )
+        persona_dict = await self.config.personalities()
+        persona = await self.config.member(ctx.author).personality()
+        persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
+
+        return await ctx.send(embed=persona_mbed)
+
+
+    @commands.command(name="setpersona", aliases=["pset"])
     async def change_member_personality(self, ctx: commands.Context, persona: str):
         """Change persona in replies to you."""
+        # get persona global dict
         persona_dict = await self.config.personalities()
         if persona.capitalize() not in persona_dict.keys():
             return await ctx.send(
                 content="Not a valid persona. Use [p]list_personas.\n"
-                        f"Your current persona is `{await self.config.member(ctx.author).personality()}`"
+                f"Your current persona is `{await self.config.member(ctx.author).personality()}`"
             )
 
         await self.config.member(ctx.author).personality.set(persona.capitalize())
