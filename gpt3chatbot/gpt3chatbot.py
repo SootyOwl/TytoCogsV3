@@ -52,52 +52,19 @@ class GPT3ChatBot(commands.Cog):
     async def _filter_custom_emoji(message: str) -> str:
         return CUSTOM_EMOJI.sub('', message).strip()
 
-    # async def local_perms(self, message: discord.Message) -> bool:
-    #     """Check the user is/isn't locally whitelisted/blacklisted.
-    #     https://github.com/Cog-Creators/Red-DiscordBot/blob/V3/release/3.0.0/redbot/core/global_checks.py
-    #     """
-    #     if await self.bot.is_owner(message.author):
-    #         return True
-    #     elif message.guild is None:
-    #         return True
-    #     if not getattr(message.author, "roles", None):
-    #         return False
-    #     try:
-    #         return await self.bot.allowed_by_whitelist_blacklist(
-    #             message.author,
-    #             who_id=message.author.id,
-    #             guild_id=message.guild.id,
-    #             role_ids=[r.id for r in message.author.roles],
-    #         )
-    #     except AttributeError:
-    #         guild_settings = self.bot.db.guild(message.guild)
-    #         local_blacklist = await guild_settings.blacklist()
-    #         local_whitelist = await guild_settings.whitelist()
-    #         author: discord.Member = message.author
-    #         _ids = [r.id for r in author.roles if not r.is_default()]
-    #         _ids.append(message.author.id)
-    #         if local_whitelist:
-    #             return any(i in local_whitelist for i in _ids)
-    #
-    #         return not any(i in local_blacklist for i in _ids)
+    async def _filter_message(self, message):
+        """Filter the message down to just the content, cleaning custom emoji and the bot mention
+        :param message:
+        :return:
+        """
 
-    # async def global_perms(self, message: discord.Message) -> bool:
-    #     """Check the user is/isn't globally whitelisted/blacklisted.
-    #     https://github.com/Cog-Creators/Red-DiscordBot/blob/V3/release/3.0.0/redbot/core/global_checks.py
-    #     """
-    #     if version_info >= VersionInfo.from_str("3.3.6"):
-    #         if not await self.bot.ignored_channel_or_guild(message):
-    #             return False
-    #     if await self.bot.is_owner(message.author):
-    #         return True
-    #     try:
-    #         return await self.bot.allowed_by_whitelist_blacklist(message.author)
-    #     except AttributeError:
-    #         whitelist = await self.bot.db.whitelist()
-    #         if whitelist:
-    #             return message.author.id in whitelist
-    #
-    #         return message.author.id not in await self.bot.db.blacklist()
+        # Remove bot mention
+        filtered = re.sub(f"<@!?{self.bot.user.id}>", "", message.content)
+        # clean custom emoji
+        filtered = await self._filter_custom_emoji(filtered)
+        if not filtered:
+            return None
+        return filtered
 
     @commands.Cog.listener("on_message_without_command")
     async def _message_listener(self, message: discord.Message):
