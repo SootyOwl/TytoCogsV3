@@ -158,21 +158,28 @@ class GPT3ChatBot(commands.Cog):
         if not self._should_respond(message=message):
             return
 
-        # Get OpenAI API Key
-        openai_api = await self.bot.get_shared_api_tokens("openai")
-        if not (key := openai_api.get("key")):
-            return
-
-        # Remove bot mention
-        filtered = re.sub(f"<@!?{self.bot.user.id}>", "", message.content)
-        # clean custom emoji
-        filtered = await self._filter_custom_emoji(filtered)
-        if not filtered:
-            return
-
-        # Get response from OpenAI
-        async with message.channel.typing():
-            response = await self._get_response(key=key, uid=message.author.id, msg=filtered)
+    async def _build_prompt_from_chat_log(self, new_msg: discord.Message) -> str:
+        """Serialize the chat_log into a prompt for the AI request.
+        :param new_msg: The new message
+        :return: prompt_text
+        """
+        personalities_dict = await self.config.personalities()
+        personality_name: str = await self.config.member(new_msg.author).personality()
+        prompt_text, initial_chat_log = personalities_dict[personality_name].values()
+        log.debug(f"{personalities_dict=}\n\n{personality_name=}\n\n{prompt_text}")
+        async with self.config.member(new_msg.author).chat_log() as chat_log:
+            # include initial_chat_log and chat_log in prompt_text
+            for entry in chain(initial_chat_log, chat_log):
+                prompt_text += (
+                    f"{new_msg.author.display_name}: {entry['input']}\n"
+                    f"{personality_name}: {entry['reply']}\n###\n"
+                )
+        prompt_text += (
+            f"{new_msg.author.display_name}: {await self._filter_message(new_msg)}\n"
+            f"{personality_name}:"
+        )
+        log.debug(f"{prompt_text=}")
+        return str(prompt_text)
 
     async def _update_chat_log(
             self, author: Union[discord.User, discord.Member], question: str, answer: str
