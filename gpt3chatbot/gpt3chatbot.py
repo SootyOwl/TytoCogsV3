@@ -50,7 +50,7 @@ class GPT3ChatBot(commands.Cog):
 
     @staticmethod
     async def _filter_custom_emoji(message: str) -> str:
-        return CUSTOM_EMOJI.sub('', message).strip()
+        return CUSTOM_EMOJI.sub("", message).strip()
 
     async def _filter_message(self, message):
         """Filter the message down to just the content, cleaning custom emoji and the bot mention
