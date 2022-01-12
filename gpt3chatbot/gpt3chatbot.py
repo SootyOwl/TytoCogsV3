@@ -9,30 +9,38 @@ from redbot.core import commands
 log = logging.getLogger("red.tytocogsv3.gpt3chatbot")
 log.setLevel("DEBUG")
 
-CUSTOM_EMOJI = re.compile("<(?P<animated>a?):(?P<name>[a-zA-Z0-9_]{2,32}):(?P<id>[0-9]{18,22})>")  # from brainshop cog
+CUSTOM_EMOJI = re.compile(
+    "<(?P<animated>a?):(?P<name>[a-zA-Z0-9_]{2,32}):(?P<id>[0-9]{18,22})>"
+)  # from brainshop cog
 
 
 class GPT3ChatBot(commands.Cog):
     """AI chatbot Using GPT3
 
-     An artificial intelligence chatbot using OpenAI's GPT3 (https://openai.org)."""
+    An artificial intelligence chatbot using OpenAI's GPT3 (https://openai.org)."""
 
     def __init__(self, bot, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=259390542)  # randomly generated identifier
-        default_global = {  # default global settings
-            "auto": False  # auto-reply to DMs
+        self.config = Config.get_conf(
+            self, identifier=259390542
+        )  # randomly generated identifier
+        default_global = {
+            "reply": True,
+            "memory": 20,
+            "personalities": personalities_dict,
         }
+        self.config.register_global(**default_global)
         default_guild = {  # default per-guild settings
-            "auto": False,
+            "reply": True,
             "channels": [],
             "allowlist": [],
             "blacklist": [],
-            "personality": "Aurora"
+            "personality": "Aurora",
         }
-        self.config.register_global(**default_global)
         self.config.register_guild(**default_guild)
+        default_member = {"personality": "Aurora", "chat_log": []}
+        self.config.register_member(**default_member)
 
     @staticmethod
     async def _filter_custom_emoji(message: str) -> str:
