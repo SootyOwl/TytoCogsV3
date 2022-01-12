@@ -174,8 +174,25 @@ class GPT3ChatBot(commands.Cog):
         async with message.channel.typing():
             response = await self._get_response(key=key, uid=message.author.id, msg=filtered)
 
-        if hasattr(message, "reply"):
-            return await message.reply(response, mention_author=False)
+    async def _update_chat_log(
+            self, author: Union[discord.User, discord.Member], question: str, answer: str
+    ):
+        """Update chat log with new response, so the bot can remember conversations."""
+        new_response = {"timestamp": time.time(), "input": question, "reply": answer}
+        log.info(
+            f"Adding new response to the chat log: {author.id=}, {new_response['timestamp']=}"
+        )
+
+        # create queue from chat chat_log
+        chat_log = await self.config.member(author).chat_log()
+        deq_chat_log = deque(chat_log)
+        log.debug(f"current length {len(deq_chat_log)=}")
+        if not len(deq_chat_log) <= (mem := await self.config.memory()):
+            log.debug(f"length at {mem=}, popping oldest log:")
+            log.debug(deq_chat_log.popleft())
+        deq_chat_log.append(new_response)
+        # back to list for saving
+        await self.config.member(author).chat_log.set(list(deq_chat_log))
 
     @commands.command(name="clear_log")
     async def clear_personal_history(self, ctx):
