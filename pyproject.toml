@@ -1,14 +1,43 @@
 [tool.poetry]
-name = "pythonproject"
+name = "tytocogsv3"
 version = "0.1.0"
-description = ""
+description = "Cogs for Red-DiscordBot"
 authors = ["SootyOwl <tyto@tyto.cc>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.10"
 Red-DiscordBot = "^3.4.16"
+openai = "^0.11.5"
 
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^6.2.5"
+flake8 = "^4.0.1"
+black = { extras = ["d"], version = "^21.12-beta.0" }
+
+[tool.black]
+line-length = 120
+target-version = ['py3.9']
+exclude = '''
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+  | foo.py           # also separately exclude a file named foo.py in
+                     # the root of the project
+)
+'''
 
 [build-system]
 requires = ["poetry-core"]
