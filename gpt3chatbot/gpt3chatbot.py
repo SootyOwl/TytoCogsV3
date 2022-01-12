@@ -131,15 +131,15 @@ class GPT3ChatBot(commands.Cog):
 
             # Not in auto-channel
             if message.channel.id not in guild_settings["channels"]:
-    if not (starts_with_mention or is_reply) or not (  # Does not start with mention/isn't a reply
-        guild_settings["reply"] or global_reply
-    ):  # Both guild & global auto are toggled off
-        log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
-        return False
+                if not (starts_with_mention or is_reply) or not (  # Does not start with mention/isn't a reply
+                    guild_settings["reply"] or global_reply
+                ):  # Both guild & global auto are toggled off
+                    log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
+                    return False
 
-        # passed the checks
-        log.info("Message OK.")
-        return True
+            # passed the checks
+            log.info("Message OK.")
+            return True
 
     async def _get_response(self, key: str, message: discord.Message) -> str:
         """Get the AIs response to the message.
@@ -186,20 +186,20 @@ class GPT3ChatBot(commands.Cog):
         return str(prompt_text)
 
     async def _update_chat_log(self, author: Union[discord.User, discord.Member], question: str, answer: str):
-    """Update chat log with new response, so the bot can remember conversations."""
-    new_response = {"timestamp": time.time(), "input": question, "reply": answer}
-    log.info(f"Adding new response to the chat log: {author.id=}, {new_response['timestamp']=}")
+        """Update chat log with new response, so the bot can remember conversations."""
+        new_response = {"timestamp": time.time(), "input": question, "reply": answer}
+        log.info(f"Adding new response to the chat log: {author.id=}, {new_response['timestamp']=}")
 
-    # create queue from chat chat_log
-    chat_log = await self.config.member(author).chat_log()
-    deq_chat_log = deque(chat_log)
-    log.debug(f"current length {len(deq_chat_log)=}")
-    if not len(deq_chat_log) <= (mem := await self.config.memory()):
-        log.debug(f"length at {mem=}, popping oldest log:")
+        # create queue from chat chat_log
+        chat_log = await self.config.member(author).chat_log()
+        deq_chat_log = deque(chat_log)
+        log.debug(f"current length {len(deq_chat_log)=}")
+        if not len(deq_chat_log) <= (mem := await self.config.memory()):
+            log.debug(f"length at {mem=}, popping oldest log:")
             log.debug(deq_chat_log.popleft())
-        deq_chat_log.append(new_response)
-        # back to list for saving
-        await self.config.member(author).chat_log.set(list(deq_chat_log))
+            deq_chat_log.append(new_response)
+            # back to list for saving
+            await self.config.member(author).chat_log.set(list(deq_chat_log))
 
     @commands.command(name="clear_log")
     async def clear_personal_history(self, ctx):
