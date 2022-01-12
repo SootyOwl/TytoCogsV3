@@ -154,15 +154,8 @@ class GPT3ChatBot(commands.Cog):
             presence_penalty=0.1,
             stop=[f"{message.author.display_name}:", "\n", "###", "\n###"],
         )
-        reply = response['choices'][0]['text']
-        await self.update_chat_log(question=msg, answer=str(reply))
-        return str(reply)
-
-    @commands.Cog.listener("on_message_without_command")
-    async def _message_listener(self, message: discord.Message):
-        """This does stuff!"""
-        if not self._should_respond(message=message):
-            return
+        reply: str = response["choices"][0]["text"].strip()
+        return reply
 
     async def _build_prompt_from_chat_log(self, new_msg: discord.Message) -> str:
         """Serialize the chat_log into a prompt for the AI request.
