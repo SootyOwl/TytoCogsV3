@@ -228,5 +228,5 @@ class GPT3ChatBot(commands.Cog):
                         f"Your current persona is `{await self.config.member(ctx.author).personality()}`"
             )
 
-        await self.config.member(ctx.author).personality.set(persona)
+        await self.config.member(ctx.author).personality.set(persona.capitalize())
         return await ctx.tick()
