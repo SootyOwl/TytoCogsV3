@@ -132,13 +132,18 @@ class GPT3ChatBot(commands.Cog):
         # passed the checks
         return True
 
-    async def _get_response(self, key: str, uid: str, msg: str) -> str:
-        prompt_text = f"""{self.chat_log}
-        
-        {restart_sequence}{msg}              
-        {start_sequence}"""
+    async def _get_response(self, key: str, message: discord.Message) -> str:
+        """Get the AIs response to the message.
+
+        :param key: openai api key
+        :param message:
+        :return:
+        """
+
+        prompt_text = await self._build_prompt_from_chat_log(new_msg=message)
 
         response = openai.Completion.create(
+            api_key=key,
             engine="ada",
             prompt=prompt_text,
             temperature=0.8,
