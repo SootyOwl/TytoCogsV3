@@ -209,7 +209,7 @@ class GPT3ChatBot(commands.Cog):
 
     @commands.command(name="listpersonas", aliases=["lp"])
     async def list_personas(self, ctx: commands.Context):
-        "Lists available personas."
+        """Lists available personas."""
         personas_mbed = discord.Embed(
             title="My personas", description="A list of configured personas by name, with description."
         )
