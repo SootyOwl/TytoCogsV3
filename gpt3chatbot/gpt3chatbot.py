@@ -177,4 +177,8 @@ class GPT3ChatBot(commands.Cog):
         if hasattr(message, "reply"):
             return await message.reply(response, mention_author=False)
 
-        return await message.channel.send(response)
+    @commands.command(name="clear_log")
+    async def clear_personal_history(self, ctx):
+        """Clear chat log."""
+        await self.config.member(ctx.author).clear()
+        return await ctx.tick()
