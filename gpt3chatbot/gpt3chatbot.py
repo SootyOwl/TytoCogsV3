@@ -2,7 +2,6 @@ import logging
 import re
 import time
 from collections import deque
-from itertools import chain
 from typing import Union
 
 import discord
@@ -179,7 +178,7 @@ class GPT3ChatBot(commands.Cog):
         log.debug(f"{personalities_dict=}\n\n{personality_name=}\n\n{prompt_text}")
         async with self.config.member(new_msg.author).chat_log() as chat_log:
             # include initial_chat_log and chat_log in prompt_text
-            for entry in chain(initial_chat_log, chat_log):
+            for entry in initial_chat_log + chat_log:
                 prompt_text += (
                     f"{new_msg.author.display_name}: {entry['input']}\n" f"{personality_name}: {entry['reply']}\n###\n"
                 )
