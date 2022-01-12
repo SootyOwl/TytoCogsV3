@@ -100,36 +100,59 @@ class GPT3ChatBot(commands.Cog):
         {start_sequence}{answer}
         """
 
-    async def _should_respond(self, message):
+    async def _should_respond(self, message: discord.Message) -> bool:
+        """1. Check if we should response to an incoming message.
+        :param message: the incoming message to tests (discord.Message)
+        :return: True if we should respond, False otherwise (bool)"""
         # ignore bots
         if message.author.bot:
             return False
 
-        global_auto = await self.config.auto()
-        starts_with_mention = message.content.startswith((f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>"))
+        global_reply = await self.config.reply()
+        starts_with_mention = message.content.startswith(
+            (f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>")
+        )
+        is_reply = (message.reference is not None) and (
+                message.reference.resolved.author.id == self.bot.user.id
+        )
+        log.debug(f"{is_reply=}: {message.clean_content=}")
 
         # command is in DMs
         if not message.guild:
-            if not starts_with_mention or not global_auto:
+            if not (starts_with_mention or is_reply) or not global_reply:
+                log.debug(
+                    "Ignoring DM, bot does not respond unless asked if global auto-reply is off."
+                )
                 return False
 
         # command is in a server
         else:
+            log.info("Checking message from server.")
             # cog is disabled or bot cannot send messages in channel
-            if await self.bot.cog_disabled_in_guild(self, message.guild) or not message.channel.permissions_for(
-                    message.guild.me).send_messages:
+            if (
+                    await self.bot.cog_disabled_in_guild(self, message.guild)
+                    or not message.channel.permissions_for(message.guild.me).send_messages
+            ):
+                log.debug("Cog is disabled or bot cannot send messages in channel")
                 return False
 
+            # noinspection PyTypeChecker
             guild_settings = await self.config.guild(message.guild).all()
 
             # Not in auto-channel
-            if message.channel.id not in guild_settings["channels"] and (
-                    not starts_with_mention or  # Does not start with mention
-                    not (guild_settings["auto"] or global_auto)  # Both guild & global auto are toggled off
-            ):
-                return False
+            if message.channel.id not in guild_settings["channels"]:
+                if not (
+                        starts_with_mention or is_reply
+                ) or not (  # Does not start with mention/isn't a reply
+                        guild_settings["reply"] or global_reply
+                ):  # Both guild & global auto are toggled off
+                    log.debug(
+                        "Not in auto-channel, does not start with mention or auto-replies are turned off."
+                    )
+                    return False
 
         # passed the checks
+        log.info("Message OK.")
         return True
 
     async def _get_response(self, key: str, message: discord.Message) -> str:
