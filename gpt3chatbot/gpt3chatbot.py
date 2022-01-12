@@ -138,6 +138,9 @@ class GPT3ChatBot(commands.Cog):
         :return: True if we should respond, False otherwise (bool)"""
         # ignore bots
         if message.author.bot:
+            log.debug(
+                f"Ignoring message, author is a bot: {message.author.bot=} | {message.clean_content=}"
+            )
             return False
 
         global_reply = await self.config.reply()
