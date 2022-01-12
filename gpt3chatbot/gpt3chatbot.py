@@ -106,7 +106,9 @@ class GPT3ChatBot(commands.Cog):
 
         global_reply = await self.config.reply()
         starts_with_mention = message.content.startswith((f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>"))
-        is_reply = (message.reference is not None) and message.reference.resolved
+        is_reply = (message.reference is not None and message.reference.resolved is not None) and (
+                message.reference.resolved.author.id == self.bot.user.id
+        )
         log.debug(f"{is_reply=}: {message.clean_content=}")
 
         # command is in DMs
