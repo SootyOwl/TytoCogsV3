@@ -1,10 +1,16 @@
 import logging
 import re
+import time
+from collections import deque
+from itertools import chain
+from typing import Union
 
 import discord
 import openai
 from redbot.core import Config
 from redbot.core import commands
+
+from gpt3chatbot.personalities import personalities_dict
 
 log = logging.getLogger("red.tytocogsv3.gpt3chatbot")
 log.setLevel("DEBUG")
