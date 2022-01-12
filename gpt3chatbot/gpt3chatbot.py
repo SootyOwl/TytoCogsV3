@@ -93,12 +93,38 @@ class GPT3ChatBot(commands.Cog):
     #
     #         return message.author.id not in await self.bot.db.blacklist()
 
-    async def _update_chat_log(self, question, answer):
-        self.chat_log = f"""{self.chat_log}
-        
-        {restart_sequence}{question}
-        {start_sequence}{answer}
-        """
+    @commands.Cog.listener("on_message_without_command")
+    async def _message_listener(self, message: discord.Message):
+        """This does stuff!"""
+        if not await self._should_respond(message=message):
+            return
+        # Get OpenAI API Key
+        openai_api = await self.bot.get_shared_api_tokens("openai")
+        if not (key := openai_api.get("key")):
+            log.error("No API key found!")
+            return
+
+        # if filtered message is blank, we can't respond
+        if not await self._filter_message(message):
+            return
+
+        # Get response from OpenAI
+        async with message.channel.typing():
+            response = await self._get_response(key=key, message=message)
+            log.debug(f"{response=}")
+            if not response:  # sometimes blank?
+                return
+
+        # update the chat log with the new interaction
+        await self._update_chat_log(
+            author=message.author,
+            question=await self._filter_message(message),
+            answer=response,
+        )
+
+        if hasattr(message, "reply"):
+            return await message.reply(response, mention_author=False)
+        return await message.channel.send(response)
 
     async def _should_respond(self, message: discord.Message) -> bool:
         """1. Check if we should response to an incoming message.
