@@ -24,11 +24,10 @@ personalities_dict = {
                 "reply": "Existence is mysterious, is it not?",
             },
             {
-    "timestamp": 4,
-    "input": "I wish to learn about the Iris.",
-    "reply": "I would be happy to answer your questions, though it is not possible for humans to fully "
-    "understand the Iris.",
-},
+                "timestamp": 4,
+                "input": "I wish to learn about the Iris.",
+                "reply": "I would be happy to answer your questions, though it is not possible for humans to fully understand the Iris.",
+            },
             {
                 "timestamp": 5,
                 "input": "What can you know of life?",
