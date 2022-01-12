@@ -147,11 +147,12 @@ class GPT3ChatBot(commands.Cog):
             engine="ada",
             prompt=prompt_text,
             temperature=0.8,
-            max_tokens=150,
+            max_tokens=100,
             top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0.3,
-            stop=["\n"],
+            best_of=1,
+            frequency_penalty=0.8,
+            presence_penalty=0.1,
+            stop=[f"{message.author.display_name}:", "\n", "###", "\n###"],
         )
         reply = response['choices'][0]['text']
         await self.update_chat_log(question=msg, answer=str(reply))
