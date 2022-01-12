@@ -15,9 +15,7 @@ from gpt3chatbot.personalities import personalities_dict
 log = logging.getLogger("red.tytocogsv3.gpt3chatbot")
 log.setLevel("DEBUG")
 
-CUSTOM_EMOJI = re.compile(
-    "<(?P<animated>a?):(?P<name>[a-zA-Z0-9_]{2,32}):(?P<id>[0-9]{18,22})>"
-)  # from brainshop cog
+CUSTOM_EMOJI = re.compile("<(?P<animated>a?):(?P<name>[a-zA-Z0-9_]{2,32}):(?P<id>[0-9]{18,22})>")  # from brainshop cog
 
 
 class GPT3ChatBot(commands.Cog):
@@ -28,9 +26,7 @@ class GPT3ChatBot(commands.Cog):
     def __init__(self, bot, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bot = bot
-        self.config = Config.get_conf(
-            self, identifier=259390542
-        )  # randomly generated identifier
+        self.config = Config.get_conf(self, identifier=259390542)  # randomly generated identifier
         default_global = {
             "reply": True,
             "memory": 20,
@@ -105,26 +101,18 @@ class GPT3ChatBot(commands.Cog):
         :return: True if we should respond, False otherwise (bool)"""
         # ignore bots
         if message.author.bot:
-            log.debug(
-                f"Ignoring message, author is a bot: {message.author.bot=} | {message.clean_content=}"
-            )
+            log.debug(f"Ignoring message, author is a bot: {message.author.bot=} | {message.clean_content=}")
             return False
 
         global_reply = await self.config.reply()
-        starts_with_mention = message.content.startswith(
-            (f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>")
-        )
-        is_reply = (message.reference is not None) and (
-                message.reference.resolved.author.id == self.bot.user.id
-        )
+        starts_with_mention = message.content.startswith((f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>"))
+        is_reply = (message.reference is not None) and message.reference.resolved
         log.debug(f"{is_reply=}: {message.clean_content=}")
 
         # command is in DMs
         if not message.guild:
             if not (starts_with_mention or is_reply) or not global_reply:
-                log.debug(
-                    "Ignoring DM, bot does not respond unless asked if global auto-reply is off."
-                )
+                log.debug("Ignoring DM, bot does not respond unless asked if global auto-reply is off.")
                 return False
 
         # command is in a server
@@ -143,15 +131,11 @@ class GPT3ChatBot(commands.Cog):
 
             # Not in auto-channel
             if message.channel.id not in guild_settings["channels"]:
-                if not (
-                        starts_with_mention or is_reply
-                ) or not (  # Does not start with mention/isn't a reply
-                        guild_settings["reply"] or global_reply
-                ):  # Both guild & global auto are toggled off
-                    log.debug(
-                        "Not in auto-channel, does not start with mention or auto-replies are turned off."
-                    )
-                    return False
+    if not (starts_with_mention or is_reply) or not (  # Does not start with mention/isn't a reply
+        guild_settings["reply"] or global_reply
+    ):  # Both guild & global auto are toggled off
+        log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
+        return False
 
         # passed the checks
         log.info("Message OK.")
@@ -195,31 +179,23 @@ class GPT3ChatBot(commands.Cog):
             # include initial_chat_log and chat_log in prompt_text
             for entry in chain(initial_chat_log, chat_log):
                 prompt_text += (
-                    f"{new_msg.author.display_name}: {entry['input']}\n"
-                    f"{personality_name}: {entry['reply']}\n###\n"
+                    f"{new_msg.author.display_name}: {entry['input']}\n" f"{personality_name}: {entry['reply']}\n###\n"
                 )
-        prompt_text += (
-            f"{new_msg.author.display_name}: {await self._filter_message(new_msg)}\n"
-            f"{personality_name}:"
-        )
+        prompt_text += f"{new_msg.author.display_name}: {await self._filter_message(new_msg)}\n" f"{personality_name}:"
         log.debug(f"{prompt_text=}")
         return str(prompt_text)
 
-    async def _update_chat_log(
-            self, author: Union[discord.User, discord.Member], question: str, answer: str
-    ):
-        """Update chat log with new response, so the bot can remember conversations."""
-        new_response = {"timestamp": time.time(), "input": question, "reply": answer}
-        log.info(
-            f"Adding new response to the chat log: {author.id=}, {new_response['timestamp']=}"
-        )
+    async def _update_chat_log(self, author: Union[discord.User, discord.Member], question: str, answer: str):
+    """Update chat log with new response, so the bot can remember conversations."""
+    new_response = {"timestamp": time.time(), "input": question, "reply": answer}
+    log.info(f"Adding new response to the chat log: {author.id=}, {new_response['timestamp']=}")
 
-        # create queue from chat chat_log
-        chat_log = await self.config.member(author).chat_log()
-        deq_chat_log = deque(chat_log)
-        log.debug(f"current length {len(deq_chat_log)=}")
-        if not len(deq_chat_log) <= (mem := await self.config.memory()):
-            log.debug(f"length at {mem=}, popping oldest log:")
+    # create queue from chat chat_log
+    chat_log = await self.config.member(author).chat_log()
+    deq_chat_log = deque(chat_log)
+    log.debug(f"current length {len(deq_chat_log)=}")
+    if not len(deq_chat_log) <= (mem := await self.config.memory()):
+        log.debug(f"length at {mem=}, popping oldest log:")
             log.debug(deq_chat_log.popleft())
         deq_chat_log.append(new_response)
         # back to list for saving
