@@ -203,7 +203,7 @@ class GPT3ChatBot(commands.Cog):
             # back to list for saving
             await self.config.member(author).chat_log.set(list(deq_chat_log))
 
-    @commands.command(name="clearmylogs", aliases=["cml"])
+    @commands.command(name="clearmylogs")
     async def clear_personal_history(self, ctx):
         """Clear chat log."""
         await self.config.member(ctx.author).clear()
