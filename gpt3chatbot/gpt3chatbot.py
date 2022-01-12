@@ -42,6 +42,8 @@ class GPT3ChatBot(commands.Cog):
         self.config.register_guild(**default_guild)
         default_member = {"personality": "Aurora", "chat_log": []}
         self.config.register_member(**default_member)
+        default_user = {"personality": "Aurora", "chat_log": []}
+        self.config.register_user(**default_user)
 
     @staticmethod
     async def _filter_custom_emoji(message: str) -> str:
@@ -115,7 +117,6 @@ class GPT3ChatBot(commands.Cog):
             if not (starts_with_mention or is_reply) or not global_reply:
                 log.debug("Ignoring DM, bot does not respond unless asked if global auto-reply is off.")
                 return False
-
         # command is in a server
         else:
             log.info("Checking message from server.")
@@ -172,19 +173,34 @@ class GPT3ChatBot(commands.Cog):
         :param new_msg: The new message
         :return: prompt_text
         """
-        personalities_dict = await self.config.personalities()
-        personality_name: str = await self.config.member(new_msg.author).personality()
-        prompt_text, initial_chat_log = personalities_dict[personality_name].values()
-        log.debug(f"{personalities_dict=}\n\n{personality_name=}\n\n{prompt_text}")
-        async with self.config.member(new_msg.author).chat_log() as chat_log:
+        available_personas = await self.config.personalities()
+        group = await self._get_user_or_member_config_from_message(new_msg)
+        persona_name = await group.personality()
+
+        prompt_text, initial_chat_log = available_personas[persona_name].values()
+        log.debug(f"{available_personas=}\n\n{persona_name=}\n\n{prompt_text}")
+        async with group.chat_log() as chat_log:
             # include initial_chat_log and chat_log in prompt_text
             for entry in initial_chat_log + chat_log:
                 prompt_text += (
-                    f"{new_msg.author.display_name}: {entry['input']}\n" f"{personality_name}: {entry['reply']}\n###\n"
+                    f"{new_msg.author.display_name}: {entry['input']}\n" f"{persona_name}: {entry['reply']}\n###\n"
                 )
-        prompt_text += f"{new_msg.author.display_name}: {await self._filter_message(new_msg)}\n" f"{personality_name}:"
+        # add new request to prompt_text
+        prompt_text += f"{new_msg.author.display_name}: {await self._filter_message(new_msg)}\n" f"{persona_name}:"
         log.debug(f"{prompt_text=}")
         return str(prompt_text)
+
+    async def _get_user_or_member_config_from_message(self, message: discord.Message):
+        return self.config.member(message.author) if message.guild else self.config.user(message.author)
+
+    async def _get_user_or_member_config_from_author(self, author: Union[discord.User, discord.Member]):
+        try:
+            config = self.config.member(author)
+        except AttributeError as e:
+            log.debug(e)
+            config = self.config.user(author)
+
+        return config
 
     async def _update_chat_log(self, author: Union[discord.User, discord.Member], question: str, answer: str):
         """Update chat log with new response, so the bot can remember conversations."""
@@ -192,9 +208,11 @@ class GPT3ChatBot(commands.Cog):
         log.info(f"Adding new response to the chat log: {author.id=}, {new_response['timestamp']=}")
 
         # create queue from chat chat_log
-        chat_log = await self.config.member(author).chat_log()
+        group = await self._get_user_or_member_config_from_author(author)
+        chat_log = await group.chat_log()
         deq_chat_log = deque(chat_log)
         log.debug(f"current length {len(deq_chat_log)=}")
+
         if not len(deq_chat_log) <= (mem := await self.config.memory()):
             log.debug(f"length at {mem=}, popping oldest log:")
             log.debug(deq_chat_log.popleft())
@@ -205,7 +223,8 @@ class GPT3ChatBot(commands.Cog):
     @commands.command(name="clearmylogs")
     async def clear_personal_history(self, ctx):
         """Clear chat log."""
-        await self.config.member(ctx.author).clear()
+        group = await self._get_user_or_member_config_from_message(ctx)
+        await group.chat_log.set([])
         return await ctx.tick()
 
     @commands.command(name="listpersonas", aliases=["plist"])
@@ -219,7 +238,6 @@ class GPT3ChatBot(commands.Cog):
 
         return await ctx.send(embed=personas_mbed)
 
-
     @commands.command(name="getpersona", aliases=["pget"])
     async def get_personas(self, ctx: commands.Context):
         """Get current persona."""
@@ -227,24 +245,26 @@ class GPT3ChatBot(commands.Cog):
             title="My persona", description="Your currently configured persona's name, with description."
         )
         persona_dict = await self.config.personalities()
-        persona = await self.config.member(ctx.author).personality()
+        group = await self._get_user_or_member_config_from_message(ctx)
+        persona = await group.personality()
         persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
 
         return await ctx.send(embed=persona_mbed)
 
-
     @commands.command(name="setpersona", aliases=["pset"])
     async def change_member_personality(self, ctx: commands.Context, persona: str):
         """Change persona in replies to you."""
+        group = await self._get_user_or_member_config_from_message(ctx)
         # get persona global dict
         persona_dict = await self.config.personalities()
         if persona.capitalize() not in persona_dict.keys():
             return await ctx.send(
-                content="Not a valid persona. Use [p]list_personas.\n"
-                        f"Your current persona is `{await self.config.member(ctx.author).personality()}`"
+                content="Not a valid persona. Use [p]list_personas.\n" f"Your current persona is `{await group.personality()}`"
             )
         # set new persona
-        await self.config.member(ctx.author).personality.set(persona.capitalize())
+        await group.personality.set(persona.capitalize())
         # clear chat log
-        await self.config.member(ctx.author).chat_log.set(list())
+        async with group.chat_log() as chat_log:
+            chat_log: list
+            chat_log.clear()
         return await ctx.tick()
