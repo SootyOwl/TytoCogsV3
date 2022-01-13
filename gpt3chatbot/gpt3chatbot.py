@@ -258,7 +258,8 @@ class GPT3ChatBot(commands.Cog):
         persona_dict = await self.config.personalities()
         if persona.capitalize() not in persona_dict.keys():
             return await ctx.send(
-                content="Not a valid persona. Use [p]list_personas.\n" f"Your current persona is `{await group.personality()}`"
+                content="Not a valid persona. Use [p]list_personas.\n"
+                        f"Your current persona is `{await group.personality()}`"
             )
         # set new persona
         await group.personality.set(persona.capitalize())
