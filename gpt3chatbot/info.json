@@ -1,10 +1,23 @@
 {
-    "author": ["Tyto", "Nyko",],
-    "install_msg": "Please set up your openai API key: `[p]set api openai key,<your api key>` or the bot will not work.",
-    "name": "gpt3chatbot",
-    "short": "GPT3 Chatbot.",
-    "requirements": ["openai"],
-    "description": "GPT3 Chatbot using OpenAI API to respond to messages. Comes with personas with the possibility of adding more!",
-    "permissions": ["send messages"],
-    "tags": ["List of search tags for the Red portal"]
+    "author" : [
+        "Tyto", 
+        "Nyko"
+    ],
+    "description" : "GPT3 Chatbot using OpenAI API to respond to messages. Comes with personas with the possibility of adding more!",
+    "install_msg" : "Thanks for installing GPT3 ChatBot.\nPlease set up your openai API key: `[p]set api openai key,<your api key>` or the bot will not work.",
+    "short" : "Talk with a GPT3 Chatbot!",
+    "end_user_data_statement" : "This cog stores each user/guild member's last 20 interactions with the cog, and all a user's data can be cleared by running `[p]clearmylogs`.",
+    "min_bot_version" : "3.1.8",
+    "max_bot_version" : "0.0.0",
+    "min_python_version" : [
+        3,
+        9,
+        0
+    ]
+    "hidden" : false,
+    "disabled" : false,
+    "required_cogs" : {},
+    "requirements" : ["openai"],
+    "tags" : ["gpt3", "chatbot"],
+    "type" : "COG"
 }
