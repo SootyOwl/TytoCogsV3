@@ -209,7 +209,7 @@ class GPT3ChatBot(commands.Cog):
         group = await self._get_user_or_member_config_from_author(author)
         chat_log = await group.chat_log()
         deq_chat_log = deque(chat_log)
-        log.debug(f"current length {len(deq_chat_log)=}")
+        log.info(f"Current chat log length: {len(deq_chat_log)}")
         # memory purge
         if not len(deq_chat_log) <= (mem := await self.config.memory()):
             log.debug(f"length at {mem=}, popping oldest log:")
