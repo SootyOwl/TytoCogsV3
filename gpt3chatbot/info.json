@@ -1,10 +1,10 @@
 {
-    "author" : ["Tyto", "Nyko",],
-    "install_msg" : "Please set up your openai API key: `[p]set api openai key,<your api key>` or the bot will not work.",
-    "name" : "gpt3chatbot",
-    "short" : "GPT3 Chatbot.",
-    "requirements" : ["openai"],
-    "description" : "GPT3 Chatbot using OpenAI API to respond to messages. Comes with personas with the possibility of adding more!",
-    "permissions" : ["send messages"],
-    "tags" : ["List of search tags for the Red portal"]
+    "author": ["Tyto", "Nyko",],
+    "install_msg": "Please set up your openai API key: `[p]set api openai key,<your api key>` or the bot will not work.",
+    "name": "gpt3chatbot",
+    "short": "GPT3 Chatbot.",
+    "requirements": ["openai"],
+    "description": "GPT3 Chatbot using OpenAI API to respond to messages. Comes with personas with the possibility of adding more!",
+    "permissions": ["send messages"],
+    "tags": ["List of search tags for the Red portal"]
 }
