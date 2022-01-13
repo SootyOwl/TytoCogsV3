@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import time
 from collections import deque
@@ -12,7 +13,7 @@ from redbot.core import commands
 from gpt3chatbot.personalities import personalities_dict
 
 log = logging.getLogger("red.tytocogsv3.gpt3chatbot")
-log.setLevel("DEBUG")
+log.setLevel(os.getenv("TYTOCOGS_LOG_LEVEL", "INFO"))
 
 CUSTOM_EMOJI = re.compile("<(?P<animated>a?):(?P<name>[a-zA-Z0-9_]{2,32}):(?P<id>[0-9]{18,22})>")  # from brainshop cog
 
