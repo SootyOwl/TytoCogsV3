@@ -235,7 +235,7 @@ class GPT3ChatBot(commands.Cog):
             title="My personas", description="A list of configured personas by name, with description."
         )
         for persona in (persona_dict := await self.config.personalities()).keys():
-            personas_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
+            personas_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=False)
 
         return await ctx.send(embed=personas_mbed)
 
