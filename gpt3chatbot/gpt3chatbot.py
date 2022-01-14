@@ -175,7 +175,9 @@ class GPT3ChatBot(commands.Cog):
         group = await self._get_user_or_member_config_from_message(new_msg)
         persona_name = await group.personality()
 
-        prompt_text, initial_chat_log = available_personas[persona_name].values()
+        prompt_text = available_personas[persona_name]['description']
+        initial_chat_log = available_personas[persona_name]['initial_chat_log']
+        prompt_text += "\n\n"
         log.debug(f"{available_personas=}\n\n{persona_name=}\n\n{prompt_text}")
         async with group.chat_log() as chat_log:
             # include initial_chat_log and chat_log in prompt_text
