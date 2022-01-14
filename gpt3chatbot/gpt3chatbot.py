@@ -240,7 +240,7 @@ class GPT3ChatBot(commands.Cog):
         return await ctx.send(embed=personas_mbed)
 
     @commands.command(name="getpersona", aliases=["pget"])
-    async def get_personas(self, ctx: commands.Context):
+    async def get_persona(self, ctx: commands.Context):
         """Get current persona."""
         persona_mbed = discord.Embed(
             title="My persona", description="Your currently configured persona's name, with description."
