@@ -228,6 +228,9 @@ class GPT3ChatBot(commands.Cog):
     @commands.command(name="clearmylogs")
     async def clear_personal_history(self, ctx):
         """Clear chat log."""
+        # warn if current channel is set to cross-pollinate, as this will have no effect
+        if await self.config.channel(ctx.channel).crosspoll():
+            await ctx.send("Clearing your personal logs, but currently using channel chat history.")
         group = await self._get_user_or_member_config_from_message(ctx)
         await group.chat_log.set([])
         return await ctx.tick()
