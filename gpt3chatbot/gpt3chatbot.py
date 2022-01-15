@@ -70,6 +70,7 @@ class GPT3ChatBot(commands.Cog):
         """This does stuff!"""
         if not await self._should_respond(message=message):
             return
+
         # Get OpenAI API Key
         openai_api = await self.bot.get_shared_api_tokens("openai")
         if not (key := openai_api.get("key")):
@@ -165,8 +166,10 @@ class GPT3ChatBot(commands.Cog):
             )
         except openai.error.ServiceUnavailableError as e:
             log.error(e)
-            return await message.reply("Can't talk to OpenAI! OpenAI Service Unavailable. Please try again or contact "
-                                       "bot owner/cog creator if this keeps happening...")
+            return await message.reply(
+                "Can't talk to OpenAI! OpenAI Service Unavailable. Please try again or contact "
+                "bot owner/cog creator if this keeps happening..."
+            )
         except openai.error.InvalidRequestError as e:
             log.error(e)
             return await message.reply(e.user_message + "\n Try clearing your chat logs with `[p]clearmylogs.")
