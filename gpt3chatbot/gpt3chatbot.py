@@ -250,8 +250,8 @@ class GPT3ChatBot(commands.Cog):
         return await ctx.send(embed=personas_mbed)
     
     @commands.command(name="getpersona", aliases=["pget"])
-    async def get_persona(self, ctx: commands.Context):
-        """Get current persona."""
+    async def _persona_get(self, ctx: commands.Context):
+        """Get your current persona."""
         persona_mbed = discord.Embed(
             title="My persona", description="Your currently configured persona's name, with description."
         )
@@ -267,8 +267,8 @@ class GPT3ChatBot(commands.Cog):
         return persona
 
     @commands.command(name="setmypersona", aliases=["pset"])
-    async def change_member_personality(self, ctx: commands.Context, persona: str):
-        """Change persona in replies to you."""
+    async def _persona_set(self, ctx: commands.Context, persona: str):
+        """Change persona in replies to you, when channel cross-pollination is off."""
         group = await self._get_user_or_member_config_from_message(ctx)
         # get persona global dict
         persona_dict = await self.config.personalities()
