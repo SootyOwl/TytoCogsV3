@@ -38,13 +38,14 @@ class GPT3ChatBot(commands.Cog):
             "channels": [],
             "allowlist": [],
             "blacklist": [],
-            "personality": "Aurora",
         }
         self.config.register_guild(**default_guild)
         default_member = {"personality": "Aurora", "chat_log": []}
         self.config.register_member(**default_member)
         default_user = {"personality": "Aurora", "chat_log": []}
         self.config.register_user(**default_user)
+        default_channel = {"personality": "Aurora", "chat_log": [], "crosspoll": False}
+        self.config.register_channel(**default_channel)
 
     @staticmethod
     async def _filter_custom_emoji(message: str) -> str:
@@ -69,14 +70,17 @@ class GPT3ChatBot(commands.Cog):
         """This does stuff!"""
         if not await self._should_respond(message=message):
             return
+
         # Get OpenAI API Key
         openai_api = await self.bot.get_shared_api_tokens("openai")
         if not (key := openai_api.get("key")):
             log.error("No API key found!")
             return
+        log.debug(f"Got API key: {key}.")
 
         # if filtered message is blank, we can't respond
         if not await self._filter_message(message):
+            log.info("Nothing to send the bot after filtering the message.")
             return
 
         # Get response from OpenAI
@@ -84,14 +88,11 @@ class GPT3ChatBot(commands.Cog):
             response = await self._get_response(key=key, message=message)
             log.debug(f"{response=}")
             if not response:  # sometimes blank?
+                log.debug(f"Nothing to say: {response=}.")
                 return
 
         # update the chat log with the new interaction
-        await self._update_chat_log(
-            author=message.author,
-            question=await self._filter_message(message),
-            answer=response,
-        )
+        await self._update_chat_log(message, answer=response)
 
         if hasattr(message, "reply"):
             return await message.reply(response, mention_author=False)
@@ -109,7 +110,7 @@ class GPT3ChatBot(commands.Cog):
         global_reply = await self.config.reply()
         starts_with_mention = message.content.startswith((f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>"))
         is_reply = (message.reference is not None and message.reference.resolved is not None) and (
-                message.reference.resolved.author.id == self.bot.user.id
+            message.reference.resolved.author.id == self.bot.user.id
         )
         log.debug(f"{is_reply=}: {message.clean_content=}")
 
@@ -123,8 +124,8 @@ class GPT3ChatBot(commands.Cog):
             log.info("Checking message from server.")
             # cog is disabled or bot cannot send messages in channel
             if (
-                    await self.bot.cog_disabled_in_guild(self, message.guild)
-                    or not message.channel.permissions_for(message.guild.me).send_messages
+                await self.bot.cog_disabled_in_guild(self, message.guild)
+                or not message.channel.permissions_for(message.guild.me).send_messages
             ):
                 log.debug("Cog is disabled or bot cannot send messages in channel")
                 return False
@@ -133,7 +134,7 @@ class GPT3ChatBot(commands.Cog):
             # Not in auto-channel
             if message.channel.id not in guild_settings["channels"]:
                 if not (starts_with_mention or is_reply) or not (  # Does not start with mention/isn't a reply
-                        guild_settings["reply"] or global_reply
+                    guild_settings["reply"] or global_reply
                 ):  # Both guild & global auto are toggled off
                     log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
                     return False
@@ -149,32 +150,41 @@ class GPT3ChatBot(commands.Cog):
         :return:
         """
 
-        prompt_text = await self._build_prompt_from_chat_log(new_msg=message)
-
-        response = openai.Completion.create(
-            api_key=key,
-            engine="ada",  # ada: $0.0008/1K tokens, babbage $0.0012/1K, curie$0.0060/1K, davinci $0.0600/1K
-            prompt=prompt_text,
-            temperature=0.8,
-            max_tokens=200,
-            top_p=1,
-            best_of=1,
-            frequency_penalty=0.8,
-            presence_penalty=0.1,
-            stop=[f"{message.author.display_name}:", "\n", "###", "\n###"],
-        )
+        prompt_text = await self._build_prompt_from_chat_log(message=message)
+        try:
+            response = openai.Completion.create(
+                api_key=key,
+                engine="curie",  # ada: $0.0008/1K tokens, babbage $0.0012/1K, curie$0.0060/1K, davinci $0.0600/1K
+                prompt=prompt_text,
+                temperature=0.8,
+                max_tokens=200,
+                top_p=1,
+                best_of=1,
+                frequency_penalty=0.8,
+                presence_penalty=0.1,
+                stop=[f"{message.author.display_name}:", "\n", "###", "\n###"],
+            )
+        except openai.error.ServiceUnavailableError as e:
+            log.error(e)
+            return await message.reply(
+                "Can't talk to OpenAI! OpenAI Service Unavailable. Please try again or contact "
+                "bot owner/cog creator if this keeps happening..."
+            )
+        except openai.error.InvalidRequestError as e:
+            log.error(e)
+            return await message.reply(e.user_message + "\n Try clearing your chat logs with `[p]clearmylogs.")
+        log.debug(f"{response=}")
         reply: str = response["choices"][0]["text"].strip()
         return reply
 
-    async def _build_prompt_from_chat_log(self, new_msg: discord.Message) -> str:
+    async def _build_prompt_from_chat_log(self, message: discord.Message) -> str:
         """Serialize the chat_log into a prompt for the AI request.
-        :param new_msg: The new message
+        :param message: The new message
         :return: prompt_text
         """
         available_personas = await self.config.personalities()
-        group = await self._get_user_or_member_config_from_message(new_msg)
-        persona_name = await group.personality()
-
+        persona_name = await self._get_persona_from_message(message)
+        group = await self._get_group_from_message(message)
         prompt_text = available_personas[persona_name]["description"]
         initial_chat_log = available_personas[persona_name]["initial_chat_log"]
         prompt_text += "\n\n"
@@ -183,47 +193,61 @@ class GPT3ChatBot(commands.Cog):
             # include initial_chat_log and chat_log in prompt_text
             for entry in initial_chat_log + chat_log:
                 prompt_text += (
-                    f"{new_msg.author.display_name}: {entry['input']}\n" f"{persona_name}: {entry['reply']}\n###\n"
+                    f"{message.author.display_name}: {entry['input']}\n" f"{persona_name}: {entry['reply']}\n###\n"
                 )
         # add new request to prompt_text
-        prompt_text += f"{new_msg.author.display_name}: {await self._filter_message(new_msg)}\n" f"{persona_name}:"
+        prompt_text += f"{message.author.display_name}: {await self._filter_message(message)}\n" f"{persona_name}:"
         log.debug(f"{prompt_text=}")
         return str(prompt_text)
 
-    async def _get_user_or_member_config_from_message(self, message: discord.Message):
+    async def _get_group_from_message(self, message):
+        if message.guild and await self.config.channel(message.channel).crosspoll():
+            group = self.config.channel(message.channel)
+        else:
+            group = await self._get_user_or_member_config_from_author(message.author)
+        return group
+
+    async def _get_user_or_member_config_from_message(self, message: Union[discord.Message, commands.Context]):
         return self.config.member(message.author) if message.guild else self.config.user(message.author)
 
     async def _get_user_or_member_config_from_author(self, author: Union[discord.User, discord.Member]):
         try:
-            config = self.config.member(author)
-        except AttributeError as e:
-            log.debug(e)
-            config = self.config.user(author)
+            config = self.config.member(author)  # will raise AttributeError if we're not in a guild
+        except AttributeError:
+            log.debug("User has no guild, assuming DMs.")
+            config = self.config.user(author)  # in DMs!
 
         return config
 
-    async def _update_chat_log(self, author: Union[discord.User, discord.Member], question: str, answer: str):
+    async def _update_chat_log(self, message: discord.Message, answer: str):
         """Update chat log with new response, so the bot can remember conversations."""
+        question = await self._filter_message(message)
+        author = message.author
         new_response = {"timestamp": time.time(), "input": question, "reply": answer}
         log.info(f"Adding new response to the chat log: {author.id=}, {new_response['timestamp']=}")
 
-        # create queue from chat chat_log
-        group = await self._get_user_or_member_config_from_author(author)
+        # decide which chat log to update, either channel or user
+        group = await self._get_group_from_message(message)
+        # get the chat log
         chat_log = await group.chat_log()
         deq_chat_log = deque(chat_log)
         log.info(f"Current chat log length: {len(deq_chat_log)}")
-        # memory purge
+        # old memory purge
         if not len(deq_chat_log) <= (mem := await self.config.memory()):
             log.debug(f"length at {mem=}, popping oldest log:")
             log.debug(deq_chat_log.popleft())
-        # memory add
+        # new memory add
         deq_chat_log.append(new_response)
         # back to list for saving
         await group.chat_log.set(list(deq_chat_log))
+        log.info("Updated chat log.")
 
     @commands.command(name="clearmylogs")
     async def clear_personal_history(self, ctx):
         """Clear chat log."""
+        # warn if current channel is set to cross-pollinate, as this will have no effect
+        if await self.config.channel(ctx.channel).crosspoll():
+            await ctx.send("Clearing your personal logs, but currently using channel chat history.")
         group = await self._get_user_or_member_config_from_message(ctx)
         await group.chat_log.set([])
         return await ctx.tick()
@@ -240,28 +264,78 @@ class GPT3ChatBot(commands.Cog):
         return await ctx.send(embed=personas_mbed)
 
     @commands.command(name="getpersona", aliases=["pget"])
-    async def get_persona(self, ctx: commands.Context):
-        """Get current persona."""
+    async def _persona_get(self, ctx: commands.Context):
+        """Get your current persona."""
         persona_mbed = discord.Embed(
-            title="My persona", description="Your currently configured persona's name, with description."
+            title="My persona", description="The currently configured persona's name, with description."
         )
-        persona_dict = await self.config.personalities()
-        group = await self._get_user_or_member_config_from_message(ctx)
-        persona = await group.personality()
-        persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
 
+        persona_dict = await self.config.personalities()
+        persona = await self._get_persona_from_message(ctx)
+        persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
         return await ctx.send(embed=persona_mbed)
 
-    @commands.command(name="setpersona", aliases=["pset"])
-    async def change_member_personality(self, ctx: commands.Context, persona: str):
-        """Change persona in replies to you."""
+    async def _get_persona_from_message(self, message):
+        group = await self._get_group_from_message(message)
+        persona = await group.personality()
+        log.debug(f"{group.name=}, {persona=}")
+        return persona
+
+    @commands.command(name="setmypersona", aliases=["pset"])
+    async def _persona_set(self, ctx: commands.Context, persona: str):
+        """Change persona in replies to you, when channel cross-pollination is off."""
         group = await self._get_user_or_member_config_from_message(ctx)
+        return await self._set_persona_for_group(ctx, group, persona)
+
+    @commands.guild_only()
+    @commands.group(name="gptchannel", aliases=["chanset", "gc"])
+    async def _gptchannel(self, ctx: commands.Context):
+        """GPT3 AI Channel Settings"""
+
+    @commands.guild_only()
+    @commands.admin_or_permissions(administrator=True)
+    @_gptchannel.command(name="crosspoll", aliases=["cp"])
+    async def _channel_crosspoll(self, ctx: commands.Context, toggle: bool = False):
+        """Get or toggle cross-pollination between user's inputs.
+
+        Toggling this on will allow the AI to hold a conversation in a channel with multiple people talking to it.
+        When off, each member has their own personal chat history.
+
+        WARNING: Toggling this option will at least cause the bot to forget about recent conversations.
+        """
+        # get current crosspoll setting
+        crosspoll = await self.config.channel(ctx.channel).crosspoll()
+
+        if not toggle:
+            return await ctx.send(f"Current cross-poll mode is: {crosspoll}")
+
+        await self.config.channel(ctx.channel).crosspoll.set(not crosspoll)
+        return await ctx.tick()
+
+    @commands.guild_only()
+    @commands.admin_or_permissions(manage_messages=True)
+    @_gptchannel.command(name="forgetchannel")
+    async def _channel_clearchannel(self, ctx: commands.Context):
+        """Clear current channel's chat log."""
+        log.info(f"Clearing chat log for: {ctx.channel.id=}")
+        await self.config.channel(ctx.channel).chat_log.set([])
+        return await ctx.tick()
+
+    @commands.guild_only()
+    @commands.admin_or_permissions(manage_messages=True)
+    @_gptchannel.command(name="setpersona", aliases=["pset"])
+    async def _channel_persona_set(self, ctx: commands.Context, persona: str):
+        """Set channel persona, when cross-pollination is on. Clears channel chat logs automatically."""
+        group = self.config.channel(ctx.channel)
+        return await self._set_persona_for_group(ctx, group, persona)
+
+    async def _set_persona_for_group(self, ctx, group, persona):
         # get persona global dict
         persona_dict = await self.config.personalities()
         if persona.capitalize() not in persona_dict.keys():
             return await ctx.send(
-                content="Not a valid persona. Use [p]list_personas.\n"
-                        f"Your current persona is `{await group.personality()}`"
+                content="Not a valid persona name. Use [p]listpersonas or [p]plist.\n"
+                f"Your current persona is `{await group.personality()}`"
             )
         # set new persona
         await group.personality.set(persona.capitalize())

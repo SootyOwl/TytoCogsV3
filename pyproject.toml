@@ -10,7 +10,6 @@ python = ">=3.8,<3.10"
 Red-DiscordBot = "^3.4.16"
 openai = "^0.11.5"
 
-
 [tool.poetry.group.dev.dependencies]
 pytest = "^6.2.5"
 flake8 = "^4.0.1"
