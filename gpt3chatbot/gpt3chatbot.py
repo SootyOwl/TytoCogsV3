@@ -270,20 +270,7 @@ class GPT3ChatBot(commands.Cog):
     async def _persona_set(self, ctx: commands.Context, persona: str):
         """Change persona in replies to you, when channel cross-pollination is off."""
         group = await self._get_user_or_member_config_from_message(ctx)
-        # get persona global dict
-        persona_dict = await self.config.personalities()
-        if persona.capitalize() not in persona_dict.keys():
-            return await ctx.send(
-                content="Not a valid persona. Use [p]list_personas.\n"
-                        f"Your current persona is `{await group.personality()}`"
-            )
-        # set new persona
-        await group.personality.set(persona.capitalize())
-        # clear chat log
-        async with group.chat_log() as chat_log:
-            chat_log: list
-            chat_log.clear()
-        return await ctx.tick()
+        return await self._set_persona_for_group(ctx, group, persona)
 
     @commands.guild_only()
     @commands.group(name="gptchannel", aliases=["chanset", "gc"])
@@ -317,4 +304,28 @@ class GPT3ChatBot(commands.Cog):
         """Clear current channel's chat log."""
         log.info(f"Clearing chat log for: {ctx.channel.id=}")
         await self.config.channel(ctx.channel).chat_log.set([])
+        return await ctx.tick()
+
+    @commands.guild_only()
+    @commands.admin_or_permissions(manage_messages=True)
+    @_gptchannel.command(name="setpersona", aliases=["pset"])
+    async def _channel_persona_set(self, ctx: commands.Context, persona: str):
+        """Set channel persona, when cross-pollination is on."""
+        group = await self.config.channel(ctx.channel)
+        return await self._set_persona_for_group(ctx, group, persona)
+
+    async def _set_persona_for_group(self, ctx, group, persona):
+        # get persona global dict
+        persona_dict = await self.config.personalities()
+        if persona.capitalize() not in persona_dict.keys():
+            return await ctx.send(
+                content="Not a valid persona name. Use [p]listpersonas or [p]plist.\n"
+                        f"Your current persona is `{await group.personality()}`"
+            )
+        # set new persona
+        await group.personality.set(persona.capitalize())
+        # clear chat log
+        async with group.chat_log() as chat_log:
+            chat_log: list
+            chat_log.clear()
         return await ctx.tick()
