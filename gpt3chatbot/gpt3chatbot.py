@@ -22,7 +22,7 @@ class GPT3ChatBot(commands.Cog):
     """AI chatbot Using GPT3
 
     An artificial intelligence chatbot using OpenAI's GPT3 (https://openai.org)."""
-    
+
     def __init__(self, bot, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bot = bot
@@ -50,13 +50,13 @@ class GPT3ChatBot(commands.Cog):
     @staticmethod
     async def _filter_custom_emoji(message: str) -> str:
         return CUSTOM_EMOJI.sub("", message).strip()
-    
+
     async def _filter_message(self, message):
         """Filter the message down to just the content, cleaning custom emoji and the bot mention
         :param message:
         :return:
         """
-        
+
         # Remove bot mention
         filtered = re.sub(f"<@!?{self.bot.user.id}>", "", message.content)
         # clean custom emoji
@@ -64,7 +64,7 @@ class GPT3ChatBot(commands.Cog):
         if not filtered:
             return None
         return filtered
-    
+
     @commands.Cog.listener("on_message_without_command")
     async def _message_listener(self, message: discord.Message):
         """This does stuff!"""
@@ -75,25 +75,25 @@ class GPT3ChatBot(commands.Cog):
         if not (key := openai_api.get("key")):
             log.error("No API key found!")
             return
-        
+
         # if filtered message is blank, we can't respond
         if not await self._filter_message(message):
             return
-        
+
         # Get response from OpenAI
         async with message.channel.typing():
             response = await self._get_response(key=key, message=message)
             log.debug(f"{response=}")
             if not response:  # sometimes blank?
                 return
-        
+
         # update the chat log with the new interaction
         await self._update_chat_log(message, answer=response)
 
         if hasattr(message, "reply"):
             return await message.reply(response, mention_author=False)
         return await message.channel.send(response)
-    
+
     async def _should_respond(self, message: discord.Message) -> bool:
         """1. Check if we should response to an incoming message.
         :param message: the incoming message to tests (discord.Message)
@@ -102,14 +102,14 @@ class GPT3ChatBot(commands.Cog):
         if message.author.bot:
             log.debug(f"Ignoring message, author is a bot: {message.author.bot=} | {message.clean_content=}")
             return False
-        
+
         global_reply = await self.config.reply()
         starts_with_mention = message.content.startswith((f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>"))
         is_reply = (message.reference is not None and message.reference.resolved is not None) and (
-                message.reference.resolved.author.id == self.bot.user.id
+            message.reference.resolved.author.id == self.bot.user.id
         )
         log.debug(f"{is_reply=}: {message.clean_content=}")
-        
+
         # command is in DMs
         if not message.guild:
             if not (starts_with_mention or is_reply) or not global_reply:
@@ -120,8 +120,8 @@ class GPT3ChatBot(commands.Cog):
             log.info("Checking message from server.")
             # cog is disabled or bot cannot send messages in channel
             if (
-                    await self.bot.cog_disabled_in_guild(self, message.guild)
-                    or not message.channel.permissions_for(message.guild.me).send_messages
+                await self.bot.cog_disabled_in_guild(self, message.guild)
+                or not message.channel.permissions_for(message.guild.me).send_messages
             ):
                 log.debug("Cog is disabled or bot cannot send messages in channel")
                 return False
@@ -130,14 +130,14 @@ class GPT3ChatBot(commands.Cog):
             # Not in auto-channel
             if message.channel.id not in guild_settings["channels"]:
                 if not (starts_with_mention or is_reply) or not (  # Does not start with mention/isn't a reply
-                        guild_settings["reply"] or global_reply
+                    guild_settings["reply"] or global_reply
                 ):  # Both guild & global auto are toggled off
                     log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
                     return False
         # passed the checks
         log.info("Message OK.")
         return True
-    
+
     async def _get_response(self, key: str, message: discord.Message) -> str:
         """Get the AIs response to the message.
 
@@ -145,9 +145,9 @@ class GPT3ChatBot(commands.Cog):
         :param message:
         :return:
         """
-        
+
         prompt_text = await self._build_prompt_from_chat_log(message=message)
-        
+
         response = openai.Completion.create(
             api_key=key,
             engine="ada",  # ada: $0.0008/1K tokens, babbage $0.0012/1K, curie$0.0060/1K, davinci $0.0600/1K
@@ -162,7 +162,7 @@ class GPT3ChatBot(commands.Cog):
         )
         reply: str = response["choices"][0]["text"].strip()
         return reply
-    
+
     async def _build_prompt_from_chat_log(self, message: discord.Message) -> str:
         """Serialize the chat_log into a prompt for the AI request.
         :param message: The new message
@@ -195,14 +195,14 @@ class GPT3ChatBot(commands.Cog):
 
     async def _get_user_or_member_config_from_message(self, message: discord.Message):
         return self.config.member(message.author) if message.guild else self.config.user(message.author)
-    
+
     async def _get_user_or_member_config_from_author(self, author: Union[discord.User, discord.Member]):
         try:
             config = self.config.member(author)
         except AttributeError as e:
             log.debug(e)
             config = self.config.user(author)
-        
+
         return config
 
     async def _update_chat_log(self, message: discord.Message, answer: str):
@@ -237,7 +237,7 @@ class GPT3ChatBot(commands.Cog):
         group = await self._get_user_or_member_config_from_message(ctx)
         await group.chat_log.set([])
         return await ctx.tick()
-    
+
     @commands.command(name="listpersonas", aliases=["plist"])
     async def list_personas(self, ctx: commands.Context):
         """Lists available personas."""
@@ -246,19 +246,19 @@ class GPT3ChatBot(commands.Cog):
         )
         for persona in (persona_dict := await self.config.personalities()).keys():
             personas_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=False)
-        
+
         return await ctx.send(embed=personas_mbed)
-    
+
     @commands.command(name="getpersona", aliases=["pget"])
     async def _persona_get(self, ctx: commands.Context):
         """Get your current persona."""
         persona_mbed = discord.Embed(
             title="My persona", description="The currently configured persona's name, with description."
         )
+
         persona_dict = await self.config.personalities()
         persona = await self._get_persona_from_message(ctx)
         persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
-        
         return await ctx.send(embed=persona_mbed)
 
     async def _get_persona_from_message(self, message):
@@ -320,7 +320,7 @@ class GPT3ChatBot(commands.Cog):
         if persona.capitalize() not in persona_dict.keys():
             return await ctx.send(
                 content="Not a valid persona name. Use [p]listpersonas or [p]plist.\n"
-                        f"Your current persona is `{await group.personality()}`"
+                f"Your current persona is `{await group.personality()}`"
             )
         # set new persona
         await group.personality.set(persona.capitalize())
