@@ -281,7 +281,7 @@ class GPT3ChatBot(commands.Cog):
     @commands.admin_or_permissions(administrator=True)
     @_gptchannel.command(name="crosspoll", aliases=["cp"])
     async def _channel_crosspoll(self, ctx: commands.Context, toggle: bool = False):
-        """Toggle crosspollination between user's inputs.
+        """Get or toggle cross-pollination between user's inputs.
 
         Toggling this on will allow the AI to hold a conversation in a channel with multiple people talking to it.
         When off, each member has their own personal chat history.
