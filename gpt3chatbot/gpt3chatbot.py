@@ -258,8 +258,8 @@ class GPT3ChatBot(commands.Cog):
         persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
         
         return await ctx.send(embed=persona_mbed)
-    
-    @commands.command(name="setpersona", aliases=["pset"])
+
+    @commands.command(name="setmypersona", aliases=["pset"])
     async def change_member_personality(self, ctx: commands.Context, persona: str):
         """Change persona in replies to you."""
         group = await self._get_user_or_member_config_from_message(ctx)
