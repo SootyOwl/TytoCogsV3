@@ -277,3 +277,34 @@ class GPT3ChatBot(commands.Cog):
             chat_log: list
             chat_log.clear()
         return await ctx.tick()
+
+    @commands.guild_only()
+    @commands.group(name="gptchannel", aliases=["chanset", "gc"])
+    async def _gptchannel(self, ctx: commands.Context):
+        """GPT3 AI Channel Settings"""
+
+    @commands.guild_only()
+    @commands.admin_or_permissions(administrator=True)
+    @_gptchannel.command(name="crosspoll", aliases=["cp"])
+    async def _channel_crosspoll(self, ctx: commands.Context, toggle: bool = False):
+        """Toggle crosspollination between user's inputs.
+
+        Toggling this on will allow the AI to hold a conversation in a channel with multiple people talking to it.
+        When off, each member has their own personal chat history.
+
+        WARNING: Toggling this option will at least cause the bot to forget about recent conversations.
+        """
+        # get current crosspoll setting
+        crosspoll = await self.config.channel(ctx.channel).crosspoll()
+
+        if not toggle:
+            return await ctx.send(f"Current cross-poll mode is: {crosspoll}")
+
+        await self.config.channel(ctx.channel).crosspoll.set(not crosspoll)
+        return await ctx.tick()
+
+    @commands.guild_only()
+    @commands.admin_or_permissions(manage_messages=True)
+    @_gptchannel.command(name="forgetchannel")
+    async def _channel_clearchannel(self, ctx: commands.Context):
+        """Clear current channel's chat log."""
