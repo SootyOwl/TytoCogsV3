@@ -169,9 +169,8 @@ class GPT3ChatBot(commands.Cog):
         :return: prompt_text
         """
         available_personas = await self.config.personalities()
-        group = await self._get_user_or_member_config_from_message(new_msg)
-        persona_name = await group.personality()
-        
+        persona_name = await self._get_persona_from_message(message)
+        group = await self._get_group_from_message(message)
         prompt_text = available_personas[persona_name]["description"]
         initial_chat_log = available_personas[persona_name]["initial_chat_log"]
         prompt_text += "\n\n"
@@ -186,7 +185,14 @@ class GPT3ChatBot(commands.Cog):
         prompt_text += f"{message.author.display_name}: {await self._filter_message(message)}\n" f"{persona_name}:"
         log.debug(f"{prompt_text=}")
         return str(prompt_text)
-    
+
+    async def _get_group_from_message(self, message):
+        if message.guild and await self.config.channel(message.channel).crosspoll():
+            group = await self.config.channel(message.channel)
+        else:
+            group = await self._get_user_or_member_config_from_author(message.author)
+        return group
+
     async def _get_user_or_member_config_from_message(self, message: discord.Message):
         return self.config.member(message.author) if message.guild else self.config.user(message.author)
     
@@ -207,10 +213,7 @@ class GPT3ChatBot(commands.Cog):
         log.info(f"Adding new response to the chat log: {author.id=}, {new_response['timestamp']=}")
 
         # decide which chat log to update, either channel or user
-        if message.guild and self.config.channel(message.channel).crosspoll():
-            group = await self.config.channel(message.channel)
-        else:
-            group = await self._get_user_or_member_config_from_author(author)
+        group = await self._get_group_from_message(message)
         # get the chat log
         chat_log = await group.chat_log()
         deq_chat_log = deque(chat_log)
@@ -253,11 +256,15 @@ class GPT3ChatBot(commands.Cog):
             title="My persona", description="Your currently configured persona's name, with description."
         )
         persona_dict = await self.config.personalities()
-        group = await self._get_user_or_member_config_from_message(ctx)
-        persona = await group.personality()
+        persona = await self._get_persona_from_message(ctx)
         persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
         
         return await ctx.send(embed=persona_mbed)
+
+    async def _get_persona_from_message(self, message):
+        group = await self._get_group_from_message(message)
+        persona = await group.personality()
+        return persona
 
     @commands.command(name="setmypersona", aliases=["pset"])
     async def change_member_personality(self, ctx: commands.Context, persona: str):
