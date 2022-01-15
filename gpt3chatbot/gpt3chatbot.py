@@ -253,7 +253,7 @@ class GPT3ChatBot(commands.Cog):
     async def _persona_get(self, ctx: commands.Context):
         """Get your current persona."""
         persona_mbed = discord.Embed(
-            title="My persona", description="Your currently configured persona's name, with description."
+            title="My persona", description="The currently configured persona's name, with description."
         )
         persona_dict = await self.config.personalities()
         persona = await self._get_persona_from_message(ctx)
