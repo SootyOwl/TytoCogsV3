@@ -191,7 +191,7 @@ class GPT3ChatBot(commands.Cog):
 
     async def _get_group_from_message(self, message):
         if message.guild and await self.config.channel(message.channel).crosspoll():
-            group = await self.config.channel(message.channel)
+            group = self.config.channel(message.channel)
         else:
             group = await self._get_user_or_member_config_from_author(message.author)
         return group
@@ -314,8 +314,8 @@ class GPT3ChatBot(commands.Cog):
     @commands.admin_or_permissions(manage_messages=True)
     @_gptchannel.command(name="setpersona", aliases=["pset"])
     async def _channel_persona_set(self, ctx: commands.Context, persona: str):
-        """Set channel persona, when cross-pollination is on."""
-        group = await self.config.channel(ctx.channel)
+        """Set channel persona, when cross-pollination is on. Clears channel chat logs automatically."""
+        group = self.config.channel(ctx.channel)
         return await self._set_persona_for_group(ctx, group, persona)
 
     async def _set_persona_for_group(self, ctx, group, persona):
