@@ -308,3 +308,6 @@ class GPT3ChatBot(commands.Cog):
     @_gptchannel.command(name="forgetchannel")
     async def _channel_clearchannel(self, ctx: commands.Context):
         """Clear current channel's chat log."""
+        log.info(f"Clearing chat log for: {ctx.channel.id=}")
+        await self.config.channel(ctx.channel).chat_log.set([])
+        return await ctx.tick()
