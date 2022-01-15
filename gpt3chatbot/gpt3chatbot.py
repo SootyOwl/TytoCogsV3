@@ -75,9 +75,11 @@ class GPT3ChatBot(commands.Cog):
         if not (key := openai_api.get("key")):
             log.error("No API key found!")
             return
+        log.debug(f"Got API key: {key}.")
 
         # if filtered message is blank, we can't respond
         if not await self._filter_message(message):
+            log.info("Nothing to send the bot after filtering the message.")
             return
 
         # Get response from OpenAI
@@ -85,6 +87,7 @@ class GPT3ChatBot(commands.Cog):
             response = await self._get_response(key=key, message=message)
             log.debug(f"{response=}")
             if not response:  # sometimes blank?
+                log.debug(f"Nothing to say: {response=}.")
                 return
 
         # update the chat log with the new interaction
@@ -200,8 +203,8 @@ class GPT3ChatBot(commands.Cog):
         try:
             config = self.config.member(author)
         except AttributeError as e:
-            log.debug(e)
-            config = self.config.user(author)
+            log.debug("User has no guild, assuming DMs.")
+            config = self.config.user(author)  # in DMs!
 
         return config
 
@@ -264,6 +267,7 @@ class GPT3ChatBot(commands.Cog):
     async def _get_persona_from_message(self, message):
         group = await self._get_group_from_message(message)
         persona = await group.personality()
+        log.debug(f"{group.name=}, {persona=}")
         return persona
 
     @commands.command(name="setmypersona", aliases=["pset"])
