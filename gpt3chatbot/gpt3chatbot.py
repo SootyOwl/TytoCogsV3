@@ -193,7 +193,7 @@ class GPT3ChatBot(commands.Cog):
             group = await self._get_user_or_member_config_from_author(message.author)
         return group
 
-    async def _get_user_or_member_config_from_message(self, message: discord.Message):
+    async def _get_user_or_member_config_from_message(self, message: Union[discord.Message, commands.Context]):
         return self.config.member(message.author) if message.guild else self.config.user(message.author)
 
     async def _get_user_or_member_config_from_author(self, author: Union[discord.User, discord.Member]):
