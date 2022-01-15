@@ -213,7 +213,7 @@ class GPT3ChatBot(commands.Cog):
     async def _get_user_or_member_config_from_author(self, author: Union[discord.User, discord.Member]):
         try:
             config = self.config.member(author)  # will raise AttributeError if we're not in a guild
-        except AttributeError as e:
+        except AttributeError:
             log.debug("User has no guild, assuming DMs.")
             config = self.config.user(author)  # in DMs!
 
