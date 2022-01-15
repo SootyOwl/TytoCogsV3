@@ -38,7 +38,6 @@ class GPT3ChatBot(commands.Cog):
             "channels": [],
             "allowlist": [],
             "blacklist": [],
-            "personality": "Aurora",
         }
         self.config.register_guild(**default_guild)
         default_member = {"personality": "Aurora", "chat_log": []}
