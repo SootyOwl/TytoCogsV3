@@ -150,19 +150,27 @@ class GPT3ChatBot(commands.Cog):
         """
 
         prompt_text = await self._build_prompt_from_chat_log(message=message)
-
-        response = openai.Completion.create(
-            api_key=key,
-            engine="ada",  # ada: $0.0008/1K tokens, babbage $0.0012/1K, curie$0.0060/1K, davinci $0.0600/1K
-            prompt=prompt_text,
-            temperature=0.8,
-            max_tokens=200,
-            top_p=1,
-            best_of=1,
-            frequency_penalty=0.8,
-            presence_penalty=0.1,
-            stop=[f"{message.author.display_name}:", "\n", "###", "\n###"],
-        )
+        try:
+            response = openai.Completion.create(
+                api_key=key,
+                engine="curie",  # ada: $0.0008/1K tokens, babbage $0.0012/1K, curie$0.0060/1K, davinci $0.0600/1K
+                prompt=prompt_text,
+                temperature=0.8,
+                max_tokens=200,
+                top_p=1,
+                best_of=1,
+                frequency_penalty=0.8,
+                presence_penalty=0.1,
+                stop=[f"{message.author.display_name}:", "\n", "###", "\n###"],
+            )
+        except openai.error.ServiceUnavailableError as e:
+            log.error(e)
+            return await message.reply("Can't talk to OpenAI! OpenAI Service Unavailable. Please try again or contact "
+                                       "bot owner/cog creator if this keeps happening...")
+        except openai.error.InvalidRequestError as e:
+            log.error(e)
+            return await message.reply(e.user_message + "\n Try clearing your chat logs with `[p]clearmylogs.")
+        log.debug(f"{response=}")
         reply: str = response["choices"][0]["text"].strip()
         return reply
 
