@@ -45,7 +45,9 @@ class GPT3ChatBot(commands.Cog):
         self.config.register_member(**default_member)
         default_user = {"personality": "Aurora", "chat_log": []}
         self.config.register_user(**default_user)
-    
+        default_channel = {"personality": "Aurora", "chat_log": [], "crosspoll": False}
+        self.config.register_channel(**default_channel)
+
     @staticmethod
     async def _filter_custom_emoji(message: str) -> str:
         return CUSTOM_EMOJI.sub("", message).strip()
@@ -87,12 +89,8 @@ class GPT3ChatBot(commands.Cog):
                 return
         
         # update the chat log with the new interaction
-        await self._update_chat_log(
-            author=message.author,
-            question=await self._filter_message(message),
-            answer=response,
-        )
-        
+        await self._update_chat_log(message, answer=response)
+
         if hasattr(message, "reply"):
             return await message.reply(response, mention_author=False)
         return await message.channel.send(response)
@@ -201,26 +199,33 @@ class GPT3ChatBot(commands.Cog):
             config = self.config.user(author)
         
         return config
-    
-    async def _update_chat_log(self, author: Union[discord.User, discord.Member], question: str, answer: str):
+
+    async def _update_chat_log(self, message: discord.Message, answer: str):
         """Update chat log with new response, so the bot can remember conversations."""
+        question = await self._filter_message(message)
+        author = message.author
         new_response = {"timestamp": time.time(), "input": question, "reply": answer}
         log.info(f"Adding new response to the chat log: {author.id=}, {new_response['timestamp']=}")
-        
-        # create queue from chat chat_log
-        group = await self._get_user_or_member_config_from_author(author)
+
+        # decide which chat log to update, either channel or user
+        if message.guild and self.config.channel(message.channel).crosspoll():
+            group = await self.config.channel(message.channel)
+        else:
+            group = await self._get_user_or_member_config_from_author(author)
+        # get the chat log
         chat_log = await group.chat_log()
         deq_chat_log = deque(chat_log)
         log.info(f"Current chat log length: {len(deq_chat_log)}")
-        # memory purge
+        # old memory purge
         if not len(deq_chat_log) <= (mem := await self.config.memory()):
             log.debug(f"length at {mem=}, popping oldest log:")
             log.debug(deq_chat_log.popleft())
-        # memory add
+        # new memory add
         deq_chat_log.append(new_response)
         # back to list for saving
         await group.chat_log.set(list(deq_chat_log))
-    
+        log.info("Updated chat log.")
+
     @commands.command(name="clearmylogs")
     async def clear_personal_history(self, ctx):
         """Clear chat log."""
