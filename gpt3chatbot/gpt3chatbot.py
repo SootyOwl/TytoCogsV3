@@ -146,7 +146,7 @@ class GPT3ChatBot(commands.Cog):
         :return:
         """
         
-        prompt_text = await self._build_prompt_from_chat_log(new_msg=message)
+        prompt_text = await self._build_prompt_from_chat_log(message=message)
         
         response = openai.Completion.create(
             api_key=key,
@@ -163,9 +163,9 @@ class GPT3ChatBot(commands.Cog):
         reply: str = response["choices"][0]["text"].strip()
         return reply
     
-    async def _build_prompt_from_chat_log(self, new_msg: discord.Message) -> str:
+    async def _build_prompt_from_chat_log(self, message: discord.Message) -> str:
         """Serialize the chat_log into a prompt for the AI request.
-        :param new_msg: The new message
+        :param message: The new message
         :return: prompt_text
         """
         available_personas = await self.config.personalities()
@@ -180,10 +180,10 @@ class GPT3ChatBot(commands.Cog):
             # include initial_chat_log and chat_log in prompt_text
             for entry in initial_chat_log + chat_log:
                 prompt_text += (
-                    f"{new_msg.author.display_name}: {entry['input']}\n" f"{persona_name}: {entry['reply']}\n###\n"
+                    f"{message.author.display_name}: {entry['input']}\n" f"{persona_name}: {entry['reply']}\n###\n"
                 )
         # add new request to prompt_text
-        prompt_text += f"{new_msg.author.display_name}: {await self._filter_message(new_msg)}\n" f"{persona_name}:"
+        prompt_text += f"{message.author.display_name}: {await self._filter_message(message)}\n" f"{persona_name}:"
         log.debug(f"{prompt_text=}")
         return str(prompt_text)
     
