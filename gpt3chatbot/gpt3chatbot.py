@@ -31,6 +31,7 @@ class GPT3ChatBot(commands.Cog):
             "reply": True,
             "memory": 20,
             "personalities": personalities_dict,
+            "model": "ada"
         }
         self.config.register_global(**default_global)
         default_guild = {  # default per-guild settings
@@ -154,7 +155,8 @@ class GPT3ChatBot(commands.Cog):
         try:
             response = openai.Completion.create(
                 api_key=key,
-                engine="curie",  # ada: $0.0008/1K tokens, babbage $0.0012/1K, curie$0.0060/1K, davinci $0.0600/1K
+                engine=await self.config.model(),  # ada: $0.0008/1K tokens, babbage $0.0012/1K, curie$0.0060/1K,
+                # davinci $0.0600/1K
                 prompt=prompt_text,
                 temperature=0.8,
                 max_tokens=200,
@@ -343,4 +345,36 @@ class GPT3ChatBot(commands.Cog):
         async with group.chat_log() as chat_log:
             chat_log: list
             chat_log.clear()
+        return await ctx.tick()
+    
+    @commands.group(name="gptset")
+    async def _gptset(self):
+        """GPT-3 settings"""
+    
+    @commands.is_owner()
+    @_gptset.command(name="model", aliases=["engine", "m"])
+    async def _set_model(self, ctx: commands.Context, model: str):
+        f"""Set OpenAI model.
+        
+        Current model is `{await self.config.model()}`
+        
+        This allows you to set the cost and power level of the AI's response.
+        The four options are, from least to most powerful:
+            model: cost per 1K tokens (~750 words)
+            -----
+            ada: $0.0008 /1K tokens
+            babbage: $0.0012 /1K
+            curie: $0.0060 /1K
+            davinci: $0.0600 /1K
+        
+        
+        
+        :param ctx:
+        :param model:
+        :return:
+        """
+        if model.lower() not in ["ada", "babbage", "curie", "davinci"]:
+            return
+        await self.config.model.set(model.lower())
+        
         return await ctx.tick()
