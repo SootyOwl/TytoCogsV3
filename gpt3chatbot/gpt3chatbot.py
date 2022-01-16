@@ -348,15 +348,13 @@ class GPT3ChatBot(commands.Cog):
         return await ctx.tick()
     
     @commands.group(name="gptset")
-    async def _gptset(self):
+    async def _gptset(self, ctx: commands.Context):
         """GPT-3 settings"""
     
     @commands.is_owner()
     @_gptset.command(name="model", aliases=["engine", "m"])
-    async def _set_model(self, ctx: commands.Context, model: str):
-        f"""Set OpenAI model.
-        
-        Current model is `{await self.config.model()}`
+    async def _set_model(self, ctx: commands.Context, model: str = None):
+        """Get or set OpenAI model.
         
         This allows you to set the cost and power level of the AI's response.
         The four options are, from least to most powerful:
@@ -367,14 +365,13 @@ class GPT3ChatBot(commands.Cog):
             curie: $0.0060 /1K
             davinci: $0.0600 /1K
         
-        
-        
-        :param ctx:
-        :param model:
-        :return:
+        Not providing the model name will return the current model setting.
         """
+        if model is None:
+            return await ctx.send(f"Current model setting: `{await self.config.model()}`")
         if model.lower() not in ["ada", "babbage", "curie", "davinci"]:
-            return
-        await self.config.model.set(model.lower())
+            await ctx.send_help()
+            return await ctx.send("Not a valid model.")
         
+        await self.config.model.set(model.lower())
         return await ctx.tick()
