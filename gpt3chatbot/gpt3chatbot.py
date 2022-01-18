@@ -1,8 +1,6 @@
 import logging
 import os
 import re
-import time
-from collections import deque
 from typing import Union
 
 import discord
@@ -27,12 +25,7 @@ class GPT3ChatBot(commands.Cog):
         super().__init__(*args, **kwargs)
         self.bot = bot
         self.config = Config.get_conf(self, identifier=259390542)  # randomly generated identifier
-        default_global = {
-            "reply": True,
-            "memory": 20,
-            "personalities": personalities_dict,
-            "model": "ada"
-        }
+        default_global = {"reply": True, "memory": 20, "personalities": personalities_dict, "model": "ada"}
         self.config.register_global(**default_global)
         default_guild = {  # default per-guild settings
             "reply": True,
@@ -41,11 +34,11 @@ class GPT3ChatBot(commands.Cog):
             "blacklist": [],
         }
         self.config.register_guild(**default_guild)
-        default_member = {"personality": "Aurora", "chat_log": []}
+        default_member = {"personality": "Aurora"}
         self.config.register_member(**default_member)
-        default_user = {"personality": "Aurora", "chat_log": []}
+        default_user = {"personality": "Aurora"}
         self.config.register_user(**default_user)
-        default_channel = {"personality": "Aurora", "chat_log": [], "crosspoll": False}
+        default_channel = {"personality": "Aurora", "crosspoll": False}
         self.config.register_channel(**default_channel)
 
     @staticmethod
@@ -91,9 +84,6 @@ class GPT3ChatBot(commands.Cog):
             if not response:  # sometimes blank?
                 log.debug(f"Nothing to say: {response=}.")
                 return
-
-        # update the chat log with the new interaction
-        await self._update_chat_log(message, answer=response)
 
         if hasattr(message, "reply"):
             return await message.reply(response, mention_author=False)
@@ -151,7 +141,7 @@ class GPT3ChatBot(commands.Cog):
         :return:
         """
 
-        prompt_text = await self._build_prompt_from_chat_log(message=message)
+        prompt_text = await self._build_prompt_from_reply_chain(message=message)
         try:
             response = openai.Completion.create(
                 api_key=key,
@@ -174,29 +164,25 @@ class GPT3ChatBot(commands.Cog):
             )
         except openai.error.InvalidRequestError as e:
             log.error(e)
-            return await message.reply(e.user_message + "\n Try clearing your chat logs with `[p]clearmylogs.")
+            return await message.reply(e.user_message + "\n This reply chain may be too long...")
         log.debug(f"{response=}")
         reply: str = response["choices"][0]["text"].strip()
         return reply
 
-    async def _build_prompt_from_chat_log(self, message: discord.Message) -> str:
-        """Serialize the chat_log into a prompt for the AI request.
+    async def _build_prompt_from_reply_chain(self, message: discord.Message) -> str:
+        """Serialize the reply chain into a prompt for the AI request.
         :param message: The new message
         :return: prompt_text
         """
         available_personas = await self.config.personalities()
         persona_name = await self._get_persona_from_message(message)
-        group = await self._get_group_from_message(message)
         prompt_text = available_personas[persona_name]["description"]
         initial_chat_log = available_personas[persona_name]["initial_chat_log"]
         prompt_text += "\n\n"
         log.debug(f"{available_personas=}\n\n{persona_name=}\n\n{prompt_text}")
-        async with group.chat_log() as chat_log:
-            # include initial_chat_log and chat_log in prompt_text
-            for entry in initial_chat_log + chat_log:
-                prompt_text += (
-                    f"{message.author.display_name}: {entry['input']}\n" f"{persona_name}: {entry['reply']}\n###\n"
-                )
+
+        # TODO: build log from reply chain history
+
         # add new request to prompt_text
         prompt_text += f"{message.author.display_name}: {await self._filter_message(message)}\n" f"{persona_name}:"
         log.debug(f"{prompt_text=}")
@@ -220,39 +206,6 @@ class GPT3ChatBot(commands.Cog):
             config = self.config.user(author)  # in DMs!
 
         return config
-
-    async def _update_chat_log(self, message: discord.Message, answer: str):
-        """Update chat log with new response, so the bot can remember conversations."""
-        question = await self._filter_message(message)
-        author = message.author
-        new_response = {"timestamp": time.time(), "input": question, "reply": answer}
-        log.info(f"Adding new response to the chat log: {author.id=}, {new_response['timestamp']=}")
-
-        # decide which chat log to update, either channel or user
-        group = await self._get_group_from_message(message)
-        # get the chat log
-        chat_log = await group.chat_log()
-        deq_chat_log = deque(chat_log)
-        log.info(f"Current chat log length: {len(deq_chat_log)}")
-        # old memory purge
-        if not len(deq_chat_log) <= (mem := await self.config.memory()):
-            log.debug(f"length at {mem=}, popping oldest log:")
-            log.debug(deq_chat_log.popleft())
-        # new memory add
-        deq_chat_log.append(new_response)
-        # back to list for saving
-        await group.chat_log.set(list(deq_chat_log))
-        log.info("Updated chat log.")
-
-    @commands.command(name="clearmylogs")
-    async def clear_personal_history(self, ctx):
-        """Clear chat log."""
-        # warn if current channel is set to cross-pollinate, as this will have no effect
-        if await self.config.channel(ctx.channel).crosspoll():
-            await ctx.send("Clearing your personal logs, but currently using channel chat history.")
-        group = await self._get_user_or_member_config_from_message(ctx)
-        await group.chat_log.set([])
-        return await ctx.tick()
 
     @commands.command(name="listpersonas", aliases=["plist"])
     async def list_personas(self, ctx: commands.Context):
@@ -316,18 +269,9 @@ class GPT3ChatBot(commands.Cog):
 
     @commands.guild_only()
     @commands.admin_or_permissions(manage_messages=True)
-    @_gptchannel.command(name="forgetchannel")
-    async def _channel_clearchannel(self, ctx: commands.Context):
-        """Clear current channel's chat log."""
-        log.info(f"Clearing chat log for: {ctx.channel.id=}")
-        await self.config.channel(ctx.channel).chat_log.set([])
-        return await ctx.tick()
-
-    @commands.guild_only()
-    @commands.admin_or_permissions(manage_messages=True)
     @_gptchannel.command(name="setpersona", aliases=["pset"])
     async def _channel_persona_set(self, ctx: commands.Context, persona: str):
-        """Set channel persona, when cross-pollination is on. Clears channel chat logs automatically."""
+        """Set channel persona, when cross-pollination is on."""
         group = self.config.channel(ctx.channel)
         return await self._set_persona_for_group(ctx, group, persona)
 
@@ -341,21 +285,18 @@ class GPT3ChatBot(commands.Cog):
             )
         # set new persona
         await group.personality.set(persona.capitalize())
-        # clear chat log
-        async with group.chat_log() as chat_log:
-            chat_log: list
-            chat_log.clear()
+
         return await ctx.tick()
-    
+
     @commands.group(name="gptset")
     async def _gptset(self, ctx: commands.Context):
         """GPT-3 settings"""
-    
+
     @commands.is_owner()
     @_gptset.command(name="model", aliases=["engine", "m"])
     async def _set_model(self, ctx: commands.Context, model: str = None):
         """Get or set OpenAI model.
-        
+
         This allows you to set the cost and power level of the AI's response.
         The four options are, from least to most powerful:
             model: cost per 1K tokens (~750 words)
@@ -364,7 +305,7 @@ class GPT3ChatBot(commands.Cog):
             babbage: $0.0012 /1K
             curie: $0.0060 /1K
             davinci: $0.0600 /1K
-        
+
         Not providing the model name will return the current model setting.
         """
         if model is None:
@@ -372,6 +313,6 @@ class GPT3ChatBot(commands.Cog):
         if model.lower() not in ["ada", "babbage", "curie", "davinci"]:
             await ctx.send_help()
             return await ctx.send("Not a valid model.")
-        
+
         await self.config.model.set(model.lower())
         return await ctx.tick()
