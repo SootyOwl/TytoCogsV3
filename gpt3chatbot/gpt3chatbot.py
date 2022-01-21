@@ -76,7 +76,7 @@ class GPT3ChatBot(commands.Cog):
 
         # if filtered message is blank, we can't respond
         if not await self._filter_message(message):
-            log.info("Nothing to send the bot after filtering the message.")
+            log.debug("Nothing to send the bot after filtering the message.")
             return
 
         # Get response from OpenAI
@@ -113,7 +113,7 @@ class GPT3ChatBot(commands.Cog):
                 return False
         # command is in a server
         else:
-            log.info("Checking message from server.")
+            log.debug(f"Checking message {message.id=} from server.")
             # cog is disabled or bot cannot send messages in channel
             if (
                     await self.bot.cog_disabled_in_guild(self, message.guild)
@@ -131,7 +131,7 @@ class GPT3ChatBot(commands.Cog):
                     log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
                     return False
         # passed the checks
-        log.info("Message OK.")
+        log.debug("Message OK.")
         return True
 
     async def _get_response(self, key: str, message: discord.Message) -> str:
@@ -183,14 +183,14 @@ class GPT3ChatBot(commands.Cog):
 
         # TODO: build log from reply chain history
         reply_history = await self._build_reply_history(message=message)
-        log.info(f"{reply_history=}")
+        log.debug(f"{reply_history=}")
         for entry in initial_chat_log + reply_history:
             prompt_text += (
                 f"{message.author.display_name}: {entry['input']}\n" f"{persona_name}: {entry['reply']}\n###\n"
             )
         # add new request to prompt_text
         prompt_text += f"{message.author.display_name}: {await self._filter_message(message)}\n" f"{persona_name}:"
-        log.info(f"{prompt_text=}")
+        log.debug(f"{prompt_text=}")
         return str(prompt_text)
 
     async def _get_group_from_message(self, message):
@@ -328,12 +328,9 @@ class GPT3ChatBot(commands.Cog):
         :param message: A message from a user that the bot can reply to
         :return:
         """
-        # base case(s): message has no reference so it is not a reply
+        # base case(s): message has no reference so it is not a reply so return blank list
         if not message.reference:
             log.debug("No reference found")
-            # not sent by the bot
-            log.debug(f"{message.author.id=}")
-            log.debug(f"{self.bot.user.id=}")
             return []
     
         reply_set = {"input": "", "reply": ""}
