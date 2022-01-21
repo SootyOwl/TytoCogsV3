@@ -22,14 +22,19 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    # checkout repo, setup python 3.9, install poetry preview
       - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+        with:
+          python-version: 3.9
+      - uses: Gr1N/setup-poetry@v7
+        with:
+          poetry-preview: true
+      - run: poetry --version
 
-      # Runs a single command using the runners shell
       - name: Install dependencies
         run: poetry install --with dev
 
-      # Runs a set of commands using the runners shell
       - name: Run black
         run: poetry run black .
         
