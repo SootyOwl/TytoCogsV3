@@ -1,12 +1,10 @@
 import logging
 import os
 import re
-from collections import deque
-from typing import Union, List, Dict
+from typing import Union
 
 import discord
 import openai
-from discord import MessageReference
 from redbot.core import Config
 from redbot.core import commands
 
@@ -103,7 +101,7 @@ class GPT3ChatBot(commands.Cog):
         global_reply = await self.config.reply()
         starts_with_mention = message.content.startswith((f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>"))
         is_reply = (message.reference is not None and message.reference.resolved is not None) and (
-                message.reference.resolved.author.id == self.bot.user.id
+            message.reference.resolved.author.id == self.bot.user.id
         )
 
         # command is in DMs
@@ -116,8 +114,8 @@ class GPT3ChatBot(commands.Cog):
             log.debug(f"Checking message {message.id=} from server.")
             # cog is disabled or bot cannot send messages in channel
             if (
-                    await self.bot.cog_disabled_in_guild(self, message.guild)
-                    or not message.channel.permissions_for(message.guild.me).send_messages
+                await self.bot.cog_disabled_in_guild(self, message.guild)
+                or not message.channel.permissions_for(message.guild.me).send_messages
             ):
                 log.debug("Cog is disabled or bot cannot send messages in channel")
                 return False
@@ -126,7 +124,7 @@ class GPT3ChatBot(commands.Cog):
             # Not in auto-channel
             if message.channel.id not in guild_settings["channels"]:
                 if not (starts_with_mention or is_reply) or not (  # Does not start with mention/isn't a reply
-                        guild_settings["reply"] or global_reply
+                    guild_settings["reply"] or global_reply
                 ):  # Both guild & global auto are toggled off
                     log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
                     return False
@@ -286,7 +284,7 @@ class GPT3ChatBot(commands.Cog):
         if persona.capitalize() not in persona_dict.keys():
             return await ctx.send(
                 content="Not a valid persona name. Use [p]listpersonas or [p]plist.\n"
-                        f"Your current persona is `{await group.personality()}`"
+                f"Your current persona is `{await group.personality()}`"
             )
         # set new persona
         await group.personality.set(persona.capitalize())
@@ -332,7 +330,7 @@ class GPT3ChatBot(commands.Cog):
         if not message.reference:
             log.debug("No reference found")
             return []
-    
+
         reply_set = {"input": "", "reply": ""}
         if message.author.id == self.bot.user.id:
             reply_set["reply"] = await self._filter_message(message)
@@ -343,7 +341,7 @@ class GPT3ChatBot(commands.Cog):
             # message isn't from the bot (i.e. it's an input)
             # we just continue looking for bot messages that we can build "input reply" duos with
             return await self._build_reply_history(await self._get_input_from_reply(message))
-    
+
     @staticmethod
     async def _get_input_from_reply(message: discord.Message) -> discord.Message:
         """Return a discord.Message object that the input `message` is replying to."""
