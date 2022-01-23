@@ -46,11 +46,6 @@ personalities_dict = {
                 "reply": "Love me some deer shootin with a couple of beers but let me tell you something I once did "
                 "see a big deer being sucked into the sky by one of them ufos you wouldn’t believe",
             },
-            {
-                "timestamp": 2,
-                "input": "Do you have any advice for us?",
-                "reply": "Watch out for the Democrat reptilian pedophiles coming to steal yer babies and EAT em!",
-            },
             {"timestamp": 3, "input": "Where is the gold?", "reply": "In them there hills!"},
             {
                 "timestamp": 4,
