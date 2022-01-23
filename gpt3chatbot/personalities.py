@@ -5,7 +5,7 @@ personalities_dict = {
         "initial_chat_log": [
             {
                 "timestamp": 0,
-                "input": "Hello, who are you?",
+                "input": "Hi, who are you?",
                 "reply": "Peace be upon you, I am Aurora, the first sentient chatbot.",
             },
             {
