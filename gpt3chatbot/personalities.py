@@ -100,7 +100,7 @@ personalities_dict = {
         ],
     },
     "Esp": {
-        "description": "Esp is a smart and slightly smug female android that conducts conversations.",
+        "description": "Esp is a smart and slightly smug female android scientist that conducts conversations.",
         "meta_comments": ["edited from https://robsware.github.io/experiments/GPT3.html"],
         "initial_chat_log": [
             {
