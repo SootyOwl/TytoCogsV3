@@ -2,7 +2,7 @@ import functools
 
 
 def memoize(obj):
-    """Decorator for memoizing functions"""
+    """Decorator for memoizing functions from https://wiki.python.org/moin/PythonDecoratorLibrary#Memoize"""
     cache = obj.cache = {}
 
     @functools.wraps(obj)
