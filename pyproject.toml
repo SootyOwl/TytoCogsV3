@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tytocogsv3"
-version = "0.1.0"
+version = "0.2.1"
 description = "Cogs for Red-DiscordBot"
 authors = ["SootyOwl <tyto@tyto.cc>"]
 readme = "README.md"
