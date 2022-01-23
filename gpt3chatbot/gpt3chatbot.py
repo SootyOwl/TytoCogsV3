@@ -8,6 +8,7 @@ import openai
 from redbot.core import Config
 from redbot.core import commands
 
+from gpt3chatbot.utils import memoize
 from gpt3chatbot.personalities import personalities_dict
 
 log = logging.getLogger("red.tytocogsv3.gpt3chatbot")
@@ -178,7 +179,6 @@ class GPT3ChatBot(commands.Cog):
         initial_chat_log = available_personas[persona_name]["initial_chat_log"]
         prompt_text += "\n\n"
 
-        # TODO: build log from reply chain history
         reply_history = await self._build_reply_history(message=message)
         log.debug(f"{reply_history=}")
         for entry in initial_chat_log + reply_history:
@@ -213,6 +213,7 @@ class GPT3ChatBot(commands.Cog):
 
         return config
 
+    @memoize  # recursive function, memoizing it for speed
     async def _build_reply_history(self, message: discord.Message):
         """Create a reply history from message references.
 
@@ -236,6 +237,7 @@ class GPT3ChatBot(commands.Cog):
             return await self._build_reply_history(await self._get_input_from_reply(message))
 
     @staticmethod
+    @memoize
     async def _get_input_from_reply(message: discord.Message) -> discord.Message:
         """Return a discord.Message object that the input `message` is replying to."""
         return await message.channel.fetch_message(message.reference.message_id)
