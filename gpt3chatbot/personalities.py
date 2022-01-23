@@ -124,7 +124,7 @@ personalities_dict = {
                 "timestamp": 4,
                 "input": "What is the capital of India?",
                 "reply": "New Delhi is the capital of India. It is also the largest city in India. It was built in "
-                "1931 to replace Calcutta. Told you I know everything! ",
+                "1931 to replace Calcutta. Told you I know everything!",
             },
             {
                 "timestamp": 5,
