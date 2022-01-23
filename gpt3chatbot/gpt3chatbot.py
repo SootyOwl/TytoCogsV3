@@ -122,12 +122,11 @@ class GPT3ChatBot(commands.Cog):
             # noinspection PyTypeChecker
             guild_settings = await self.config.guild(message.guild).all()
             # Not in auto-channel
-            if message.channel.id not in guild_settings["channels"]:
-                if not (starts_with_mention or is_reply) or not (  # Does not start with mention/isn't a reply
-                    guild_settings["reply"] or global_reply
-                ):  # Both guild & global auto are toggled off
-                    log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
-                    return False
+            if message.channel.id not in guild_settings["channels"] and (
+                not (starts_with_mention or is_reply) or not (guild_settings["reply"] or global_reply)
+            ):  # Both guild & global auto are toggled off
+                log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
+                return False
         # passed the checks
         log.debug("Message OK.")
         return True
@@ -183,11 +182,9 @@ class GPT3ChatBot(commands.Cog):
         reply_history = await self._build_reply_history(message=message)
         log.debug(f"{reply_history=}")
         for entry in initial_chat_log + reply_history:
-            prompt_text += (
-                f"{message.author.display_name}: {entry['input']}\n" f"{persona_name}: {entry['reply']}\n###\n"
-            )
+            prompt_text += f"{message.author.display_name}: {entry['input']}\n{persona_name}: {entry['reply']}\n###\n"
         # add new request to prompt_text
-        prompt_text += f"{message.author.display_name}: {await self._filter_message(message)}\n" f"{persona_name}:"
+        prompt_text += f"{message.author.display_name}: {await self._filter_message(message)}\n{persona_name}:"
         log.debug(f"{prompt_text=}")
         return str(prompt_text)
 
@@ -197,6 +194,12 @@ class GPT3ChatBot(commands.Cog):
         else:
             group = await self._get_user_or_member_config_from_author(message.author)
         return group
+
+    async def _get_persona_from_message(self, message):
+        group = await self._get_group_from_message(message)
+        persona = await group.personality()
+        log.debug(f"{group.name=}, {persona=}")
+        return persona
 
     async def _get_user_or_member_config_from_message(self, message: Union[discord.Message, commands.Context]):
         return self.config.member(message.author) if message.guild else self.config.user(message.author)
@@ -209,116 +212,6 @@ class GPT3ChatBot(commands.Cog):
             config = self.config.user(author)  # in DMs!
 
         return config
-
-    @commands.command(name="listpersonas", aliases=["plist"])
-    async def list_personas(self, ctx: commands.Context):
-        """Lists available personas."""
-        personas_mbed = discord.Embed(
-            title="My personas", description="A list of configured personas by name, with description."
-        )
-        for persona in (persona_dict := await self.config.personalities()).keys():
-            personas_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=False)
-
-        return await ctx.send(embed=personas_mbed)
-
-    @commands.command(name="getpersona", aliases=["pget"])
-    async def _persona_get(self, ctx: commands.Context):
-        """Get your current persona."""
-        persona_mbed = discord.Embed(
-            title="My persona", description="The currently configured persona's name, with description."
-        )
-
-        persona_dict = await self.config.personalities()
-        persona = await self._get_persona_from_message(ctx)
-        persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
-        return await ctx.send(embed=persona_mbed)
-
-    async def _get_persona_from_message(self, message):
-        group = await self._get_group_from_message(message)
-        persona = await group.personality()
-        log.debug(f"{group.name=}, {persona=}")
-        return persona
-
-    @commands.command(name="setmypersona", aliases=["pset"])
-    async def _persona_set(self, ctx: commands.Context, persona: str):
-        """Change persona in replies to you, when channel cross-pollination is off."""
-        group = await self._get_user_or_member_config_from_message(ctx)
-        return await self._set_persona_for_group(ctx, group, persona)
-
-    @commands.guild_only()
-    @commands.group(name="gptchannel", aliases=["chanset", "gc"])
-    async def _gptchannel(self, ctx: commands.Context):
-        """GPT3 AI Channel Settings"""
-
-    @commands.guild_only()
-    @commands.admin_or_permissions(administrator=True)
-    @_gptchannel.command(name="crosspoll", aliases=["cp"])
-    async def _channel_crosspoll(self, ctx: commands.Context, toggle: bool = False):
-        """Get or toggle cross-pollination between user's inputs.
-
-        Toggling this on will allow the AI to hold a conversation in a channel with multiple people talking to it.
-        When off, each member has their own personal chat history.
-
-        WARNING: Toggling this option will at least cause the bot to forget about recent conversations.
-        """
-        # get current crosspoll setting
-        crosspoll = await self.config.channel(ctx.channel).crosspoll()
-
-        if not toggle:
-            return await ctx.send(f"Current cross-poll mode is: {crosspoll}")
-
-        await self.config.channel(ctx.channel).crosspoll.set(not crosspoll)
-        return await ctx.tick()
-
-    @commands.guild_only()
-    @commands.admin_or_permissions(manage_messages=True)
-    @_gptchannel.command(name="setpersona", aliases=["pset"])
-    async def _channel_persona_set(self, ctx: commands.Context, persona: str):
-        """Set channel persona, when cross-pollination is on."""
-        group = self.config.channel(ctx.channel)
-        return await self._set_persona_for_group(ctx, group, persona)
-
-    async def _set_persona_for_group(self, ctx, group, persona):
-        # get persona global dict
-        persona_dict = await self.config.personalities()
-        if persona.capitalize() not in persona_dict.keys():
-            return await ctx.send(
-                content="Not a valid persona name. Use [p]listpersonas or [p]plist.\n"
-                f"Your current persona is `{await group.personality()}`"
-            )
-        # set new persona
-        await group.personality.set(persona.capitalize())
-
-        return await ctx.tick()
-
-    @commands.group(name="gptset")
-    async def _gptset(self, ctx: commands.Context):
-        """GPT-3 settings"""
-
-    @commands.is_owner()
-    @_gptset.command(name="model", aliases=["engine", "m"])
-    async def _set_model(self, ctx: commands.Context, model: str = None):
-        """Get or set OpenAI model.
-
-        This allows you to set the cost and power level of the AI's response.
-        The four options are, from least to most powerful:
-            model: cost per 1K tokens (~750 words)
-            -----
-            ada: $0.0008 /1K tokens
-            babbage: $0.0012 /1K
-            curie: $0.0060 /1K
-            davinci: $0.0600 /1K
-
-        Not providing the model name will return the current model setting.
-        """
-        if model is None:
-            return await ctx.send(f"Current model setting: `{await self.config.model()}`")
-        if model.lower() not in ["ada", "babbage", "curie", "davinci"]:
-            await ctx.send_help()
-            return await ctx.send("Not a valid model.")
-
-        await self.config.model.set(model.lower())
-        return await ctx.tick()
 
     async def _build_reply_history(self, message: discord.Message):
         """Create a reply history from message references.
@@ -346,3 +239,107 @@ class GPT3ChatBot(commands.Cog):
     async def _get_input_from_reply(message: discord.Message) -> discord.Message:
         """Return a discord.Message object that the input `message` is replying to."""
         return await message.channel.fetch_message(message.reference.message_id)
+
+    async def _set_persona_for_group(self, ctx, group, persona):
+        # get persona global dict
+        persona_dict = await self.config.personalities()
+        if persona.capitalize() not in persona_dict.keys():
+            return await ctx.send(
+                content="Not a valid persona name. Use [p]listpersonas or [p]plist.\n"
+                f"Your current persona is `{await group.personality()}`"
+            )
+        # set new persona
+        await group.personality.set(persona.capitalize())
+
+        return await ctx.tick()
+
+    @commands.command(name="listpersonas", aliases=["plist"])
+    async def list_personas(self, ctx: commands.Context):
+        """Lists available personas."""
+        personas_mbed = discord.Embed(
+            title="My personas", description="A list of configured personas by name, with description."
+        )
+        for persona in (persona_dict := await self.config.personalities()).keys():
+            personas_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=False)
+
+        return await ctx.send(embed=personas_mbed)
+
+    @commands.command(name="getpersona", aliases=["pget"])
+    async def persona_get(self, ctx: commands.Context):
+        """Get your current persona."""
+        persona_mbed = discord.Embed(
+            title="My persona", description="The currently configured persona's name, with description."
+        )
+
+        persona_dict = await self.config.personalities()
+        persona = await self._get_persona_from_message(ctx)
+        persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
+        return await ctx.send(embed=persona_mbed)
+
+    @commands.command(name="setmypersona", aliases=["pset"])
+    async def persona_set(self, ctx: commands.Context, persona: str):
+        """Change persona in replies to you, when channel cross-pollination is off."""
+        group = await self._get_user_or_member_config_from_message(ctx)
+        return await self._set_persona_for_group(ctx, group, persona)
+
+    @commands.guild_only()
+    @commands.group(name="gptchannel", aliases=["chanset", "gc"])
+    async def gptchannel(self, ctx: commands.Context):
+        """GPT3 AI Channel Settings"""
+
+    @commands.guild_only()
+    @commands.admin_or_permissions(administrator=True)
+    @gptchannel.command(name="crosspoll", aliases=["cp"])
+    async def channel_crosspoll(self, ctx: commands.Context, toggle: bool = False):
+        """Get or toggle cross-pollination between user's inputs.
+
+        Toggling this on will allow the AI to hold a conversation in a channel with multiple people talking to it.
+        When off, each member has their own personal chat history.
+
+        WARNING: Toggling this option will at least cause the bot to forget about recent conversations.
+        """
+        # get current crosspoll setting
+        crosspoll = await self.config.channel(ctx.channel).crosspoll()
+
+        if not toggle:
+            return await ctx.send(f"Current cross-poll mode is: {crosspoll}")
+
+        await self.config.channel(ctx.channel).crosspoll.set(not crosspoll)
+        return await ctx.tick()
+
+    @commands.guild_only()
+    @commands.admin_or_permissions(manage_messages=True)
+    @gptchannel.command(name="setpersona", aliases=["pset"])
+    async def channel_persona_set(self, ctx: commands.Context, persona: str):
+        """Set channel persona, when cross-pollination is on."""
+        group = self.config.channel(ctx.channel)
+        return await self._set_persona_for_group(ctx, group, persona)
+
+    @commands.group(name="gptset")
+    async def gptset(self, ctx: commands.Context):
+        """GPT-3 settings"""
+
+    @commands.is_owner()
+    @gptset.command(name="model", aliases=["engine", "m"])
+    async def set_model(self, ctx: commands.Context, model: str = None):
+        """Get or set OpenAI model.
+
+        This allows you to set the cost and power level of the AI's response.
+        The four options are, from least to most powerful:
+            model: cost per 1K tokens (~750 words)
+            -----
+            ada: $0.0008 /1K tokens
+            babbage: $0.0012 /1K
+            curie: $0.0060 /1K
+            davinci: $0.0600 /1K
+
+        Not providing the model name will return the current model setting.
+        """
+        if model is None:
+            return await ctx.send(f"Current model setting: `{await self.config.model()}`")
+        if model.lower() not in ["ada", "babbage", "curie", "davinci"]:
+            await ctx.send_help()
+            return await ctx.send("Not a valid model.")
+
+        await self.config.model.set(model.lower())
+        return await ctx.tick()
