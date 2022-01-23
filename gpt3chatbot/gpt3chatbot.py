@@ -8,7 +8,7 @@ import openai
 from redbot.core import Config
 from redbot.core import commands
 
-from gpt3chatbot._utils import memoize
+from gpt3chatbot.utils import memoize
 from gpt3chatbot.personalities import personalities_dict
 
 log = logging.getLogger("red.tytocogsv3.gpt3chatbot")
@@ -237,6 +237,7 @@ class GPT3ChatBot(commands.Cog):
             return await self._build_reply_history(await self._get_input_from_reply(message))
 
     @staticmethod
+    @memoize
     async def _get_input_from_reply(message: discord.Message) -> discord.Message:
         """Return a discord.Message object that the input `message` is replying to."""
         return await message.channel.fetch_message(message.reference.message_id)
