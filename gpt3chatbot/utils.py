@@ -7,13 +7,16 @@ def memoize(obj):
     cache = obj.cache = {}
 
     if asyncio.iscoroutinefunction(obj):
+
         @functools.wraps(obj)
         async def memoizer(*args, **kwargs):
             key = str(args) + str(kwargs)
             if key not in cache:
                 cache[key] = await obj(*args, **kwargs)
             return cache[key]
+
     else:
+
         @functools.wraps(obj)
         def memoizer(*args, **kwargs):
             key = str(args) + str(kwargs)
