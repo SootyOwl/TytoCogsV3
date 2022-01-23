@@ -179,7 +179,6 @@ class GPT3ChatBot(commands.Cog):
         initial_chat_log = available_personas[persona_name]["initial_chat_log"]
         prompt_text += "\n\n"
 
-        # TODO: build log from reply chain history
         reply_history = await self._build_reply_history(message=message)
         log.debug(f"{reply_history=}")
         for entry in initial_chat_log + reply_history:
