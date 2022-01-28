@@ -174,7 +174,7 @@ class GPT3ChatBot(commands.Cog):
         :param message: The new message
         :return: prompt_text
         """
-        available_personas = await self.config.personalities()
+        available_personas = await self._get_available_personalities(message)
         persona_name = await self._get_persona_from_message(message)
         prompt_text = available_personas[persona_name]["description"]
         initial_chat_log = available_personas[persona_name]["initial_chat_log"]
@@ -245,7 +245,7 @@ class GPT3ChatBot(commands.Cog):
 
     async def _set_persona_for_group(self, ctx, group, persona):
         # get persona global dict
-        persona_dict = await self.config.personalities()
+        persona_dict = await self._get_available_personalities(ctx)
         if persona.capitalize() not in persona_dict.keys():
             return await ctx.send(
                 content="Not a valid persona name. Use [p]listpersonas or [p]plist.\n"
@@ -256,13 +256,23 @@ class GPT3ChatBot(commands.Cog):
 
         return await ctx.tick()
 
+    async def _get_available_personalities(self, ctx: Union[commands.Context, discord.Message]):
+        """Get dictionary of all available personalities from all sources."""
+        persona_dict = await self.config.personalities()
+        if ctx.guild:
+            persona_dict.update(await self.config.guild(ctx.guild).personalities())
+        else:
+            persona_dict.update(await self.config.user(ctx.author).personalities())
+
+        return persona_dict
+
     @commands.command(name="listpersonas", aliases=["plist"])
     async def list_personas(self, ctx: commands.Context):
         """Lists available personas."""
         personas_mbed = discord.Embed(
             title="My personas", description="A list of configured personas by name, with description."
         )
-        for persona in (persona_dict := await self.config.personalities()).keys():
+        for persona in (persona_dict := await self._get_available_personalities(ctx)).keys():
             personas_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=False)
 
         return await ctx.send(embed=personas_mbed)
@@ -274,7 +284,7 @@ class GPT3ChatBot(commands.Cog):
             title="My persona", description="The currently configured persona's name, with description."
         )
 
-        persona_dict = await self.config.personalities()
+        persona_dict = await self._get_available_personalities(ctx)
         persona = await self._get_persona_from_message(ctx)
         persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
         return await ctx.send(embed=persona_mbed)
