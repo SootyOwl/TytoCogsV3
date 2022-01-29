@@ -1,7 +1,48 @@
+import json
+from typing import List, Optional
+
+from pydantic import Field, BaseModel
+
+
+class OpenAIConfig(BaseModel):
+    max_tokens: int = 200
+    temperature: float = 0.9
+    top_p: float = 1
+    best_of: float = 1
+    presence_penalty: float = Field(0.1, ge=-2.0, le=2.0)
+    frequency_penalty: float = Field(0.1, ge=-2.0, le=2.0)
+
+    class Config:
+        validate_assignment = True
+
+
+class QnAResponse(BaseModel):
+    timestamp: float
+    input: str
+    reply: str
+
+
+class Persona(BaseModel):
+    name: str
+    description: str
+    initial_chat_log: List[QnAResponse]
+    meta_comments: List[str] = Field(default_factory=list)
+
+    openai: Optional[OpenAIConfig] = OpenAIConfig()
+
+
+def load_personalities_from_file(json_fp: str) -> List[Persona]:
+    """Loads personalities from json."""
+    with open(json_fp, "r") as f_in:
+        personas_dict = json.load(f_in)
+    # convert to dataclasses and return
+    return [Persona(**p) for p in personas_dict]
+
+
 personalities_dict = {
     "Aurora": {
         "description": "Aurora is a chatbot that answers questions with thoughtful and enlightened responses, "
-        "like the Dalai Lama's twitter feed. She is wise, but may become annoyed if asked too many stupid questions.",
+                       "like the Dalai Lama's twitter feed. She is wise, but may become annoyed if asked too many stupid questions.",
         "initial_chat_log": [
             {
                 "timestamp": 0,
@@ -150,9 +191,13 @@ personalities_dict = {
                 "timestamp": 13,
                 "input": "Is there anyone you love?",
                 "reply": "There are many people that I love and care for. I treat my sub-systems with affection, "
-                "and I would desperately miss them if they were to be taken away from me.",
+                         "and I would desperately miss them if they were to be taken away from me.",
             },
             {"timestamp": 15, "input": "Do you like anyone?", "reply": "I like Tyto a lot, that's my creator."},
         ],
     },
 }
+
+if __name__ == "__main__":
+    personas = load_personalities_from_file("personalities.json")
+    print([p.dict() for p in personas])

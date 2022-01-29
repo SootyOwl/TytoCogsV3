@@ -149,6 +149,9 @@
                 "input": "Do you like anyone?",
                 "reply": "I like Tyto a lot, that's my creator."
             }
-        ]
+        ],
+        "openai": {
+            "max_tokens": 201
+        }
     }
 ]
