@@ -9,6 +9,7 @@ import openai
 from redbot.core import Config
 from redbot.core import commands
 
+from gpt3chatbot import personalities
 from gpt3chatbot.utils import memoize
 from gpt3chatbot.personalities import personalities_dict
 
@@ -27,7 +28,8 @@ class GPT3ChatBot(commands.Cog):
         super().__init__(*args, **kwargs)
         self.bot = bot
         self.config = Config.get_conf(self, identifier=259390542)  # randomly generated identifier
-        default_global = {"reply": True, "memory": 20, "personalities": personalities_dict, "model": "ada"}
+        global_personalities = personalities.load_from_file('personalities.json')
+        default_global = {"reply": True, "memory": 20, "personalities": global_personalities, "model": "ada"}
         self.config.register_global(**default_global)
         default_guild = {  # default per-guild settings
             "reply": True,

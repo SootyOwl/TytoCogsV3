@@ -31,7 +31,7 @@ class Persona(BaseModel):
     openai: Optional[OpenAIConfig] = OpenAIConfig()
 
 
-def load_personalities_from_file(json_fp: str) -> List[Persona]:
+def load_from_file(json_fp: str) -> List[Persona]:
     """Loads personalities from json."""
     with open(json_fp, "r") as f_in:
         personas_dict = json.load(f_in)
@@ -199,5 +199,5 @@ personalities_dict = {
 }
 
 if __name__ == "__main__":
-    personas = load_personalities_from_file("personalities.json")
+    personas = load_from_file("personalities.json")
     print([p.dict() for p in personas])
