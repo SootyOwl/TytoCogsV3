@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -356,3 +357,30 @@ class GPT3ChatBot(commands.Cog):
 
         await self.config.model.set(model.lower())
         return await ctx.tick()
+
+    # region Description
+    @commands.group(name="addpersona", aliases=["padd"])
+    async def addpersona(self, ctx: commands.Context):
+        """Upload a new persona, or override an existing one."""
+
+    @commands.admin_or_permissions(manage_messages=True)
+    @commands.guild_only()
+    @addpersona.command(name="server")
+    async def padd_server(self, ctx: commands.Context):
+        """Upload a persona to the server via an uploaded JSON file attached to the command message."""
+        # if message has attachment, read file, else send help
+        if len(ctx.message.attachments) > 0:
+            new_persona = (await ctx.message.attachments[0].read()).decode("utf-8")
+            try:
+                new_persona = json.loads(new_persona)
+            except json.decoder.JSONDecodeError as e:
+                return await ctx.send("Invalid JSON, ya dingus!")
+            else:
+                return await ctx.send("Totally valid JSON!")
+        else:
+            return await ctx.send_help()
+
+        # now we need to validate that the JSON provided describes a persona
+    # endregion
+
+
