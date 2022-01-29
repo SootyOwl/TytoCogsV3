@@ -1,0 +1,82 @@
+{
+	"definitions": {},
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://example.com/object1643458844.json",
+	"title": "Root",
+	"type": "object",
+	"required": [
+		"name",
+		"description",
+		"initial_chat_log"
+	],
+	"properties": {
+		"name": {
+			"$id": "#root/name",
+			"title": "Name",
+			"type": "string",
+			"default": "",
+			"examples": [
+				"Jeremiah", "Steve"
+			],
+			"pattern": "^.*$"
+		},
+		"description": {
+			"$id": "#root/description",
+			"title": "Description",
+			"type": "string",
+			"default": "",
+			"examples": [
+				"Jeremiah is a southern american chatbot who is an expert on conspiracy theories, and not much else."
+			],
+			"pattern": "^.*$"
+		},
+		"initial_chat_log": {
+			"$id": "#root/initial_chat_log",
+			"title": "Initial_chat_log",
+			"type": "array",
+			"default": [],
+			"items":{
+				"$id": "#root/initial_chat_log/items",
+				"title": "Items",
+				"type": "object",
+				"required": [
+					"timestamp",
+					"input",
+					"reply"
+				],
+				"properties": {
+					"timestamp": {
+						"$id": "#root/initial_chat_log/items/timestamp",
+						"title": "Timestamp",
+						"type": "integer",
+						"examples": [
+							0
+						],
+						"default": 0
+					},
+					"input": {
+						"$id": "#root/initial_chat_log/items/input",
+						"title": "Input",
+						"type": "string",
+						"default": "",
+						"examples": [
+							"Hello, who are you?"
+						],
+						"pattern": "^.*$"
+					},
+					"reply": {
+						"$id": "#root/initial_chat_log/items/reply",
+						"title": "Reply",
+						"type": "string",
+						"default": "",
+						"examples": [
+							"Howdy, me Jeremiah *hic*"
+						],
+						"pattern": "^.*$"
+					}
+				}
+			}
+
+		}
+	}
+}
