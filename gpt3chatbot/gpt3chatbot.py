@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import re
-from typing import Union
+from typing import Union, List
 
 import discord
 import openai
