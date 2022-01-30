@@ -362,7 +362,9 @@ class GPT3ChatBot(commands.Cog):
             await ctx.send_help()
             return await ctx.send("Not a valid model.")
 
-        await self.config.model.set(model.lower())
+        modelstr = f"text-{model.lower()}-001"
+
+        await self.config.model.set(modelstr)
         return await ctx.tick()
 
     # region Description
