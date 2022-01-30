@@ -1,4 +1,5 @@
 import json
+import pickle
 from typing import List, Optional
 
 from pydantic import Field, BaseModel
@@ -199,5 +200,7 @@ personalities_dict = {
 }
 
 if __name__ == "__main__":
-    personas = load_from_file("personalities.json")
+    personas = load_from_file("./data/message.json")
     print([p.dict() for p in personas])
+    pickle.loads(pickle.dumps(personas[0]))
+    json.loads(json.dumps(personas[0]))
