@@ -181,18 +181,17 @@ class GPT3ChatBot(commands.Cog):
         :param message: The new message
         :return: prompt_text
         """
-        available_personas = await self._get_available_personalities(message)
-        persona_name = await self._get_persona_from_message(message)
-        prompt_text = available_personas[persona_name]["description"]
-        initial_chat_log = available_personas[persona_name]["initial_chat_log"]
+        persona = await self._get_persona_from_message(message)
+        prompt_text = persona.description
+        initial_chat_log = persona.initial_chat_log
         prompt_text += "\n\n"
 
         reply_history = await self._build_reply_history(message=message)
         log.debug(f"{reply_history=}")
         for entry in initial_chat_log + reply_history:
-            prompt_text += f"{message.author.display_name}: {entry['input']}\n{persona_name}: {entry['reply']}\n###\n"
+            prompt_text += f"{message.author.display_name}: {entry.input}\n{persona.name}: {entry.reply}\n###\n"
         # add new request to prompt_text
-        prompt_text += f"{message.author.display_name}: {await self._filter_message(message)}\n{persona_name}:"
+        prompt_text += f"{message.author.display_name}: {await self._filter_message(message)}\n{persona.name}:"
         log.debug(f"{prompt_text=}")
         return str(prompt_text)
 
@@ -205,9 +204,12 @@ class GPT3ChatBot(commands.Cog):
 
     async def _get_persona_from_message(self, message):
         group = await self._get_group_from_message(message)
-        persona = await group.personality()
-        log.debug(f"{group.name=}, {persona=}")
-        return persona
+        persona_name = await group.personality()
+        available_personas = await self._get_available_personalities(message)
+        for persona in available_personas:
+            if persona.name.lower() == persona_name.lower():
+                log.debug(f"{group.name=}, {persona=}")
+                return persona
 
     async def _get_user_or_member_config_from_message(self, message: Union[discord.Message, commands.Context]):
         return self.config.member(message.author) if message.guild else self.config.user(message.author)
@@ -279,8 +281,8 @@ class GPT3ChatBot(commands.Cog):
         personas_mbed = discord.Embed(
             title="My personas", description="A list of configured personas by name, with description."
         )
-        for persona in (persona_dict := await self._get_available_personalities(ctx)).keys():
-            personas_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=False)
+        for persona in (await self._get_available_personalities(ctx)):
+            personas_mbed.add_field(name=persona.name, value=persona.description, inline=False)
 
         return await ctx.send(embed=personas_mbed)
 
@@ -291,9 +293,8 @@ class GPT3ChatBot(commands.Cog):
             title="My persona", description="The currently configured persona's name, with description."
         )
 
-        persona_dict = await self._get_available_personalities(ctx)
         persona = await self._get_persona_from_message(ctx)
-        persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
+        persona_mbed.add_field(name=persona.name, value=persona.description, inline=True)
         return await ctx.send(embed=persona_mbed)
 
     @commands.command(name="setmypersona", aliases=["pset"])
