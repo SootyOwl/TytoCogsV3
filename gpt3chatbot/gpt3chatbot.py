@@ -265,15 +265,15 @@ class GPT3ChatBot(commands.Cog):
 
         return await ctx.tick()
 
-    async def _get_available_personalities(self, ctx: Union[commands.Context, discord.Message]):
-        """Get dictionary of all available personalities from all sources."""
-        persona_dict = await self.config.personalities()
+    async def _get_available_personalities(self, ctx: Union[commands.Context, discord.Message]) -> List[Persona]:
+        """Get list of all available personas from all sources."""
+        persona_list: list = await self.config.personalities()
         if ctx.guild:
-            persona_dict.update(await self.config.guild(ctx.guild).personalities())
+            persona_list.extend(await self.config.guild(ctx.guild).personalities())
         else:
-            persona_dict.update(await self.config.user(ctx.author).personalities())
+            persona_list.extend(await self.config.user(ctx.author).personalities())
 
-        return persona_dict
+        return persona_list
 
     @commands.command(name="listpersonas", aliases=["plist"])
     async def list_personas(self, ctx: commands.Context):
