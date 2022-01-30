@@ -235,11 +235,11 @@ class GPT3ChatBot(commands.Cog):
             log.debug("No reference found")
             return []
 
-        reply_set = {"input": "", "reply": ""}
+        reply_set = QnAResponse(timestamp=0, input="", reply="")
         if message.author.id == self.bot.user.id:
-            reply_set["reply"] = await self._filter_message(message)
+            reply_set.reply = await self._filter_message(message)
             reply_current = await self._get_input_from_reply(message)
-            reply_set["input"] = await self._filter_message(reply_current)
+            reply_set.input = await self._filter_message(reply_current)
             return await self._build_reply_history(reply_current) + [reply_set]
         else:
             # message isn't from the bot (i.e. it's an input)
