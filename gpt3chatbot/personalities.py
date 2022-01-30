@@ -18,7 +18,6 @@ class OpenAIConfig(BaseModel):
 
 
 class QnAResponse(BaseModel):
-    timestamp: float
     input: str
     reply: str
 
