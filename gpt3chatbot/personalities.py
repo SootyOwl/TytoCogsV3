@@ -35,9 +35,12 @@ class Persona(BaseModel):
 def load_from_file(json_fp: str) -> List[Persona]:
     """Loads personalities from json."""
     with open(json_fp, "r") as f_in:
-        personas_dict = json.load(f_in)
+        personas_list = json.load(f_in)
+    if isinstance(personas_list, dict):
+        # super hacky
+        personas_list = [personas_list]
     # convert to dataclasses and return
-    return [Persona(**p) for p in personas_dict]
+    return [Persona(**p) for p in personas_list]
 
 
 personalities_dict = {
