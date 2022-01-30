@@ -252,16 +252,16 @@ class GPT3ChatBot(commands.Cog):
         """Return a discord.Message object that the input `message` is replying to."""
         return await message.channel.fetch_message(message.reference.message_id)
 
-    async def _set_persona_for_group(self, ctx, group, persona):
+    async def _set_persona_for_group(self, ctx, group, persona_name):
         # get persona global dict
-        persona_dict = await self._get_available_personalities(ctx)
-        if persona.capitalize() not in persona_dict.keys():
+        personas = await self._get_available_personalities(ctx)
+        if persona_name.lower() not in (p.name.lower() for p in personas):
             return await ctx.send(
                 content="Not a valid persona name. Use [p]listpersonas or [p]plist.\n"
                 f"Your current persona is `{await group.personality()}`"
             )
         # set new persona
-        await group.personality.set(persona.capitalize())
+        await group.personality.set(persona_name.capitalize())
 
         return await ctx.tick()
 
