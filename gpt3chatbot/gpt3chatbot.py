@@ -132,7 +132,7 @@ class GPT3ChatBot(commands.Cog):
             guild_settings = await self.config.guild(message.guild).all()
             # Not in auto-channel
             if message.channel.id not in guild_settings["channels"] and (
-                not (starts_with_mention or is_reply) or not (guild_settings["reply"] or global_reply)
+                    not (starts_with_mention or is_reply) or not (guild_settings["reply"] or global_reply)
             ):  # Both guild & global auto are toggled off
                 log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
                 return False
@@ -379,17 +379,24 @@ class GPT3ChatBot(commands.Cog):
         """Upload a persona to the server via an uploaded JSON file attached to the command message."""
         # if message has attachment, read file, else send help
         if len(ctx.message.attachments) > 0:
-            new_persona = (await ctx.message.attachments[0].read()).decode("utf-8")
+            await ctx.message.attachments[0].save(f"{cog_data_path(self)}/persona_file.json")
             try:
-                new_persona = json.loads(new_persona)
+                new_persona = load_from_file(f"{cog_data_path(self)}/persona_file.json")
+                log.info(new_persona)
+                current_personas = await self.config.guild(ctx.guild).personalities()
+                for i, p in enumerate(current_personas):
+                    if p.name == new_persona[0].name:
+                        current_personas[i] = new_persona
+                        break
+                else:
+                    current_personas.extend(new_persona)
+                log.info(current_personas)
+                await self.config.guild(ctx.guild).personalities.set(current_personas)
+                return await ctx.tick()
             except json.decoder.JSONDecodeError as e:
                 return await ctx.send("Invalid JSON, ya dingus!")
-            else:
-                return await ctx.send("Totally valid JSON!")
         else:
             return await ctx.send_help()
 
         # now we need to validate that the JSON provided describes a persona
     # endregion
-
-
