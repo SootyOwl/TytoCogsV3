@@ -76,7 +76,9 @@ class GPT3ChatBot(commands.Cog):
         openai_api = await self.bot.get_shared_api_tokens("openai")
         if not (key := openai_api.get("key")):
             log.error("No API key found!")
-            return
+            return await message.reply(
+                "No API key set. If you're the bot owner, set your API key with `[p]set api openai "
+                "key,<YOUR KEY>`")
         log.debug(f"Got API key: {key}.")
 
         # if filtered message is blank, we can't respond
