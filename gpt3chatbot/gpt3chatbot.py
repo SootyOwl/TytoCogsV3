@@ -8,10 +8,10 @@ import discord
 import openai
 from redbot.core import Config
 from redbot.core import commands
+from redbot.core.data_manager import bundled_data_path, cog_data_path
 
-from gpt3chatbot import personalities
-from gpt3chatbot.utils import memoize
-from gpt3chatbot.personalities import personalities_dict
+from .personalities import Persona, load_from_file, QnAResponse
+from .utils import memoize
 
 log = logging.getLogger("red.tytocogsv3.gpt3chatbot")
 log.setLevel(os.getenv("TYTOCOGS_LOG_LEVEL", "INFO"))
@@ -27,8 +27,9 @@ class GPT3ChatBot(commands.Cog):
     def __init__(self, bot, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=259390542)  # randomly generated identifier
-        global_personalities = personalities.load_from_file('personalities.json')
+        self.config = Config.get_conf(self, identifier=250390442)  # randomly generated identifier
+
+        global_personalities = load_from_file(f"{bundled_data_path(self)}/personalities.json")
         default_global = {"reply": True, "memory": 20, "personalities": global_personalities, "model": "ada"}
         self.config.register_global(**default_global)
         default_guild = {  # default per-guild settings
