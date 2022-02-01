@@ -32,7 +32,7 @@ class Persona(BaseModel):
     initial_chat_log: List[QnAResponse]
     meta_comments: List[str] = Field(default_factory=list)
 
-    openai: Optional[OpenAIConfig] = OpenAIConfig()
+    openai: OpenAIConfig = OpenAIConfig()
 
 
 def load_from_file(json_fp: str) -> List[Persona]:
