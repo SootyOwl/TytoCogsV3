@@ -150,19 +150,14 @@ class GPT3ChatBot(commands.Cog):
         """
 
         prompt_text = await self._build_prompt_from_reply_chain(message=message)
+        openai_config = (await self._get_persona_from_message(message)).openai
         try:
             response = openai.Completion.create(
                 api_key=key,
                 engine=await self.config.model(),  # ada: $0.0008/1K tokens, babbage $0.0012/1K, curie$0.0060/1K,
                 # davinci $0.0600/1K
                 prompt=prompt_text,
-                temperature=0.8,
-                max_tokens=200,
-                top_p=1,
-                best_of=1,
-                frequency_penalty=0.8,
-                presence_penalty=0.1,
-                stop=[f"{message.author.display_name}:", "###", "\n###"],
+                **openai_config.dict()
             )
         except openai.error.ServiceUnavailableError as e:
             log.error(e)
