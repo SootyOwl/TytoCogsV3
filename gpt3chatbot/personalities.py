@@ -13,7 +13,7 @@ class OpenAIConfig(BaseModel):
     max_tokens: int = 200
     temperature: float = 0.9
     top_p: float = 1
-    best_of: float = 1
+    best_of: int = 1
     presence_penalty: float = Field(0.1, ge=-2.0, le=2.0)
     frequency_penalty: float = Field(0.1, ge=-2.0, le=2.0)
 
