@@ -1,5 +1,5 @@
 name: Discord Webhook
-on: [push]
+on: [push, workflow_dispatch]
 jobs:
   Discord_notification:
     runs-on: ubuntu-latest
