@@ -205,7 +205,7 @@ class GPT3ChatBot(commands.Cog):
     async def _get_persona_from_message(self, message):
         group = await self._get_group_from_message(message)
         persona_name = await group.personality()
-        available_personas = await self._get_available_personalities(message)
+        available_personas = await self._get_available_personas(message)
         for persona in available_personas:
             if persona.name.lower() == persona_name.lower():
                 log.debug(f"{group.name=}, {persona=}")
@@ -254,7 +254,7 @@ class GPT3ChatBot(commands.Cog):
 
     async def _set_persona_for_group(self, ctx, group, persona_name):
         # get persona global dict
-        personas = await self._get_available_personalities(ctx)
+        personas = await self._get_available_personas(ctx)
         if persona_name.lower() not in (p.name.lower() for p in personas):
             return await ctx.send(
                 content="Not a valid persona name. Use [p]listpersonas or [p]plist.\n"
@@ -265,7 +265,7 @@ class GPT3ChatBot(commands.Cog):
 
         return await ctx.tick()
 
-    async def _get_available_personalities(self, ctx: Union[commands.Context, discord.Message]) -> List[Persona]:
+    async def _get_available_personas(self, ctx: Union[commands.Context, discord.Message]) -> List[Persona]:
         """Get list of all available personas from all sources."""
         persona_list: list = await self.config.personalities()
         if ctx.guild:
@@ -281,7 +281,7 @@ class GPT3ChatBot(commands.Cog):
         personas_mbed = discord.Embed(
             title="My personas", description="A list of configured personas by name, with description."
         )
-        for persona in (await self._get_available_personalities(ctx)):
+        for persona in (await self._get_available_personas(ctx)):
             personas_mbed.add_field(name=persona.name, value=persona.description, inline=False)
 
         return await ctx.send(embed=personas_mbed)
