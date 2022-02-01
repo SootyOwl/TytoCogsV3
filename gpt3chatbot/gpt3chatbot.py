@@ -99,7 +99,8 @@ class GPT3ChatBot(commands.Cog):
         return await message.channel.send(response)
 
     async def _should_respond(self, message: discord.Message) -> bool:
-        """1. Check if we should response to an incoming message.
+        """1. Check if we should respond to an incoming message.
+
         :param message: the incoming message to tests (discord.Message)
         :return: True if we should respond, False otherwise (bool)"""
         # ignore bots
@@ -393,7 +394,7 @@ class GPT3ChatBot(commands.Cog):
                     current_guild_personas.append(new_persona)
                 await self.config.guild(ctx.guild).personalities.set(personas_to_config(current_guild_personas))
                 return await ctx.tick()
-            except json.decoder.JSONDecodeError as e:
+            except json.decoder.JSONDecodeError:
                 return await ctx.send("Invalid JSON, ya dingus!")
         else:
             return await ctx.send_help()
