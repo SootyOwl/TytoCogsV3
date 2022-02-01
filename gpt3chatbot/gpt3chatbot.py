@@ -198,7 +198,7 @@ class GPT3ChatBot(commands.Cog):
             group = await self._get_user_or_member_config_from_author(message.author)
         return group
 
-    async def _get_persona_from_message(self, message):
+    async def _get_persona_from_message(self, message: Union[discord.Message, commands.Context]) -> Persona:
         group = await self._get_group_from_message(message)
         persona_name = await group.personality()
         available_personas = await self._get_available_personas(message)
