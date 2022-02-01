@@ -6,6 +6,7 @@ from typing import Union, List
 
 import discord
 import openai
+from pydantic import ValidationError
 from redbot.core import Config
 from redbot.core import commands
 from redbot.core.data_manager import bundled_data_path, cog_data_path
@@ -380,7 +381,7 @@ class GPT3ChatBot(commands.Cog):
                 new_persona = load_from_file(f"{cog_data_path(self)}/persona_file.json")[0]
                 current_guild_personas = config_to_personas(await self.config.guild(ctx.guild).personalities())
                 for i, p in enumerate(current_guild_personas):
-                    if p.name == new_persona.name:
+                    if p.name.lower() == new_persona.name.lower():
                         # overwrite the existing persona
                         current_guild_personas[i] = new_persona
                         break
@@ -389,8 +390,8 @@ class GPT3ChatBot(commands.Cog):
                     current_guild_personas.append(new_persona)
                 await self.config.guild(ctx.guild).personalities.set(personas_to_config(current_guild_personas))
                 return await ctx.tick()
-            except json.decoder.JSONDecodeError:
-                return await ctx.send("Invalid JSON, ya dingus!")
+            except ValidationError as err:
+                return await ctx.send(f"```{err}```")
         else:
             return await ctx.send_help()
 
