@@ -1,8 +1,13 @@
 import json
+import logging
+import os
 import pickle
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from pydantic import Field, BaseModel
+
+log = logging.getLogger("red.tytocogsv3.gpt3chatbot.personalities")
+log.setLevel(os.getenv("TYTOCOGS_LOG_LEVEL", "INFO"))
 
 
 class OpenAIConfig(BaseModel):
@@ -42,8 +47,20 @@ def load_from_file(json_fp: str) -> List[Persona]:
     return [Persona(**p) for p in personas_list]
 
 
+def config_to_personas(persona_config: List[Dict]) -> List[Persona]:
+    # log.info(persona_config)
+    return [Persona(**p) for p in persona_config]
+
+
+def personas_to_config(personas_list: List[Persona]) -> List[Dict]:
+    # log.info(personas_list)
+    return [p.dict() for p in personas_list]
+
+
 if __name__ == "__main__":
     personas = load_from_file("./data/message.json")
-    print([p.dict() for p in personas])
-    pickle.loads(pickle.dumps(personas[0]))
-    json.loads(json.dumps(personas[0]))
+    dictrep = personas_to_config(personas)
+    print(type(dictrep), type(dictrep[0]))
+    perrep = config_to_personas(dictrep)
+    print(type(perrep), type(perrep[0]))
+    print(json.loads(json.dumps(dictrep)))

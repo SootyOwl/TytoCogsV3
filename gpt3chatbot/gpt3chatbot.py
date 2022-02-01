@@ -10,7 +10,7 @@ from redbot.core import Config
 from redbot.core import commands
 from redbot.core.data_manager import bundled_data_path, cog_data_path
 
-from .personalities import Persona, load_from_file, QnAResponse
+from .personalities import Persona, load_from_file, QnAResponse, config_to_personas, personas_to_config
 from .utils import memoize
 
 log = logging.getLogger("red.tytocogsv3.gpt3chatbot")
@@ -29,7 +29,7 @@ class GPT3ChatBot(commands.Cog):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=250390442)  # randomly generated identifier
 
-        global_personalities = load_from_file(f"{bundled_data_path(self)}/personalities.json")
+        global_personalities = personas_to_config(load_from_file(f"{bundled_data_path(self)}/personalities.json"))
         default_global = {"reply": True, "memory": 20, "personalities": global_personalities, "model": "ada"}
         self.config.register_global(**default_global)
         default_guild = {  # default per-guild settings
@@ -273,7 +273,7 @@ class GPT3ChatBot(commands.Cog):
         else:
             persona_list.extend(await self.config.user(ctx.author).personalities())
 
-        return persona_list
+        return config_to_personas(persona_list)
 
     @commands.command(name="listpersonas", aliases=["plist"])
     async def list_personas(self, ctx: commands.Context):
@@ -381,22 +381,20 @@ class GPT3ChatBot(commands.Cog):
         if len(ctx.message.attachments) > 0:
             await ctx.message.attachments[0].save(f"{cog_data_path(self)}/persona_file.json")
             try:
-                new_persona = load_from_file(f"{cog_data_path(self)}/persona_file.json")
-                log.info(new_persona)
-                current_personas = await self.config.guild(ctx.guild).personalities()
-                for i, p in enumerate(current_personas):
-                    if p.name == new_persona[0].name:
-                        current_personas[i] = new_persona
+                new_persona = load_from_file(f"{cog_data_path(self)}/persona_file.json")[0]
+                current_guild_personas = config_to_personas(await self.config.guild(ctx.guild).personalities())
+                for i, p in enumerate(current_guild_personas):
+                    if p.name == new_persona.name:
+                        # overwrite the existing persona
+                        current_guild_personas[i] = new_persona
                         break
                 else:
-                    current_personas.extend(new_persona)
-                log.info(current_personas)
-                await self.config.guild(ctx.guild).personalities.set(current_personas)
+                    # add the new persona
+                    current_guild_personas.append(new_persona)
+                await self.config.guild(ctx.guild).personalities.set(personas_to_config(current_guild_personas))
                 return await ctx.tick()
             except json.decoder.JSONDecodeError as e:
                 return await ctx.send("Invalid JSON, ya dingus!")
         else:
             return await ctx.send_help()
-
-        # now we need to validate that the JSON provided describes a persona
     # endregion
