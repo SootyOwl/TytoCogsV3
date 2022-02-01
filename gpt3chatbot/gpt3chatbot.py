@@ -77,8 +77,8 @@ class GPT3ChatBot(commands.Cog):
         if not (key := openai_api.get("key")):
             log.error("No API key found!")
             return await message.reply(
-                "No API key set. If you're the bot owner, set your API key with `[p]set api openai "
-                "key,<YOUR KEY>`")
+                "No API key set. If you're the bot owner, set your API key with `[p]set api openai key,<YOUR KEY>`"
+            )
         log.debug(f"Got API key: {key}.")
 
         # if filtered message is blank, we can't respond
@@ -133,7 +133,7 @@ class GPT3ChatBot(commands.Cog):
             guild_settings = await self.config.guild(message.guild).all()
             # Not in auto-channel
             if message.channel.id not in guild_settings["channels"] and (
-                    not (starts_with_mention or is_reply) or not (guild_settings["reply"] or global_reply)
+                not (starts_with_mention or is_reply) or not (guild_settings["reply"] or global_reply)
             ):  # Both guild & global auto are toggled off
                 log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
                 return False
@@ -282,7 +282,7 @@ class GPT3ChatBot(commands.Cog):
         personas_mbed = discord.Embed(
             title="My personas", description="A list of configured personas by name, with description."
         )
-        for persona in (await self._get_available_personas(ctx)):
+        for persona in await self._get_available_personas(ctx):
             personas_mbed.add_field(name=persona.name, value=persona.description, inline=False)
 
         return await ctx.send(embed=personas_mbed)
@@ -398,4 +398,5 @@ class GPT3ChatBot(commands.Cog):
                 return await ctx.send("Invalid JSON, ya dingus!")
         else:
             return await ctx.send_help()
+
     # endregion

@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import pickle
 from typing import List, Optional, Dict
 
 from pydantic import Field, BaseModel
