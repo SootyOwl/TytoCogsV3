@@ -157,7 +157,7 @@ class GPT3ChatBot(commands.Cog):
                 engine=await self.config.model(),  # ada: $0.0008/1K tokens, babbage $0.0012/1K, curie$0.0060/1K,
                 # davinci $0.0600/1K
                 prompt=prompt_text,
-                **openai_config.dict()
+                **openai_config.dict(),
             )
         except openai.error.ServiceUnavailableError as e:
             log.error(e)
