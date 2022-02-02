@@ -16,7 +16,7 @@
     "hidden" : false,
     "disabled" : false,
     "required_cogs" : {},
-    "requirements" : [],
+    "requirements" : ["spotify", "python-youtube"],
     "tags" : ["spotify", "youtube"],
     "type" : "COG"
 }
