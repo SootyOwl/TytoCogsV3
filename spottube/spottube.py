@@ -10,6 +10,7 @@ from spotify.utils import to_id
 
 YT_STRING = "https://www.youtube.com/watch?v="
 
+
 class APIKeyNotFoundError(KeyError):
     def __init__(self, platform: str, key: str, help_link: Optional[str] = None):
         self.platform = platform
@@ -17,22 +18,28 @@ class APIKeyNotFoundError(KeyError):
         self.help_link = help_link
 
     def __str__(self):
-        base_str = (f"No {self.platform.capitalize()} API `{self.key.lower()}` set.\n"
-                    f"Set with `[p]set api {self.platform.lower()} {self.key.lower()},<{self.key.upper()}>`")
-        extra_str = (f"\n\nSee {self.help_link} for details on getting your API key(s)." if self.help_link else "")
+        base_str = (
+            f"No {self.platform.capitalize()} API `{self.key.lower()}` set.\n"
+            f"Set with `[p]set api {self.platform.lower()} {self.key.lower()},<{self.key.upper()}>`"
+        )
+        extra_str = f"\n\nSee {self.help_link} for details on getting your API key(s)." if self.help_link else ""
         return base_str + extra_str
 
 
 class SpotifyKeyNotFoundError(APIKeyNotFoundError):
     def __init__(self, key):
-        super().__init__(platform="spotify", key=key,
-                         help_link="https://developer.spotify.com/documentation/web-api/quick-start/")
+        super().__init__(
+            platform="spotify", key=key, help_link="https://developer.spotify.com/documentation/web-api/quick-start/"
+        )
 
 
 class YouTubeKeyNotFoundError(APIKeyNotFoundError):
     def __init__(self, key):
-        super().__init__(platform="youtube", key=key,
-                         help_link="https://sns-sdks.lkhardy.cn/python-youtube/getting_started/#prerequisite")
+        super().__init__(
+            platform="youtube",
+            key=key,
+            help_link="https://sns-sdks.lkhardy.cn/python-youtube/getting_started/#prerequisite",
+        )
 
 
 class SpotTube(commands.Cog):
@@ -54,19 +61,20 @@ class SpotTube(commands.Cog):
         """
         try:
             async with ctx.typing(), Client(*await self._get_spotify_api_keys()) as spoticlient:
-                track_id = to_id(value=link.split(sep='?si=')[0])
+                track_id = to_id(value=link.split(sep="?si=")[0])
                 track = await spoticlient.get_track(track_id)
 
                 ytapi = pyyoutube.Api(api_key=await self._get_youtube_api_key())
-                result: list = ytapi.search(search_type="video", q=f"{track.artist.name} - {track.name}", limit=5).items
-
-                links = [YT_STRING + vid.id.videoId for vid in result]
-                return await menu(ctx=ctx, pages=links, controls=DEFAULT_CONTROLS)
-
+                result: list = ytapi.search(
+                    search_type="video", q=f"{track.artist.name} - {track.name}", count=5, limit=5
+                ).items
         except APIKeyNotFoundError as e:
             return await ctx.reply(e)
         except spotify.errors.HTTPException as e:
             return await ctx.reply(f"`{e}`")
+
+        links = [YT_STRING + vid.id.videoId for vid in result]
+        return await menu(ctx=ctx, pages=links, controls=DEFAULT_CONTROLS)
 
     async def _get_spotify_api_keys(self) -> Tuple[str, str]:
         spotify_api = await self.bot.get_shared_api_tokens("spotify")
