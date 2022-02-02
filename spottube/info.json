@@ -1,0 +1,22 @@
+{
+    "author" : [
+        "Tyto"
+    ],
+    "description" : "Convert Spotify links to YouTube links when they're posted. Mainly for me tbh.",
+    "install_msg" : "",
+    "short" : "Spotify to YouTube links.",
+    "end_user_data_statement" : "",
+    "min_bot_version" : "3.1.8",
+    "max_bot_version" : "0.0.0",
+    "min_python_version" : [
+        3,
+        8,
+        0
+    ],
+    "hidden" : false,
+    "disabled" : false,
+    "required_cogs" : {},
+    "requirements" : [],
+    "tags" : ["spotify", "youtube"],
+    "type" : "COG"
+}
