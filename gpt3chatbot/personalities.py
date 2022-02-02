@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import List, Optional, Dict
+from typing import List, Dict
 
 from pydantic import Field, BaseModel
 
@@ -13,7 +13,7 @@ class OpenAIConfig(BaseModel):
     max_tokens: int = 200
     temperature: float = 0.9
     top_p: float = 1
-    best_of: float = 1
+    best_of: int = 1
     presence_penalty: float = Field(0.1, ge=-2.0, le=2.0)
     frequency_penalty: float = Field(0.1, ge=-2.0, le=2.0)
 
@@ -32,7 +32,7 @@ class Persona(BaseModel):
     initial_chat_log: List[QnAResponse]
     meta_comments: List[str] = Field(default_factory=list)
 
-    openai: Optional[OpenAIConfig] = OpenAIConfig()
+    openai: OpenAIConfig = OpenAIConfig()
 
 
 def load_from_file(json_fp: str) -> List[Persona]:
