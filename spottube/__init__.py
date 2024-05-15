@@ -1,5 +1,5 @@
 from spottube.spottube import SpotTube
 
 
-def setup(bot):
+async def setup(bot):
     bot.add_cog(SpotTube(bot))
