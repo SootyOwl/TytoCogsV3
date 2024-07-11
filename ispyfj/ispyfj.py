@@ -25,6 +25,25 @@ class IspyFJ(commands.Cog):
             return await ctx.send("Failed to fetch the page.")
 
         # the video is contained within the HTML of the page
-        #<video class="hdgif lzloaded" style="height: 558px; width: 460px; background: rgb(57, 57, 57); min-height: initial;" preload="none" id="content-video" autoplay="" loop="" muted="" data-original="https://bigmemes123.funnyjunk.com/hdgifs/How+dreaming+feels+like_247d10_11748871.mp4" src="https://bigmemes123.funnyjunk.com/hdgifs/How+dreaming+feels+like_247d10_11748871.mp4"></video>
-        video_url = response.text.split('data-original="')[1].split('"')[0]
+        video_url = get_video_url(response.text)
         await ctx.send(video_url)
+
+def get_video_url(html: str) -> str:
+    # find the video tag
+    start = html.find('<video')
+    if start == -1:
+        return "No video found."
+    end = html.find('</video>', start)
+    if end == -1:
+        return "No video found."
+    video = html[start:end]
+    # find the src= attribute
+    start = video.find('src="')
+    if start == -1:
+        return "No video found."
+    start += 5
+    end = video.find('"', start)
+    if end == -1:
+        return "No video found."
+    
+    return video[start:end]
