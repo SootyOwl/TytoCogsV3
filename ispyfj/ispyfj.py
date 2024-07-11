@@ -14,7 +14,7 @@ class IspyFJ(commands.Cog):
     @commands.command(name="fj")
     async def convert(self, ctx: commands.Context, link: str):
         """Extract the raw video content from a funnyjunk link."""
-        if not link.startswith("https://www.funnyjunk.com/"):
+        if not "funnyjunk.com" in link:
             return await ctx.send("That's not a funnyjunk link.")
         try:
             response = requests.get(link)
