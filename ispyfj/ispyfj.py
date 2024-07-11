@@ -1,6 +1,5 @@
 from redbot.core import commands, Config
 from redbot.core.bot import Red
-from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 
 import requests
 
