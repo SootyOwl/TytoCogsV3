@@ -25,7 +25,7 @@ class IspyFJ(commands.Cog):
 
         # the video is contained within the HTML of the page
         video_url = get_video_url(response.text)
-        await ctx.send(video_url)
+        await ctx.reply(video_url)
 
 def get_video_url(html: str) -> str:
     # find the video tag
