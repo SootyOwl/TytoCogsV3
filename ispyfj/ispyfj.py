@@ -9,7 +9,7 @@ class IspyFJ(commands.Cog):
     def __init__(self, bot: Red, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=250390443)  # randomly generated identifier
+        self.config = Config.get_conf(self, identifier=250390444)  # randomly generated identifier
 
     @commands.command(name="fj")
     async def convert(self, ctx: commands.Context, link: str):
