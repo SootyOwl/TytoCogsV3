@@ -17,20 +17,22 @@ class IspyFJ(commands.Cog):
     async def convert(self, ctx: commands.Context, link: str):
         """Extract the raw video content from a funnyjunk link."""
         if not "funnyjunk.com" in link:
-            return await ctx.reply("That's not a funnyjunk link.")
+            return await ctx.reply("That's not a funnyjunk link.", ephemeral=True)
         try:
             # make the request with the fake user agent
             response = requests.get(link, headers={"User-Agent": "Mozilla/5.0"})
             response.raise_for_status()
         except requests.HTTPError:
-            return await ctx.reply("Failed to fetch the page.")
+            return await ctx.reply("Failed to fetch the page.", ephemeral=True)
         if not response.text:
-            return await ctx.reply("Failed to fetch the page.")
+            return await ctx.reply("Failed to fetch the page.", ephemeral=True)
 
         try:
             video_url = get_video_url(response.text)
         except VideoNotFoundError as e:
-            return await ctx.react_quietly("❌", message=str(e))
+            replied = await ctx.react_quietly("❌")
+            if not replied:
+                return await ctx.reply(str(e), ephemeral=True)
         
         try:
             # try to remove the preview embed from the triggering message
