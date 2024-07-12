@@ -22,9 +22,6 @@ class IspyFJ(commands.Cog):
             # make the request with the fake user agent
             response = requests.get(link, headers={"User-Agent": "Mozilla/5.0"})
             response.raise_for_status()
-            # could be lazy loaded, so we need to fetch the page content
-
-
         except requests.HTTPError:
             return await ctx.reply("Failed to fetch the page.")
         if not response.text:
@@ -35,6 +32,12 @@ class IspyFJ(commands.Cog):
         except VideoNotFoundError as e:
             return await ctx.react_quietly("❌", message=str(e))
         
+        try:
+            # try to remove the preview embed from the triggering message
+            await ctx.message.edit(suppress=True)
+        except:
+            pass  # we probably don't have permission to edit the message
+
         await ctx.reply(video_url)
 
 
