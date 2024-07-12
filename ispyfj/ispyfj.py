@@ -1,4 +1,4 @@
-from redbot.core import commands, Config
+from redbot.core import commands, Config, app_commands
 from redbot.core.bot import Red
 
 import requests
@@ -13,7 +13,7 @@ class IspyFJ(commands.Cog):
         super().__init__(*args, **kwargs)
         self.bot = bot
 
-    @commands.command(name="fj")
+    @commands.hybrid_command(name="fj")
     async def convert(self, ctx: commands.Context, link: str):
         """Extract the raw video content from a funnyjunk link."""
         if not "funnyjunk.com" in link:
