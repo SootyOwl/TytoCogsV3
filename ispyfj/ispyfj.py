@@ -3,6 +3,9 @@ from redbot.core.bot import Red
 
 import requests
 
+from bs4 import BeautifulSoup
+
+
 class IspyFJ(commands.Cog):
     """Extract the raw video content from a funnyjunk link."""
 
@@ -14,35 +17,39 @@ class IspyFJ(commands.Cog):
     async def convert(self, ctx: commands.Context, link: str):
         """Extract the raw video content from a funnyjunk link."""
         if not "funnyjunk.com" in link:
-            return await ctx.send("That's not a funnyjunk link.")
+            return await ctx.reply("That's not a funnyjunk link.")
         try:
-            response = requests.get(link)
+            # make the request with the fake user agent
+            response = requests.get(link, headers={"User-Agent": "Mozilla/5.0"})
             response.raise_for_status()
-        except requests.HTTPError:
-            return await ctx.send("Failed to fetch the page.")
-        if not response.text:
-            return await ctx.send("Failed to fetch the page.")
+            # could be lazy loaded, so we need to fetch the page content
 
-        # the video is contained within the HTML of the page
-        video_url = get_video_url(response.text)
+
+        except requests.HTTPError:
+            return await ctx.reply("Failed to fetch the page.")
+        if not response.text:
+            return await ctx.reply("Failed to fetch the page.")
+
+        try:
+            video_url = get_video_url(response.text)
+        except VideoNotFoundError as e:
+            return await ctx.react_quietly("❌", message=str(e))
+        
         await ctx.reply(video_url)
 
+
+class VideoNotFoundError(Exception):
+    pass
+
 def get_video_url(html: str) -> str:
-    # find the video tag
-    start = html.find('<video')
-    if start == -1:
-        return "No video found."
-    end = html.find('</video>', start)
-    if end == -1:
-        return "No video found."
-    video = html[start:end]
-    # find the src= attribute
-    start = video.find('src="')
-    if start == -1:
-        return "No video found."
-    start += 5
-    end = video.find('"', start)
-    if end == -1:
-        return "No video found."
-    
-    return video[start:end]
+    """Look for video#content-video.hdgif video tag and extract the src= or data-original= attribute."""
+    soup = BeautifulSoup(html, "html.parser")
+    video_tag = soup.find("video", id="content-video")
+    if not video_tag:
+        video_tag = soup.find("video", class_="hdgif")
+    if not video_tag:
+        raise VideoNotFoundError("Could not find video tag. May be due to javascript loading (currently unfixable).")
+    video_url = video_tag.get("src") or video_tag.get("data-original")
+    if not video_url:
+        raise VideoNotFoundError("Could not find video URL.")
+    return video_url.replace(" ", "+")
