@@ -16,7 +16,7 @@
     "hidden" : false,
     "disabled" : false,
     "required_cogs" : {},
-    "requirements" : [],
+    "requirements" : ["beautifulsoup4"],
     "tags" : ["funnyjunk"],
     "type" : "COG"
 }
