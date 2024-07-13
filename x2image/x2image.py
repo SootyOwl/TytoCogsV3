@@ -17,7 +17,7 @@ class X2Image(commands.Cog):
         self.hti = Html2Image(
             output_path="x2image/images/",  # where to save the images
             temp_path="x2image/tmp/",  # where to save temporary files
-            custom_flags=["--virtual-time-budget=1000", "--hide-scrollbars"]
+            custom_flags=["--virtual-time-budget=1000", "--hide-scrollbars", "--no-sandbox", "--timeout=10000"],
         )
 
     @commands.hybrid_command(name="x2image")
