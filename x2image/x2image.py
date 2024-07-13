@@ -26,6 +26,7 @@ class X2Image(commands.Cog):
     @commands.hybrid_command(name="x2image")
     async def convert(self, ctx: commands.Context, link: str):
         """Convert an X.com link to an image using html2image."""
+        await ctx.defer()  # defer the response to avoid the 3 second timeout for the interaction
         if not "x.com" in link:
             return await ctx.reply("That's not an X.com link.", ephemeral=True)
 
