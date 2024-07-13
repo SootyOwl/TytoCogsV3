@@ -61,8 +61,10 @@ async def get_twitter_embed(link: str) -> dict:
 
 async def convert_html_to_image(hti: Html2Image, html: str) -> bytes:
     """Convert HTML to an image using html2image."""
-    # convert the html to an image
-    res = await asyncio.to_thread(hti.screenshot, html_str=html)
+    # convert the html to an image with an asyncio.to_thread, with a timeout of 10 seconds
+    res = await asyncio.wait_for(
+        asyncio.to_thread(hti.screenshot, html), timeout=10
+    )
     path = res[0]
     image = await trim_border(path)
     return image
