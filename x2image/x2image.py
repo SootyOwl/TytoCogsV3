@@ -21,7 +21,7 @@ class X2Image(commands.Cog):
             output_path=f"{path}/images/",  # where to save the images
             temp_path=f"{path}/tmp/",  # where to save temporary files
             custom_flags=[
-                "--virtual-time-budget=5000",
+                "--virtual-time-budget=2000",
                 "--hide-scrollbars",
                 "--disable-gpu",
                 "--no-sandbox",
