@@ -24,7 +24,7 @@ class X2Image(commands.Cog):
         )
 
     @commands.hybrid_command(name="x2image")
-    async def convert(self, ctx: commands.Context, link: str):
+    async def convert(self, ctx: commands.Context, link: str, dark: bool = True):
         """Convert an X.com link to an image using html2image."""
         await ctx.defer()  # defer the response to avoid the 3 second timeout for the interaction
         if not "x.com" in link:
@@ -32,7 +32,7 @@ class X2Image(commands.Cog):
 
         try:
             # get the embed HTML for the tweet
-            embed = await get_twitter_embed(link)
+            embed = await get_twitter_embed(link, dark)
         except requests.HTTPError:
             return await ctx.reply("Failed to fetch the tweet.", ephemeral=True)
 
@@ -53,9 +53,9 @@ class X2Image(commands.Cog):
             return await ctx.reply(str(e), ephemeral=True)
 
 
-async def get_twitter_embed(link: str) -> dict:
+async def get_twitter_embed(link: str, dark: bool = True) -> dict:
     """Get the Twitter embed for a tweet using the Twitter API."""
-    embed_endpoint = f"https://publish.twitter.com/oembed?url={link}"
+    embed_endpoint = f"https://publish.twitter.com/oembed?url={link}&theme={'dark' if dark else 'light'}"
     response = requests.get(embed_endpoint)
     response.raise_for_status()
     return response.json()
