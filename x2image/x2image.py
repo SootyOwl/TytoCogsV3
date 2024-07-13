@@ -45,7 +45,8 @@ class X2Image(commands.Cog):
         try:
             # make a file from the image bytes and send it
             image_file = io.BytesIO(image)
-            await ctx.reply(file=File(image_file, filename="tweet.png"))
+            content = f"[Original Tweet]({link})"
+            await ctx.reply(content=content, file=File(image_file, filename="tweet.png"), suppress_embeds=True)
             # close the file once we're done with it
             image_file.close()
         except Exception as e:
