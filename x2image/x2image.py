@@ -14,7 +14,11 @@ class X2Image(commands.Cog):
     def __init__(self, bot: Red, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bot = bot
-        self.hti = Html2Image()
+        self.hti = Html2Image(
+            output_path="x2image/images/",  # where to save the images
+            temp_path="x2image/tmp/",  # where to save temporary files
+            custom_flags=["--virtual-time-budget=1000", "--hide-scrollbars"]
+        )
 
     @commands.hybrid_command(name="x2image")
     async def convert(self, ctx: commands.Context, link: str):
