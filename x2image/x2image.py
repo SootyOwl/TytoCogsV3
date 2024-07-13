@@ -26,7 +26,7 @@ class X2Image(commands.Cog):
     @commands.hybrid_command(name="x2image", aliases=["xti"])
     async def convert(self, ctx: commands.Context, link: str, dark: bool = True, spoiler: bool = False):
         """Convert an X.com link to an image using html2image.
-        
+
         `link`: The X.com link to convert.
         `dark`: Whether to use the dark theme for the tweet.
         `spoiler`: Whether to send the image as a spoiler.
@@ -51,17 +51,18 @@ class X2Image(commands.Cog):
             # make a file from the image bytes and send it
             image_file = io.BytesIO(image)
             content = f"[Original Tweet]({link})"
-            await ctx.reply(content=content, file=File(image_file, filename="tweet.png", spoiler=spoiler), suppress_embeds=True)
+            await ctx.reply(
+                content=content, file=File(image_file, filename="tweet.png", spoiler=spoiler), suppress_embeds=True
+            )
             # close the file once we're done with it
             image_file.close()
         except Exception as e:
             return await ctx.reply(str(e), ephemeral=True)
-        
-    
+
     @commands.hybrid_command(name="fixup")
     async def fixup(self, ctx: commands.Context, link: str, spoiler: bool = False):
         """Convert an X.com link to a fixupx.com link.
-        
+
         `link`: The X.com link to convert.
         `spoiler`: Whether to send the link as a spoiler.
         """
