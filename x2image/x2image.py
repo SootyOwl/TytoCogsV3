@@ -39,9 +39,7 @@ class X2Image(commands.Cog):
         `spoiler`: Whether to send the image as a spoiler.
         """
         await ctx.defer()  # defer the response to avoid the 3 second timeout for the interaction
-        # send typing to show that the bot is working
-        async with ctx.typing():
-            await self.convert_link(ctx, link, dark, spoiler)
+        await self.convert_link(ctx, link, dark, spoiler)
 
     async def convert_link(self, ctx: commands.Context, link: str, dark: bool, spoiler: bool):
         if not "x.com" in link and not "twitter.com" in link:
