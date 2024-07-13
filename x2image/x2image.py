@@ -3,7 +3,7 @@ import io
 import requests
 from discord import File
 from html2image import Html2Image
-from redbot.core import Config, commands
+from redbot.core import Config, commands, data_manager
 from redbot.core.bot import Red
 from wand.image import Image
 
@@ -14,9 +14,11 @@ class X2Image(commands.Cog):
     def __init__(self, bot: Red, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bot = bot
+        # get the data folder for the cog
+        path = data_manager.cog_data_path(self)
         self.hti = Html2Image(
-            output_path="x2image/images/",  # where to save the images
-            temp_path="x2image/tmp/",  # where to save temporary files
+            output_path=f"{path}/images/",  # where to save the images
+            temp_path=f"{path}/tmp/",  # where to save temporary files
             custom_flags=["--virtual-time-budget=1000", "--hide-scrollbars", "--no-sandbox", "--timeout=10000"],
         )
 
