@@ -5,6 +5,7 @@ from discord import File
 from html2image import Html2Image
 from redbot.core import Config, commands
 from redbot.core.bot import Red
+from wand.image import Image
 
 
 class X2Image(commands.Cog):
@@ -23,13 +24,13 @@ class X2Image(commands.Cog):
 
         try:
             # get the embed HTML for the tweet
-            embed = get_twitter_embed(link)
+            embed = await get_twitter_embed(link)
         except requests.HTTPError:
             return await ctx.reply("Failed to fetch the tweet.", ephemeral=True)
 
         try:
             # convert the HTML to an image
-            image = convert_html_to_image(self.hti, embed["html"])
+            image = await convert_html_to_image(self.hti, embed["html"])
         except Exception as e:
             return await ctx.reply(str(e), ephemeral=True)
 
@@ -43,7 +44,7 @@ class X2Image(commands.Cog):
             return await ctx.reply(str(e), ephemeral=True)
 
 
-def get_twitter_embed(link: str) -> dict:
+async def get_twitter_embed(link: str) -> dict:
     """Get the Twitter embed for a tweet using the Twitter API."""
     embed_endpoint = f"https://publish.twitter.com/oembed?url={link}"
     response = requests.get(embed_endpoint)
@@ -51,18 +52,16 @@ def get_twitter_embed(link: str) -> dict:
     return response.json()
 
 
-def convert_html_to_image(hti: Html2Image, html: str) -> bytes:
+async def convert_html_to_image(hti: Html2Image, html: str) -> bytes:
     """Convert HTML to an image using html2image."""
     # convert the html to an image
     path = hti.screenshot(html_str=html)[0]
-    image = trim_border(path)
+    image = await trim_border(path)
     return image
 
 
-def trim_border(path: str):
+async def trim_border(path: str):
     """Trim the border from an image using wand."""
-    from wand.image import Image
-
     with Image(filename=path) as img:
         img.trim()
         img.save(filename=path)
