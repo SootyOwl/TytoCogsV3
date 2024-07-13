@@ -1,6 +1,6 @@
+import asyncio
 import io
 
-import asyncio
 import requests
 from discord import File
 from html2image import Html2Image
@@ -61,10 +61,8 @@ async def get_twitter_embed(link: str) -> dict:
 
 async def convert_html_to_image(hti: Html2Image, html: str) -> bytes:
     """Convert HTML to an image using html2image."""
-    # convert the html to an image with an asyncio.to_thread, with a timeout of 10 seconds
-    res = await asyncio.wait_for(
-        asyncio.to_thread(hti.screenshot, html), timeout=10
-    )
+    # convert the html to an image with an asyncio.to_thread, with a timeout
+    res = await asyncio.wait_for(asyncio.to_thread(hti.screenshot, html), timeout=20)
     path = res[0]
     image = await trim_border(path)
     return image
@@ -74,8 +72,5 @@ async def trim_border(path: str):
     """Trim the border from an image using wand."""
     with Image(filename=path) as img:
         img.trim()
-        img.save(filename=path)
         out = img.make_blob()
     return out
-
-

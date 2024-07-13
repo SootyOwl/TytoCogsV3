@@ -14,7 +14,7 @@ async def test_get_twitter_embed():
 
 @pytest.mark.asyncio
 async def test_convert_html_to_image():
-    hti = Html2Image(custom_flags=["--virtual-time-budget=1000", "--hide-scrollbars"])
+    hti = Html2Image(custom_flags=["--virtual-time-budget=10000", "--hide-scrollbars", "--disable-gpu", "--no-sandbox"])
     link = "https://x.com/elonmusk/status/1812102074588426669"
     embed = await get_twitter_embed(link)
     image = await convert_html_to_image(hti, embed['html'])
