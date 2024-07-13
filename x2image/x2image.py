@@ -51,6 +51,16 @@ class X2Image(commands.Cog):
             image_file.close()
         except Exception as e:
             return await ctx.reply(str(e), ephemeral=True)
+        
+    
+    @commands.hybrid_command(name="fixup")
+    async def fixup(self, ctx: commands.Context, link: str):
+        # check if the link is an x.com link
+        if not "x.com" in link:
+            return await ctx.reply("That's not an X.com link.", ephemeral=True)
+        # replace x.com link with fixupx.com link
+        link = link.replace("x.com", "fixupx.com")
+        await ctx.reply(link)
 
 
 async def get_twitter_embed(link: str, dark: bool = True) -> dict:
