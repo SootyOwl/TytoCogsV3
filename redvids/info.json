@@ -3,7 +3,6 @@
         "Tyto"
     ],
     "description" : "Embed reddit videos from link into discord",
-    // \Users must install ffmpeg on their own
     "install_msg" : "You must have `ffmpeg` installed on your system to use this cog.",
     "short" : "Reddit video embedder",
     "end_user_data_statement" : "This cog does not store any end user data.",
@@ -17,7 +16,7 @@
     "hidden" : false,
     "disabled" : false,
     "required_cogs" : {},
-    "requirements" : ["redvid", "ffmpeg"],
+    "requirements" : ["redvid"],
     "tags" : ["reddit"],
     "type" : "COG"
 }
