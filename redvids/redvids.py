@@ -41,7 +41,7 @@ class RedVids(commands.Cog):
         """Download and send a Reddit video."""
         async with ctx.typing():
             with tempfile.TemporaryFile(dir=self.data_path) as tempdir:
-                video = download_reddit_video(url, self.max_size, tempdir)
+                video = download_reddit_video(url, self.max_size, tempdir.name)
                 
                 if isinstance(video, RedVidsError):
                     if video == RedVidsError.SIZE_EXCEEDS_MAXIMUM:
