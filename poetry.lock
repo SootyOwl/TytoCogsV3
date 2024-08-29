@@ -1551,6 +1551,20 @@ doc = ["sphinx", "sphinx-rtd-theme", "sphinxcontrib-trio"]
 test = ["pytest (>=7)", "pytest-asyncio (>=0.19)"]
 
 [[package]]
+name = "redvid"
+version = "2.0.5"
+description = "Smart downloader for Reddit hosted videos"
+optional = false
+python-versions = ">=3.4"
+files = [
+    {file = "redvid-2.0.5-py3-none-any.whl", hash = "sha256:56abb4eb76f81efb45444845d140beb4b547ffe1d29f48cfe41476c8d1ebe38f"},
+    {file = "redvid-2.0.5.tar.gz", hash = "sha256:f69dba0bbd402c0927f8d0dae6f413ef4e01ba277d5ebd524fa0030fdd8c57cd"},
+]
+
+[package.dependencies]
+requests = "*"
+
+[[package]]
 name = "requests"
 version = "2.32.3"
 description = "Python HTTP for Humans."
@@ -1900,4 +1914,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.12"
-content-hash = "3c955107a2c066e113cbe5d3de399bd27ff1125bb6ac79501ee9f15c031486fe"
+content-hash = "049cfffe02811e11eaa754009c092f60a0cb727c7f67def04be3956583feecbe"
