@@ -12,7 +12,6 @@ from redbot.core import commands, data_manager
 from redbot.core.bot import Red
 from redvid import Downloader
 
-
 # create an enum for the error codes
 import enum
 
@@ -39,9 +38,17 @@ class RedVids(commands.Cog):
     @commands.hybrid_command(name="redvid")
     async def redvid(self, ctx: commands.Context, url: str):
         """Download and send a Reddit video."""
+        if not check_url(url):
+            return await ctx.reply("That's not a Reddit video URL.", ephemeral=True)
+        
+        logger.debug("Downloading video.")
         async with ctx.typing():
             with tempfile.TemporaryDirectory(dir=self.data_path) as tempdir:
-                video = download_reddit_video(url, self.max_size, tempdir)
+                try:
+                    video = await download_reddit_video(url, self.max_size, tempdir)
+                except Exception as e:
+                    logger.exception("Failed to download video.")
+                    return await ctx.reply("Failed to download the video.", ephemeral=True)
                 
                 if isinstance(video, RedVidsError):
                     if video == RedVidsError.SIZE_EXCEEDS_MAXIMUM:
@@ -56,7 +63,7 @@ class RedVids(commands.Cog):
                 await ctx.reply(file=video_path_to_discord_file(video))
         logger.debug("Sent video file.")
 
-def download_reddit_video(url: str, max_size: int =7 * (1 << 20), path: str=".") -> RedVidsError | str:
+async def download_reddit_video(url: str, max_size: int =7 * (1 << 20), path: str=".") -> RedVidsError | str:
     """Download a Reddit video."""
     downloader = Downloader(url, max_s=max_size, path=path, auto_max=True)
     downloader.check()
@@ -72,3 +79,9 @@ def check_video_result(video: int | str) -> RedVidsError | str:
 def video_path_to_discord_file(video_path: str) -> discord.File:
     """Convert a video file path to a Discord File."""
     return discord.File(video_path, filename=video_path.split("/")[-1])
+
+
+def check_url(url: str) -> bool:
+    """Simple check to make sure we have a Reddit URL."""
+    # TODO: Expand upon this check
+    return "reddit.com" in url
