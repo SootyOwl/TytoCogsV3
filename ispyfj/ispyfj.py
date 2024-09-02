@@ -45,12 +45,12 @@ class IspyFJ(commands.Cog):
             # send the video file
             video_file = video_url_to_file(video_url)
             await ctx.reply(file=video_file)
-            # close the file once we're done with it
-            video_file.close()
         except requests.HTTPError:
             # just send the URL if we can't download the file
             await ctx.reply(video_url)
-
+        finally:
+            # close the file if it's open
+            video_file.close()
 
 class VideoNotFoundError(Exception):
     pass
