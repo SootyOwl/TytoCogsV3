@@ -113,8 +113,8 @@ class TLDScience(commands.Cog):
                 # Generate summary
                 summary = await self.generate_summary(pdf_data)
                 
-                if summary:
-                    await ctx.send(summary)
+                if summary.text:
+                    await ctx.send(summary.text)
                 else:
                     await ctx.send("Sorry, I couldn't generate a summary. Please try again.")
                     
@@ -145,7 +145,7 @@ class TLDScience(commands.Cog):
                         },
                         {
                             "type": "text",
-                            "text": "Please create a very concise summary of this scientific article, using 3-5 sentences. Include relevant emojis and explain key findings."
+                            "text": "Create a concise summary of this scientific article, using 3-5 sentences. Include relevant emojis and explain key findings. Only include the summary with no preamble."
                         }
                     ]
                 }
