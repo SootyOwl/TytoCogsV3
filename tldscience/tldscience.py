@@ -92,7 +92,7 @@ class TLDScience(commands.Cog):
         """Set the model for Claude (admin only)"""
         # Check if the model is valid
         models = await self.anthropic_client.models.list()
-        if not model_id in ['claude-3-5-sonnet-latest'].extend([model.id for model in models.data]):
+        if not model_id in ['claude-3-5-sonnet-latest'] + [model.id for model in models.data]:
             return await ctx.send("Invalid model ID. Use the `getmodels` command to get a list of available models.")
         await self.config.model.set(model_id)
         await ctx.send("Model has been updated successfully!")
