@@ -85,10 +85,15 @@ class TLDScience(commands.Cog):
             pdf_url = attachment.url
         # handle url input
         else:
-            if not any(url.startswith(pfx) for pfx in ["http://", "https://"]):
+            if not url:
                 return await ctx.send("Please provide a valid link.")
-            if not any(url.endswith(ext) for ext in [".pdf"]):
-                return await ctx.send("Please provide a valid PDF document")
+            
+            # check content type of the url
+            # if not a pdf, return an error
+            # # get headers 
+            headers = httpx.head(url).headers
+            if headers.get("Content-Type") != "application/pdf":
+                return await ctx.send("Please provide a valid PDF document URL.")
             pdf_url = url
 
         # try to get the pdf data from the url
