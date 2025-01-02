@@ -82,6 +82,8 @@ class TLDScience(commands.Cog):
             return await ctx.send("Failed to retrieve models.")
 
         model_list = "\n".join([f"`{model.id}`: {model.display_name}" for model in models.data])
+        # add the default model to the list
+        model_list = f"`claude-3-5-sonnet-latest`: Claude 3.5 Sonnet (latest)\n{model_list}"
         await ctx.send(f"Available models:\n{model_list if model_list else 'No models available'}")
 
     @commands.is_owner()
@@ -90,7 +92,7 @@ class TLDScience(commands.Cog):
         """Set the model for Claude (admin only)"""
         # Check if the model is valid
         models = await self.anthropic_client.models.list()
-        if not model_id in [model.id for model in models.data]:
+        if not model_id in ['claude-3-5-sonnet-latest'].extend([model.id for model in models.data]):
             return await ctx.send("Invalid model ID. Use the `getmodels` command to get a list of available models.")
         await self.config.model.set(model_id)
         await ctx.send("Model has been updated successfully!")
