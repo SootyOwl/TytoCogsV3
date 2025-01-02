@@ -22,7 +22,7 @@ class TLDScience(commands.Cog):
 
         # Default settings
         default_global = {
-            "api_key": None, 
+            "api_key": None,
             "system_prompt": ("You are an expert science communicator on social media."),
             "model": "claude-3-5-sonnet-latest",
         }
@@ -81,21 +81,19 @@ class TLDScience(commands.Cog):
         if not models:
             return await ctx.send("Failed to retrieve models.")
 
-        model_list = "\n".join([f"{model['id']}: {model['name']}" for model in models])
+        model_list = "\n".join([f"{model.id}: {model.display_name}" for model in models.data])
         await ctx.send(f"Available models:\n{model_list if model_list else 'No models available'}")
 
     @commands.is_owner()
     @tldscience.command(name="setmodel")
-    async def set_model(self, ctx: commands.Context, model: str) -> None:
+    async def set_model(self, ctx: commands.Context, model_id: str) -> None:
         """Set the model for Claude (admin only)"""
         # Check if the model is valid
         models = await self.anthropic_client.models.list()
-        if not model in [model["id"] for model in models]:
+        if not model_id in [model.id for model in models.data]:
             return await ctx.send("Invalid model ID. Use the `getmodels` command to get a list of available models.")
-        await self.config.model.set(model)
+        await self.config.model.set(model_id)
         await ctx.send("Model has been updated successfully!")
-
-
 
     @tldscience.command(name="summarize")
     async def summarize(self, ctx: commands.Context, *, url: Optional[str] = None) -> None:
