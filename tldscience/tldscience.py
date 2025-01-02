@@ -94,7 +94,7 @@ class TLDScience(commands.Cog):
             headers = httpx.head(url).headers
             content_type = headers.get("content-type", headers.get("Content-Type", "")).lower()
             if "application/pdf" not in content_type:
-                return await ctx.send("Please provide a valid PDF document URL.")
+                return await ctx.send("Failed to retrieve PDF. Please provide a valid PDF link or upload a PDF file instead.")
             pdf_url = url
 
         # try to get the pdf data from the url
