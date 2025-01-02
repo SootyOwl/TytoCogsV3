@@ -81,7 +81,7 @@ class TLDScience(commands.Cog):
         if not models:
             return await ctx.send("Failed to retrieve models.")
 
-        model_list = "\n".join([f"{model.id}: {model.display_name}" for model in models.data])
+        model_list = "\n".join([f"`{model.id}`: {model.display_name}" for model in models.data])
         await ctx.send(f"Available models:\n{model_list if model_list else 'No models available'}")
 
     @commands.is_owner()
