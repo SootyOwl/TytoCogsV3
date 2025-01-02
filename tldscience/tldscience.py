@@ -4,7 +4,7 @@ from anthropic.types.tool_use_block import ToolUseBlock
 import httpx
 from redbot.core import commands, Config
 from redbot.core.bot import Red
-import anthropic
+from anthropic import AsyncAnthropic
 import discord
 from typing import List, Optional
 
@@ -30,7 +30,7 @@ class TLDScience(commands.Cog):
         """Initialize the Anthropic client with the stored API key"""
         api_key = await self.config.api_key()
         if api_key:
-            self.anthropic_client = anthropic.Client(api_key=api_key)
+            self.anthropic_client = AsyncAnthropic(api_key=api_key)
 
     async def cog_load(self) -> None:
         """Called when the cog is loaded"""
@@ -87,14 +87,16 @@ class TLDScience(commands.Cog):
         else:
             if not url:
                 return await ctx.send("Please provide a valid link.")
-            
+
             # check content type of the url
             # if not a pdf, return an error
-            # # get headers 
+            # # get headers
             headers = httpx.head(url).headers
             content_type = headers.get("content-type", headers.get("Content-Type", "")).lower()
             if "application/pdf" not in content_type:
-                return await ctx.send("Failed to retrieve PDF. Please provide a valid PDF link or upload a PDF file instead.")
+                return await ctx.send(
+                    "Failed to retrieve PDF. Please provide a valid PDF link or upload a PDF file instead."
+                )
             pdf_url = url
 
         # try to get the pdf data from the url
@@ -110,22 +112,25 @@ class TLDScience(commands.Cog):
 
         async with ctx.typing():
             try:
-                # Generate summary
+                # Generate summary and extract the summary text from the response content
                 summary = await self.generate_summary(pdf_data)
-
-                if output := await self.extract_summary(summary):
-                    await ctx.send(output)
-                else:
-                    await ctx.send("Sorry, I couldn't generate a summary. Please try again.")
-
+                output = await self.extract_summary(summary)
             except commands.UserFeedbackCheckFailure as e:
                 await ctx.send(str(e))
+                return
             except Exception as e:
                 await ctx.send(f"An unexpected error occurred: {str(e)}")
+                return
+
+            # Send the output
+            if not output:
+                await ctx.send("Failed to generate a summary.")
+                return
+            await ctx.send(output)
 
     async def generate_summary(self, pdf_data) -> List[TextBlock]:
         # get the response
-        response = self.anthropic_client.messages.create(
+        response = await self.anthropic_client.messages.create(
             model="claude-3-5-sonnet-latest",
             max_tokens=4096,
             temperature=0,  # same each time
