@@ -73,29 +73,30 @@ class TLDScience(commands.Cog):
         await self.config.system_prompt.set(prompt)
         await ctx.send("System prompt has been updated successfully!")
 
-    @commands.is_owner()
-    @tldscience.command(name="getmodels")
-    async def get_models(self, ctx: commands.Context) -> None:
-        """Get a list of available models (admin only)"""
-        models = await self.anthropic_client.models.list()
-        if not models:
-            return await ctx.send("Failed to retrieve models.")
+    ## This was a nice idea but PDF support is only available in claude-3-5-sonnet- models, so kinda pointless
+    # @commands.is_owner()
+    # @tldscience.command(name="getmodels")
+    # async def get_models(self, ctx: commands.Context) -> None:
+    #     """Get a list of available models (admin only)"""
+    #     models = await self.anthropic_client.models.list()
+    #     if not models:
+    #         return await ctx.send("Failed to retrieve models.")
 
-        model_list = "\n".join([f"`{model.id}`: {model.display_name}" for model in models.data])
-        # add the default model to the list
-        model_list = f"`claude-3-5-sonnet-latest`: Claude 3.5 Sonnet (latest)\n{model_list}"
-        await ctx.send(f"Available models:\n{model_list if model_list else 'No models available'}")
+    #     model_list = "\n".join([f"`{model.id}`: {model.display_name}" for model in models.data])
+    #     # add the default model to the list
+    #     model_list = f"`claude-3-5-sonnet-latest`: Claude 3.5 Sonnet (latest)\n{model_list}"
+    #     await ctx.send(f"Available models:\n{model_list if model_list else 'No models available'}")
 
-    @commands.is_owner()
-    @tldscience.command(name="setmodel")
-    async def set_model(self, ctx: commands.Context, model_id: str) -> None:
-        """Set the model for Claude (admin only)"""
-        # Check if the model is valid
-        models = await self.anthropic_client.models.list()
-        if not model_id in ['claude-3-5-sonnet-latest'] + [model.id for model in models.data]:
-            return await ctx.send("Invalid model ID. Use the `getmodels` command to get a list of available models.")
-        await self.config.model.set(model_id)
-        await ctx.send("Model has been updated successfully!")
+    # @commands.is_owner()
+    # @tldscience.command(name="setmodel")
+    # async def set_model(self, ctx: commands.Context, model_id: str) -> None:
+    #     """Set the model for Claude (admin only)"""
+    #     # Check if the model is valid
+    #     models = await self.anthropic_client.models.list()
+    #     if not model_id in ['claude-3-5-sonnet-latest'] + [model.id for model in models.data]:
+    #         return await ctx.send("Invalid model ID. Use the `getmodels` command to get a list of available models.")
+    #     await self.config.model.set(model_id)
+    #     await ctx.send("Model has been updated successfully!")
 
     @tldscience.command(name="summarize")
     async def summarize(self, ctx: commands.Context, *, url: Optional[str] = None) -> None:
