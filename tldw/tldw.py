@@ -16,6 +16,7 @@ from collections import OrderedDict
 
 MAX_CACHE_SIZE = 100
 
+
 class TLDWatch(commands.Cog):
     """Use Claude to create short summaries of youtube videos from their transcripts."""
 
@@ -36,7 +37,6 @@ class TLDWatch(commands.Cog):
         self.config.register_global(**default_global)
         self.llm_client = None
         self._summary_cache = OrderedDict()
-
 
         # context menu names must be between 1-32 characters
         self.youtube_summary_context_menu = app_commands.ContextMenu(
@@ -164,7 +164,6 @@ class TLDWatch(commands.Cog):
             self._summary_cache.move_to_end(video_id)
             return self._summary_cache[video_id]
 
-
         # get the transcript of the video using the video id
         # get the https proxy from the config if it's set
         https_proxy = await self.config.https_proxy()
@@ -251,7 +250,7 @@ def get_video_id(video_url: str) -> str:
     """Extract the YouTube video ID from the URL"""
     # extract the YT video ID from the URL using regex
     # there may be gubbins after the video ID, so we need to be careful
-    video_id = re.search(r"(?<=v=)[\w-]+|(?<=youtu\.be/)[\w-]+", video_url)
+    video_id = re.search(r"(?<=v=)[\w-]+|(?<=youtu\.be/)[\w-]+|(?<=shorts/)[\w-]+", video_url)
     if video_id:
         return video_id.group(0)
     else:
