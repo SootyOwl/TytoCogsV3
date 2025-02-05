@@ -102,6 +102,7 @@ class TLDWatch(commands.Cog):
     # message interaction app command
     async def summarize_msg(self, inter: discord.Interaction, message: discord.Message) -> None:
         """Summarize a YouTube video using Claude"""
+        await inter.response.defer(thinking=True)
         if not message.content:
             await inter.response.send_message("No content to summarize.", ephemeral=True)
             return
@@ -113,12 +114,11 @@ class TLDWatch(commands.Cog):
             await inter.response.send_message("API key is not set. Please set the API key first.", ephemeral=True)
             return
 
-        async with inter.response.defer():
-            try:
-                summary = await self.handlesummarize(message.content)
-            except Exception as e:
-                await inter.response.send_message(f"An error occurred: {e}", ephemeral=True)
-                return
+        try:
+            summary = await self.handlesummarize(message.content)
+        except Exception as e:
+            await inter.response.send_message(f"An error occurred: {e}", ephemeral=True)
+            return
 
         await inter.response.send_message(f"{summary}", ephemeral=True)
 
