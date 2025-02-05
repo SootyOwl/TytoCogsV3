@@ -137,7 +137,7 @@ class TLDWatch(commands.Cog):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Here are the key points from the video transcript:\n\n<markdown>#",
+                            "text": "Here are the key points from the video transcript:\n\n<markdown># ",
                         }
                     ],
                 },
@@ -152,7 +152,7 @@ class TLDWatch(commands.Cog):
             raise ValueError("Failed to generate a summary.")
 
         # get the actual text from the response content
-        output = "#" + summary[0].text
+        output = "# " + summary[0].text
 
         # remove the closing </markdown> tag
         output = output.replace("</markdown>", "")
