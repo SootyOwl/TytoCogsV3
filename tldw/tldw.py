@@ -105,24 +105,24 @@ class TLDWatch(commands.Cog):
         await inter.response.defer(thinking=True)
 
         if not self.llm_client:
-            await inter.edit_original_response("API key is not set. Please set the API key first.")
+            await inter.edit_original_response(content="API key is not set. Please set the API key first.")
             return
         
         if not message.content:
-            await inter.edit_original_response("No content to summarize.")
+            await inter.edit_original_response(content="No content to summarize.")
             return
 
         # get the video id from the message content
         try:
             vid = get_video_id(message.content)
         except ValueError as e:
-            await inter.edit_original_response(f"An error occurred: {e}")
+            await inter.edit_original_response(content=f"An error occurred: {e}")
             return
 
         try:
             summary = await self.handlesummarize(message.content)
         except Exception as e:
-            await inter.edit_original_response(f"An error occurred: {e}")
+            await inter.edit_original_response(content=f"An error occurred: {e}")
             return
 
         await inter.edit_original_response(content=summary)
