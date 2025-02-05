@@ -1,0 +1,22 @@
+{
+    "author" : [
+        "Tyto"
+    ],
+    "description" : "Summarize youtube videos with Claude.",
+    "install_msg" : "Make sure to set your anthropic api key.",
+    "short" : "TLDW with Claude",
+    "end_user_data_statement" : "No end user data is stored",
+    "min_bot_version" : "3.1.8",
+    "max_bot_version" : "0.0.0",
+    "min_python_version" : [
+        3,
+        8,
+        0
+    ],
+    "hidden" : false,
+    "disabled" : false,
+    "required_cogs" : {},
+    "requirements" : ["anthropic", "youtube-transcript-api"],
+    "tags" : ["claude", "youtube", "video", "summarize"],
+    "type" : "COG"
+}
