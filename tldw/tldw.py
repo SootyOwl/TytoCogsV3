@@ -159,13 +159,14 @@ class TLDWatch(commands.Cog):
         if not hasattr(self, "_summary_cache"):
             self._summary_cache = OrderedDict()
 
-        # return cached summary if available and mark it as recently used
-        if video_url in self._summary_cache:
-            self._summary_cache.move_to_end(video_url)
-            return self._summary_cache[video_url]
-
         # get the video id from the video url using regex
         video_id = get_video_id(video_url)
+
+        # return cached summary if available and mark it as recently used
+        if video_id in self._summary_cache:
+            self._summary_cache.move_to_end(video_id)
+            return self._summary_cache[video_id]
+
 
         # get the transcript of the video using the video id
         # get the https proxy from the config if it's set
@@ -177,7 +178,7 @@ class TLDWatch(commands.Cog):
         summary = await self.cleanup_summary(summary)
 
         # store the computed summary in the cache
-        self._summary_cache[video_url] = summary
+        self._summary_cache[video_id] = summary
 
         # Ensure cache does not exceed the maximum size
         if len(self._summary_cache) > MAX_CACHE_SIZE:
