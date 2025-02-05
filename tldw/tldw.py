@@ -30,13 +30,13 @@ class TLDWatch(commands.Cog):
         }
         self.config.register_global(**default_global)
         self.llm_client = None
-        
+
         # context menu names must be between 1-32 characters
         self.youtube_summary_context_menu = app_commands.ContextMenu(
             callback=self.summarize_msg, name="Summarize YouTube (Public)"
         )
-        # private mode is only visible to the user who created the context menu
         self.bot.tree.add_command(self.youtube_summary_context_menu)
+        # private mode is only visible to the user who created the context menu
         self.youtube_summary_context_menu_private = app_commands.ContextMenu(
             callback=self.summarize_msg_private, name="Summarize YouTube (Private)"
         )
@@ -47,6 +47,7 @@ class TLDWatch(commands.Cog):
         api_key = await self.config.api_key()
         if api_key:
             self.llm_client = AsyncLLM(api_key=api_key)
+        await self.bot.tree.sync()
 
     async def cog_load(self) -> None:
         """Called when the cog is loaded"""
