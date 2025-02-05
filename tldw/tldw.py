@@ -43,12 +43,12 @@ class TLDWatch(commands.Cog):
         await self.initialize()
 
     @commands.group()
-    async def tldw(self, ctx: commands.Context) -> None:
+    async def tldwatch(self, ctx: commands.Context) -> None:
         """Commands for the video summarizer"""
         pass
 
     @commands.is_owner()
-    @tldw.command(name="setapikey")
+    @tldwatch.command(name="setapikey")
     async def set_api_key(self, ctx: commands.Context, api_key: str) -> None:
         """Set the LLM API key (admin only)
 
@@ -68,20 +68,20 @@ class TLDWatch(commands.Cog):
         await ctx.send("API key set successfully.")
 
     @commands.is_owner()
-    @tldw.command(name="setprompt")
+    @tldwatch.command(name="setprompt")
     async def set_prompt(self, ctx: commands.Context, *, prompt: str) -> None:
         """Set the system prompt for Claude (admin only)"""
         await self.config.system_prompt.set(prompt)
         await ctx.send("System prompt set successfully.")
 
     @commands.is_owner()
-    @tldw.command(name="setproxy")
+    @tldwatch.command(name="setproxy")
     async def set_proxy(self, ctx: commands.Context, https_proxy: str) -> None:
         """Set the https proxy (admin only). Can be used to bypass YT IP restrictions."""
         await self.config.https_proxy.set(https_proxy)
         await ctx.send("https proxy set successfully.")
 
-    @tldw.command(name="summarize")
+    @tldwatch.command(name="summarize")
     async def summarize(self, ctx: commands.Context, video_url: str) -> None:
         """Summarize a YouTube video using Claude"""
         if not self.llm_client:
