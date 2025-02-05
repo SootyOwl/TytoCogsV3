@@ -137,7 +137,7 @@ class TLDWatch(commands.Cog):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Here are the key points from the video transcript:\n\n<markdown># ",
+                            "text": "Here are the key points from the video transcript:\n\n```markdown\n",
                         }
                     ],
                 },
@@ -147,15 +147,15 @@ class TLDWatch(commands.Cog):
         return response.content
 
     async def cleanup_summary(self, summary: List[TextBlock]) -> str:
-        """The summary should have a closing </markdown> tag, and should begin with a #."""
+        """The summary should have a closing ```"""
         if not summary:
             raise ValueError("Failed to generate a summary.")
 
         # get the actual text from the response content
-        output = "# " + summary[0].text
+        output = summary[0].text
 
-        # remove the closing </markdown> tag
-        output = output.replace("</markdown>", "")
+        # the closing ``` indicates the end of the summary, only keep everything before it
+        output = output.split("```")[0]
 
         return output
 
