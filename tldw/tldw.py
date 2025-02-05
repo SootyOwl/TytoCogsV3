@@ -109,6 +109,9 @@ class TLDWatch(commands.Cog):
 
     async def generate_summary(self, text: str) -> str:
         """Generate a summary using Claude"""
+        if not text:
+            raise ValueError("No text to summarize.")
+        
         response = await self.llm_client.messages.create(
             model="claude-3-5-sonnet-latest",
             max_tokens=2048,
@@ -118,10 +121,10 @@ class TLDWatch(commands.Cog):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "content": text},
+                        {"type": "text", "text": text},
                         {
                             "type": "text",
-                            "content": "Summarise the key points in this video transcript in the form of markdown-formatted concise notes.",
+                            "text": "Summarise the key points in this video transcript in the form of markdown-formatted concise notes.",
                         },
                     ],
                 },
@@ -130,7 +133,7 @@ class TLDWatch(commands.Cog):
                     "content": [
                         {
                             "type": "text",
-                            "content": "Here are the key points from the video transcript:\n\n<markdown>#",
+                            "text": "Here are the key points from the video transcript:\n\n<markdown>#",
                         }
                     ],
                 },
