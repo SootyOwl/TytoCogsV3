@@ -137,7 +137,7 @@ class TLDWatch(commands.Cog):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Here are the key points from the video transcript:\n\n```markdown\n",
+                            "text": "Here are the key points from the video transcript:\n\n```markdown",
                         }
                     ],
                 },
