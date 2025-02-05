@@ -4,7 +4,7 @@ import json
 import re
 from typing import List
 import discord
-from redbot.core import commands, Config
+from redbot.core import commands, Config, app_commands
 from redbot.core.bot import Red
 
 from anthropic import AsyncAnthropic as AsyncLLM
@@ -28,9 +28,11 @@ class TLDWatch(commands.Cog):
             "system_prompt": ("You are a YouTube video note taker and summarizer."),
             "https_proxy": None,
         }
-
         self.config.register_global(**default_global)
         self.llm_client = None
+
+        self.message_menu = app_commands.ContextMenu(callback=self.summarize_msg, name="Summarize YouTube video")
+        self.bot.tree.add_command(self.message_menu)
 
     async def initialize(self) -> None:
         """Initialize the LLM client with the stored API key"""
@@ -43,12 +45,12 @@ class TLDWatch(commands.Cog):
         await self.initialize()
 
     @commands.group()
-    async def tldwatch(self, ctx: commands.Context) -> None:
-        """Commands for the video summarizer"""
+    async def tldwset(self, ctx: commands.Context) -> None:
+        """Settings for the video summarizer"""
         pass
 
     @commands.is_owner()
-    @tldwatch.command(name="setapikey")
+    @tldwset.command(name="apikey")
     async def set_api_key(self, ctx: commands.Context, api_key: str) -> None:
         """Set the LLM API key (admin only)
 
@@ -68,33 +70,57 @@ class TLDWatch(commands.Cog):
         await ctx.send("API key set successfully.")
 
     @commands.is_owner()
-    @tldwatch.command(name="setprompt")
+    @tldwset.command(name="prompt")
     async def set_prompt(self, ctx: commands.Context, *, prompt: str) -> None:
         """Set the system prompt for Claude (admin only)"""
         await self.config.system_prompt.set(prompt)
         await ctx.send("System prompt set successfully.")
 
     @commands.is_owner()
-    @tldwatch.command(name="setproxy")
+    @tldwset.command(name="proxy")
     async def set_proxy(self, ctx: commands.Context, https_proxy: str) -> None:
         """Set the https proxy (admin only). Can be used to bypass YT IP restrictions."""
         await self.config.https_proxy.set(https_proxy)
         await ctx.send("https proxy set successfully.")
 
-    @tldwatch.command(name="summarize")
+    @commands.hybrid_command(name="tldw")
     async def summarize(self, ctx: commands.Context, video_url: str) -> None:
         """Summarize a YouTube video using Claude"""
         if not self.llm_client:
             await ctx.send("API key is not set. Please set the API key first.")
             return
 
-        try:
-            summary = await self.handlesummarize(video_url)
-        except Exception as e:
-            await ctx.send(f"An error occurred: {e}")
-            return
+        async with ctx.typing():
+            try:
+                summary = await self.handlesummarize(video_url)
+            except Exception as e:
+                await ctx.send(f"An error occurred: {e}")
+                return
 
         await ctx.reply(f"{summary}")
+
+    # message interaction app command
+    async def summarize_msg(self, inter: discord.Interaction, message: discord.Message) -> None:
+        """Summarize a YouTube video using Claude"""
+        if not message.content:
+            await inter.response.send_message("No content to summarize.", ephemeral=True)
+            return
+        if not message.content.startswith("https://www.youtube.com/watch?v="):
+            await inter.response.send_message("Invalid YouTube video URL.", ephemeral=True)
+            return
+
+        if not self.llm_client:
+            await inter.response.send_message("API key is not set. Please set the API key first.", ephemeral=True)
+            return
+
+        async with inter.response.defer():
+            try:
+                summary = await self.handlesummarize(message.content)
+            except Exception as e:
+                await inter.response.send_message(f"An error occurred: {e}", ephemeral=True)
+                return
+
+        await inter.response.send_message(f"{summary}", ephemeral=True)
 
     async def handlesummarize(self, video_url: str) -> str:
         # get the video id from the video url using regex
