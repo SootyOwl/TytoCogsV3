@@ -31,8 +31,14 @@ class TLDWatch(commands.Cog):
         self.config.register_global(**default_global)
         self.llm_client = None
 
-        self.message_menu = app_commands.ContextMenu(callback=self.summarize_msg, name="Summarize YouTube video")
-        self.bot.tree.add_command(self.message_menu)
+        self.youtube_summary_context_menu = app_commands.ContextMenu(
+            callback=self.summarize_msg, name="Summarize YouTube video"
+        )
+        self.bot.tree.add_command(self.youtube_summary_context_menu)
+        self.youtube_summary_context_menu_private = app_commands.ContextMenu(
+            callback=self.summarize_msg_private, name="Summarize YouTube video (privately)"
+        )
+        self.bot.tree.add_command(self.youtube_summary_context_menu_private)
 
     async def initialize(self) -> None:
         """Initialize the LLM client with the stored API key"""
@@ -99,33 +105,45 @@ class TLDWatch(commands.Cog):
 
         await ctx.reply(f"{summary}")
 
-    # message interaction app command
     async def summarize_msg(self, inter: discord.Interaction, message: discord.Message) -> None:
         """Summarize a YouTube video using Claude"""
         await inter.response.defer(thinking=True)
-
-        if not self.llm_client:
-            await inter.edit_original_response(content="API key is not set. Please set the API key first.")
-            return
-        
-        if not message.content:
-            await inter.edit_original_response(content="No content to summarize.")
-            return
-
-        # get the video id from the message content
         try:
-            vid = get_video_id(message.content)
-        except ValueError as e:
-            await inter.edit_original_response(content=f"An error occurred: {e}")
+            summary = await self._process_video_message(message)
+        except Exception as e:
+            await inter.edit_original_response(content=str(e))
             return
+        await inter.edit_original_response(content=summary)
+
+    async def summarize_msg_private(self, inter: discord.Interaction, message: discord.Message) -> None:
+        """Summarize a YouTube video using Claude"""
+        await inter.response.defer(thinking=True, ephemeral=True)
+        try:
+            summary = await self._process_video_message(message)
+        except Exception as e:
+            await inter.edit_original_response(content=str(e))
+            return
+        await inter.edit_original_response(content=summary)
+
+    async def _process_video_message(self, message: discord.Message) -> str:
+        """Shared processing of a message to generate a YouTube video summary."""
+        if not self.llm_client:
+            raise ValueError("API key is not set. Please set the API key first.")
+        if not message.content:
+            raise ValueError("No content to summarize.")
+
+        try:
+            # Validate the video URL by attempting to extract the video id
+            get_video_id(message.content)
+        except ValueError as e:
+            raise ValueError(f"An error occurred: {e}")
 
         try:
             summary = await self.handlesummarize(message.content)
         except Exception as e:
-            await inter.edit_original_response(content=f"An error occurred: {e}")
-            return
+            raise Exception(f"An error occurred: {e}")
 
-        await inter.edit_original_response(content=summary)
+        return summary
 
     async def handlesummarize(self, video_url: str) -> str:
         # get the video id from the video url using regex
