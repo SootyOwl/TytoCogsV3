@@ -15,6 +15,7 @@ html2image = "^2.0.4.3"
 wand = "^0.6.13"
 redvid = "^2.0.5"
 anthropic = "^0.42.0"
+youtube-transcript-api = "^0.6.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
