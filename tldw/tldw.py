@@ -14,6 +14,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
 from collections import OrderedDict
 
+MAX_CACHE_SIZE = 100
 
 class TLDWatch(commands.Cog):
     """Use Claude to create short summaries of youtube videos from their transcripts."""
@@ -34,6 +35,8 @@ class TLDWatch(commands.Cog):
         }
         self.config.register_global(**default_global)
         self.llm_client = None
+        self._summary_cache = OrderedDict()
+
 
         # context menu names must be between 1-32 characters
         self.youtube_summary_context_menu = app_commands.ContextMenu(
@@ -152,13 +155,7 @@ class TLDWatch(commands.Cog):
         return summary
 
     async def handlesummarize(self, video_url: str) -> str:
-        # Define a maximum cache size
-        MAX_CACHE_SIZE = 100
-
-        # initialize the memoization cache as an OrderedDict if it doesn't exist
-        if not hasattr(self, "_summary_cache"):
-            self._summary_cache = OrderedDict()
-
+        """Handle the process of summarizing a YouTube video"""
         # get the video id from the video url using regex
         video_id = get_video_id(video_url)
 
