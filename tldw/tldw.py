@@ -2,11 +2,14 @@
 
 import json
 import re
+from typing import List
 import discord
 from redbot.core import commands, Config
 from redbot.core.bot import Red
 
 from anthropic import AsyncAnthropic as AsyncLLM
+from anthropic.types.text_block import TextBlock
+
 
 class TLDWatch(commands.Cog):
     """Use Claude to create short summaries of youtube videos from their transcripts."""
@@ -104,6 +107,7 @@ class TLDWatch(commands.Cog):
 
         # summarize the transcript using Claude
         summary = await self.generate_summary(transcript)
+        summary = await self.cleanup_summary(summary)
 
         return summary
 
@@ -111,7 +115,7 @@ class TLDWatch(commands.Cog):
         """Generate a summary using Claude"""
         if not text:
             raise ValueError("No text to summarize.")
-        
+
         response = await self.llm_client.messages.create(
             model="claude-3-5-sonnet-latest",
             max_tokens=2048,
@@ -141,6 +145,19 @@ class TLDWatch(commands.Cog):
         )
 
         return response.content
+
+    async def cleanup_summary(self, summary: List[TextBlock]) -> str:
+        """The summary should have a closing </markdown> tag, and should begin with a #."""
+        if not summary:
+            raise ValueError("Failed to generate a summary.")
+
+        # get the actual text from the response content
+        output = "#" + summary[0].text
+
+        # remove the closing </markdown> tag
+        output = output.replace("</markdown>", "")
+
+        return output
 
 
 from youtube_transcript_api import YouTubeTranscriptApi
