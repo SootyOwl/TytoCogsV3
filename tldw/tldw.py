@@ -10,6 +10,10 @@ from redbot.core.bot import Red
 from anthropic import AsyncAnthropic as AsyncLLM
 from anthropic.types.text_block import TextBlock
 
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api.formatters import TextFormatter
+from collections import OrderedDict
+
 
 class TLDWatch(commands.Cog):
     """Use Claude to create short summaries of youtube videos from their transcripts."""
@@ -47,7 +51,6 @@ class TLDWatch(commands.Cog):
         api_key = await self.config.api_key()
         if api_key:
             self.llm_client = AsyncLLM(api_key=api_key)
-        await self.bot.tree.sync()
 
     async def cog_load(self) -> None:
         """Called when the cog is loaded"""
@@ -149,6 +152,18 @@ class TLDWatch(commands.Cog):
         return summary
 
     async def handlesummarize(self, video_url: str) -> str:
+        # Define a maximum cache size
+        MAX_CACHE_SIZE = 100
+
+        # initialize the memoization cache as an OrderedDict if it doesn't exist
+        if not hasattr(self, "_summary_cache"):
+            self._summary_cache = OrderedDict()
+
+        # return cached summary if available and mark it as recently used
+        if video_url in self._summary_cache:
+            self._summary_cache.move_to_end(video_url)
+            return self._summary_cache[video_url]
+
         # get the video id from the video url using regex
         video_id = get_video_id(video_url)
 
@@ -160,6 +175,13 @@ class TLDWatch(commands.Cog):
         # summarize the transcript using Claude
         summary = await self.generate_summary(transcript)
         summary = await self.cleanup_summary(summary)
+
+        # store the computed summary in the cache
+        self._summary_cache[video_url] = summary
+
+        # Ensure cache does not exceed the maximum size
+        if len(self._summary_cache) > MAX_CACHE_SIZE:
+            self._summary_cache.popitem(last=False)
 
         return summary
 
@@ -210,10 +232,6 @@ class TLDWatch(commands.Cog):
         output = output.split("```")[0]
 
         return output
-
-
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.formatters import TextFormatter
 
 
 async def get_transcript(video_id: str, https_proxy: str = None) -> str:
