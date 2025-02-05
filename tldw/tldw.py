@@ -125,7 +125,7 @@ class TLDWatch(commands.Cog):
             await inter.edit_original_response(f"An error occurred: {e}", ephemeral=True)
             return
 
-        await inter.edit_original_response(content=message)
+        await inter.edit_original_response(content=summary)
 
     async def handlesummarize(self, video_url: str) -> str:
         # get the video id from the video url using regex
