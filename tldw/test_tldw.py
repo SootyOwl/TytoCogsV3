@@ -11,6 +11,7 @@ from tldw import tldw
     ("https://youtu.be/bD6PSBtQwww?si=zhDJtoJUxpzzQlic", "bD6PSBtQwww"),
     ("https://www.youtube.com/watch?v=12345&feature=youtu.be&list=12345", "12345"),
     ("https://www.youtube.com/watch?v=12345&feature=youtu.be&list=12345&index=1", "12345"),
+    ("Check out this video: https://www.youtube.com/watch?v=12345", "12345"),
 ])
 def test_get_video_id(video_url, expected):
     assert tldw.get_video_id(video_url) == expected
