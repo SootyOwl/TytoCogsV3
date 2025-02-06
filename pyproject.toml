@@ -16,12 +16,15 @@ wand = "^0.6.13"
 redvid = "^2.0.5"
 anthropic = "^0.42.0"
 youtube-transcript-api = "^0.6.3"
+newspaper3k = "^0.2.8"
+lxml-html-clean = "^0.4.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
 flake8 = "^4.0.1"
 black = { extras = ["d"], version = "^21.12-beta.0" }
 pytest-asyncio = "^0.23.7"
+pytest-mock = "^3.14.0"
 
 [tool.black]
 line-length = 120
