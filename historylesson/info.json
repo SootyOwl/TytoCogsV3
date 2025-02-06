@@ -1,0 +1,29 @@
+{
+    "author": [
+        "Tyto"
+    ],
+    "description": "Provides historical context for news articles.",
+    "install_msg": "Make sure to set your Anthropic API key.",
+    "short": "Historical context for news.",
+    "end_user_data_statement": "This cog does not store any end user data.",
+    "min_bot_version": "3.1.8",
+    "max_bot_version": "0.0.0",
+    "min_python_version": [
+        3,
+        8,
+        0
+    ],
+    "hidden": false,
+    "disabled": false,
+    "required_cogs": {},
+    "requirements": [
+        "newspaper3k",
+        "anthropic"
+    ],
+    "tags": [
+        "news",
+        "history",
+        "context"
+    ],
+    "type": "COG"
+}
