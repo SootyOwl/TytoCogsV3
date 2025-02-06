@@ -58,3 +58,42 @@ async def test_get_transcript_invalid_video_id(https_proxy):
     video_id = "invalid_video_id"
     with pytest.raises(ValueError):
         await tldw.get_transcript(video_id, https_proxy)
+
+
+# test cleanup_summary function
+def test_cleanup_summary():
+    # Mock the TextBlock object
+    class MockTextBlock:
+        def __init__(self, text):
+            self.text = text
+
+    # Test case 1: Basic test
+    summary = [MockTextBlock("This is a test summary.```")]
+    cleaned_summary = tldw.cleanup_summary(summary)
+    assert cleaned_summary == "This is a test summary."
+
+    # Test case 2: Summary with multiple ```
+    summary = [MockTextBlock("This is a test summary.```More text```")]
+    cleaned_summary = tldw.cleanup_summary(summary)
+    assert cleaned_summary == "This is a test summary."
+
+    # Test case 3: Summary without ```
+    summary = [MockTextBlock("This is a test summary.")]
+    cleaned_summary = tldw.cleanup_summary(summary)
+    assert cleaned_summary == "This is a test summary."
+
+    # Test case 4: Empty summary
+    summary = [MockTextBlock("")]
+    cleaned_summary = tldw.cleanup_summary(summary)
+    assert cleaned_summary == ""
+
+    # Test case 5: Summary with ``` at the beginning
+    summary = [MockTextBlock("```This is a test summary.")]
+    cleaned_summary = tldw.cleanup_summary(summary)
+    assert cleaned_summary == ""
+
+
+# test cleanup_summary function with invalid input
+def test_cleanup_summary_invalid_input():
+    with pytest.raises(ValueError):
+        tldw.cleanup_summary(None)

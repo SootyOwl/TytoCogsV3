@@ -171,7 +171,7 @@ class TLDWatch(commands.Cog):
 
         # summarize the transcript using Claude
         summary = await self.generate_summary(transcript)
-        summary = await self.cleanup_summary(summary)
+        summary = cleanup_summary(summary)
 
         # store the computed summary in the cache
         self._summary_cache[video_id] = summary
@@ -217,18 +217,18 @@ class TLDWatch(commands.Cog):
 
         return response.content
 
-    async def cleanup_summary(self, summary: List[TextBlock]) -> str:
-        """The summary should have a closing ```"""
-        if not summary:
-            raise ValueError("Failed to generate a summary.")
+def cleanup_summary(summary: List[TextBlock]) -> str:
+    """The summary should have a closing ```"""
+    if not summary:
+        raise ValueError("Failed to generate a summary.")
 
-        # get the actual text from the response content
-        output = summary[0].text
+    # get the actual text from the response content
+    output = summary[0].text
 
-        # the closing ``` indicates the end of the summary, only keep everything before it
-        output = output.split("```")[0]
+    # the closing ``` indicates the end of the summary, only keep everything before it
+    output = output.split("```")[0]
 
-        return output
+    return output
 
 
 async def get_transcript(video_id: str, https_proxy: str = None) -> str:
