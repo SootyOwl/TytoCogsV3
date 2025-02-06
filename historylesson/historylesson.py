@@ -15,7 +15,7 @@ class HistoryLesson(commands.Cog):
         self.bot = bot
         self.config = Config.get_conf(
             self,
-            identifier=9834759283,  # Replace with a random identifier
+            identifier=573498229038752,  # Replace with a random identifier
             force_registration=True,
         )
 
