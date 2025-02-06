@@ -21,7 +21,7 @@ class HistoryLesson(commands.Cog):
 
         default_global = {
             "api_key": None,
-            "model": "claude-3-opus-latest",
+            "model": "claude-3-5-sonnet-20241022",
             "system_prompt": "You are a world-class history professor.",
         }
         self.config.register_global(**default_global)
