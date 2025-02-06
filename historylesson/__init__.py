@@ -1,4 +1,4 @@
-from .historylesson import HistoryLesson
+from historylesson.historylesson import HistoryLesson
 
 
 async def setup(bot):
