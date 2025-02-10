@@ -18,7 +18,8 @@
     "required_cogs": {},
     "requirements": [
         "newspaper3k",
-        "anthropic"
+        "anthropic",
+        "lxml-html-clean"
     ],
     "tags": [
         "news",
