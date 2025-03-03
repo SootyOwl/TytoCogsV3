@@ -93,8 +93,12 @@ class TLDWatch(commands.Cog):
 
     @commands.is_owner()
     @tldwset.command(name="proxy")
-    async def set_proxy(self, ctx: commands.Context, https_proxy: str) -> None:
+    async def set_proxy(self, ctx: commands.Context, https_proxy: str = None) -> None:
         """Set the https proxy (admin only). Can be used to bypass YT IP restrictions."""
+        if https_proxy is None:
+            await self.config.https_proxy.clear()
+            await ctx.send("https proxy cleared successfully.")
+            return
         await self.config.https_proxy.set(https_proxy)
         await ctx.send("https proxy set successfully.")
 
