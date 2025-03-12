@@ -60,7 +60,7 @@ class IspyFJ(commands.Cog):
                 except Exception as e:
                     logger.error(f"Failed to send video file: {e}")
                     # Just send the URL if we can't download the file
-                    await ctx.reply(f"Couldn't download the video, but here's the direct link: {video_url}")
+                    await ctx.reply(f"{video_url}")
                 finally:
                     # Ensure the file is closed
                     if video_file and hasattr(video_file, 'close'):
