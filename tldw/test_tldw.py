@@ -42,14 +42,31 @@ def test_get_video_id_invalid_input(video_url):
 @pytest.fixture
 def https_proxy():
     # open the .proxies file and read the https proxy
-    return json.load(open(".proxies"))["https"]
+    proxies = json.load(open(".proxies"))["https"]
+    # choose a random one to return if it's a list
+    if isinstance(proxies, list):
+        import random
 
+        proxies = random.choice(proxies)
+    # if it's a string, return it as is
+    elif isinstance(proxies, str):
+        return proxies
+    # if it's neither, raise an exception
+    else:
+        raise ValueError("Invalid proxy format in .proxies file")
 
+@pytest.mark.parametrize(
+    "video_id, expected",
+    [
+        ("75WFTHpOw8Y", "hello it is Christmas time"), # bjork talking about tv
+        ("j04IAbWCszg", "in short this equation derived and published by"), # en-GB only, Matt Parker talking about tariffs
+        ("NcZxaFfxloo", "JON STEWART: Is that the\nresult of their $5 million\nplanning fund"), # en-US only
+    ],
+)
 @pytest.mark.asyncio
-async def test_get_transcript(https_proxy):
-    video_id = "75WFTHpOw8Y"  # bjork talking about tv
+async def test_get_transcript(https_proxy, video_id, expected):
     transcript = await tldw.get_transcript(video_id, https_proxy)
-    assert "hello it is Christmas time" in transcript
+    assert expected in transcript
 
 
 # test get_transcript function with invalid video id

@@ -1,6 +1,5 @@
 """Too Long; Didn't Watch (TLDW) - Summarize YouTube videos."""
 
-import json
 import re
 from typing import List
 import discord
@@ -239,7 +238,7 @@ async def get_transcript(video_id: str, https_proxy: str = None) -> str:
     """Get the transcript of a YouTube video."""
     # get the transcript of the video using the video id
     try:
-        params = {"video_id": video_id}
+        params = {"video_id": video_id, "languages": ("en", "en-US", "en-GB")}
         if https_proxy:
             params["proxies"] = {"https": https_proxy}
         transcript = YouTubeTranscriptApi.get_transcript(**params)
