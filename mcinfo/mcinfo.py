@@ -173,23 +173,28 @@ class McInfo(commands.Cog):
         )
 
     async def _initialize_channel_message(self, ctx, channel):
-        async with self.config.channel(channel).message_id() as message_id:
-            # if we don't have a message id, or the message doesn't exist, send a message to the channel for editing
-            if message_id is None or not await channel.fetch_message(message_id):
-                # send the message with the new embed
-                embed = await format_message_embed({})
-                message = await channel.send(embed=embed)
-                try:
-                    # pin the message if we can
-                    await message.pin(reason="Initial message for mcinfo cog.")
-                except Exception:
-                    pass
-                    # update the config with the message id
-                message_id = message.id
-                await ctx.send(f"Message id is set to {message.id} for channel {channel.mention}.")
-                # run the checker to update the message for the channel
-            else:
-                await ctx.send(f"Message id is set to {message_id} for channel {channel.mention}.")
+        # check if we have permissions to send messages in the channel
+        permissions = channel.permissions_for(ctx.guild.me)
+        if not permissions.send_messages:
+            await ctx.send("I do not have permission to send messages in the channel, please check my permissions.")
+            return
+        message_id = await self.config.channel(channel).message_id()
+        # if we don't have a message id, or the message doesn't exist, send a message to the channel for editing
+        if message_id is None or not await channel.fetch_message(message_id):
+            # send the message with the new embed
+            embed = await format_message_embed({})
+            message = await channel.send(embed=embed)
+            try:
+                # pin the message if we can
+                await message.pin(reason="Initial message for mcinfo cog.")
+            except Exception:
+                pass
+                # update the config with the message id
+            message_id = message.id
+            await ctx.send(f"Message id is set to {message.id} for channel {channel.mention}.")
+            # run the checker to update the message for the channel
+        else:
+            await ctx.send(f"Message id is set to {message_id} for channel {channel.mention}.")
         await self._execute_channel_check(channel.id, self.config.channel(channel))
 
     # manage servers for this channel via a menu
