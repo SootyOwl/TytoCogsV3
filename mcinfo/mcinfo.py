@@ -26,7 +26,7 @@ from redbot.core.bot import Red
 from redbot.core.utils import bounded_gather
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.config import Group
-
+import logging
 from mcinfo.helpers import fetch_servers, format_channel_desc, format_message_embed
 
 
@@ -53,7 +53,9 @@ class McInfo(commands.Cog):
         self.config = Config.get_conf(cog_instance=self, identifier=788963682, force_registration=True)
         # per-channel default settings
         self.config.register_channel(**self.default_channel)
-
+        # set up logging
+        self.logger = logging.getLogger("red.mcinfo")
+        self.logger.setLevel(logging.INFO)
         # start the task loop
         self.perform_check.start()
 
@@ -75,9 +77,9 @@ class McInfo(commands.Cog):
         # log the results for debugging
         for result in results:
             if isinstance(result, Exception):
-                self.bot.logger.error(f"Error checking server status: {result}")
+                self.logger.error(f"Error checking server status: {result}")
             else:
-                self.bot.logger.info(f"Server status check result: {result}")
+                self.logger.info(f"Server status check result: {result}")
 
     async def _execute_channel_check(self, channel_id: int, channel_config: Group):
         """Perform the server check for a single channel."""
@@ -86,8 +88,14 @@ class McInfo(commands.Cog):
         if not channel:
             # if the channel is not found, remove it from the config
             await self.config.channel_from_id(channel_id).clear()
-            self.bot.logger.warning(f"Channel {channel_id} not found - removing from config.")
+            self.logger.warning(f"Channel {channel_id} not found - removing from config.")
             return "Channel not found - removed from config."
+
+        # ensure the channel is a text channel
+        if not isinstance(channel, discord.TextChannel):
+            await self.config.channel_from_id(channel_id).clear()
+            self.logger.warning(f"Channel {channel_id} not found - removing from config.")
+            return f"Channel {channel_id} is not a text channel - removing from config."
 
         # get the mode and servers from the config
         mode = await channel_config.mode()
