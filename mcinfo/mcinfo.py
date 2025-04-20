@@ -197,8 +197,8 @@ class McInfo(commands.Cog):
                 await message.pin(reason="Initial message for mcinfo cog.")
             except Exception:
                 pass
-                # update the config with the message id
-            message_id = message.id
+            # update the config with the message id
+            await self.config.channel(channel).message_id.set(message.id)
             await ctx.send(f"Message id is set to {message.id} for channel {channel.mention}.")
             # run the checker to update the message for the channel
         else:
