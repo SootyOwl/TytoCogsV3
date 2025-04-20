@@ -66,7 +66,7 @@ class McInfo(commands.Cog):
     async def perform_check(self):
         """Perform the server check for all channels with the cog enabled."""
         # get all channels with the cog enabled
-        channels: dict[int, Group] = await self.config.all_channels()
+        channels: dict[int, dict] = await self.config.all_channels()
         # make tasks for each channel
         tasks = []
         for channel_id, channel_config in channels.items():
@@ -81,7 +81,7 @@ class McInfo(commands.Cog):
             else:
                 self.logger.info(f"Server status check result: {result}")
 
-    async def _execute_channel_check(self, channel_id: int, channel_config: Group):
+    async def _execute_channel_check(self, channel_id: int, channel_config: dict):
         """Perform the server check for a single channel."""
         # get the channel
         channel = self.bot.get_channel(channel_id)
@@ -98,8 +98,8 @@ class McInfo(commands.Cog):
             return f"Channel {channel_id} is not a text channel - removing from config."
 
         # get the mode and servers from the config
-        mode = await channel_config.mode()
-        servers = await channel_config.servers()
+        mode = channel_config.get("mode")
+        servers = channel_config.get("servers")
         if not servers:
             return f"No servers found in config for channel {channel_id}."
 
@@ -117,7 +117,7 @@ class McInfo(commands.Cog):
             return description
         elif mode == Mode.MESSAGE:
             # get the message id from the config
-            message_id = await channel_config.message_id()
+            message_id = channel_config.get("message_id")
             if not message_id:
                 return "No message id found in config."
             # get the message
