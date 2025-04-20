@@ -307,6 +307,9 @@ class McInfo(commands.Cog):
             timeout=60.0,
         )
 
+        # trigger the checker to update the channel description or message
+        await self._execute_channel_check(channel.id, self.config.channel(channel))
+
     @mcinfo.command(name="setinterval")
     @commands.admin_or_can_manage_channel()
     async def set_interval(self, ctx: commands.Context, interval: int):
