@@ -340,7 +340,7 @@ class McInfo(commands.Cog):
         await self._execute_channel_check(channel.id, await self.config.channel(channel).all())
 
     @mcinfo.command(name="setinterval")
-    @commands.admin_or_can_manage_channel()
+    @commands.is_owner()
     async def set_interval(self, ctx: commands.Context, interval: int):
         """Set the interval for the server check in minutes."""
         if interval < 1:
