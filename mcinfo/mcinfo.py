@@ -47,17 +47,28 @@ class McInfo(commands.Cog):
         "servers": [],
         "message_id": None,  # only used if mode is MESSAGE, the id of the bot message to edit
     }
+    default_global = {
+        "interval": 5,  # default interval for the server check in minutes
+    }
 
     def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(cog_instance=self, identifier=788963682, force_registration=True)
         # per-channel default settings
         self.config.register_channel(**self.default_channel)
+        # global default settings
+        self.config.register_global(**self.default_global)
         # set up logging
         self.logger = logging.getLogger("red.mcinfo")
         self.logger.setLevel(logging.INFO)
         # start the task loop
         self.perform_check.start()
+
+    async def cog_load(self):
+        # set the interval for the task loop
+        interval = await self.config.interval()
+        self.perform_check.change_interval(minutes=interval)
+        self.logger.info(f"Starting mcinfo cog with interval {interval} minutes.")
 
     def cog_unload(self):
         self.perform_check.cancel()
@@ -101,9 +112,11 @@ class McInfo(commands.Cog):
         mode = channel_config.get("mode")
         servers = channel_config.get("servers")
         if not servers:
+            self.logger.warning(f"No servers found in config for channel {channel_id}.")
             return f"No servers found in config for channel {channel_id}."
 
         # fetch the server statuses
+        self.logger.info(f"Fetching server statuses for channel {channel_id}...")
         server_statuses = await fetch_servers(servers)
         # format the status for the channel
         if mode == Mode.CHANNEL_DESC:
@@ -165,7 +178,7 @@ class McInfo(commands.Cog):
         await ctx.send(f"Set mode to {mode} for channel {channel.mention}.")
         # if the mode is MESSAGE, check if a message id is set
         if mode == Mode.MESSAGE:
-            await self._initialize_channel_message(ctx, channel)
+            return await self._initialize_channel_message(ctx, channel)
         else:
             return await self._initialize_channel_description(ctx, channel)
 
@@ -179,6 +192,7 @@ class McInfo(commands.Cog):
             "Channel description mode does not support multiple servers, will only use the first one in the list.\n"
             "Switch to `msg` mode to use multiple servers."
         )
+        await self._execute_channel_check(channel.id, await self.config.channel(channel).all())
 
     async def _initialize_channel_message(self, ctx, channel):
         # check if we have permissions to send messages in the channel
@@ -330,5 +344,8 @@ class McInfo(commands.Cog):
         if interval < 1:
             await ctx.send("Interval must be at least 1 minute.")
             return
+        # update the config with the new interval
+        await self.config.interval.set(interval)
+        # update the task loop with the new interval
         self.perform_check.change_interval(minutes=interval)
         await ctx.send(f"Set server check interval to {interval} minutes.")
