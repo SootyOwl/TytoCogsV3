@@ -97,23 +97,21 @@ class McInfo(commands.Cog):
         # get the channel
         channel = self.bot.get_channel(channel_id)
         if not channel:
-            # if the channel is not found, remove it from the config
-            await self.config.channel_from_id(channel_id).clear()
+            await self.remove_channel_from_config(channel_id)
             self.logger.warning(f"Channel {channel_id} not found - removing from config.")
             return "Channel not found - removed from config."
 
         # ensure the channel is a text channel
         if not isinstance(channel, discord.TextChannel):
-            await self.config.channel_from_id(channel_id).clear()
-            self.logger.warning(f"Channel {channel_id} not found - removing from config.")
-            return f"Channel {channel_id} is not a text channel - removing from config."
+            await self.remove_channel_from_config(channel_id)
+            return f"Channel {channel_id} is not a text channel - removed from config."
 
         # get the mode and servers from the config
         mode = channel_config.get("mode")
         servers = channel_config.get("servers")
         if not servers:
-            self.logger.warning(f"No servers found in config for channel {channel_id}.")
-            return f"No servers found in config for channel {channel_id}."
+            await self.remove_channel_from_config(channel_id)
+            return f"No servers found in config for channel {channel_id} - removed from config."
 
         # fetch the server statuses
         self.logger.info(f"Fetching server statuses for channel {channel_id}...")
@@ -141,6 +139,10 @@ class McInfo(commands.Cog):
             embed = await format_message_embed(server_statuses)
             # edit the message with the new embed
             await message.edit(embed=embed)
+
+    async def remove_channel_from_config(self, channel_id):
+        self.logger.info(f"Removing channel {channel_id} from config.")
+        await self.config.channel_from_id(channel_id).clear()
 
     @perform_check.before_loop
     async def before_checker(self):
