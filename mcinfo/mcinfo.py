@@ -347,6 +347,7 @@ class McInfo(commands.Cog):
             await ctx.send("Interval must be at least 1 minute.")
             return
         # update the config with the new interval
+        self.logger.info("Setting server check interval to %d minutes", interval)
         await self.config.interval.set(interval)
         # update the task loop with the new interval
         self.perform_check.change_interval(minutes=interval)
