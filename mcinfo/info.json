@@ -1,0 +1,27 @@
+{
+    "author": [
+        "Tyto"
+    ],
+    "description": "Fetch minecraft server status",
+    "install_msg": "",
+    "short": "Minecraft server status",
+    "end_user_data_statement": "Stores minecraft server URLs in config",
+    "min_bot_version": "3.1.8",
+    "max_bot_version": "0.0.0",
+    "min_python_version": [
+        3,
+        8,
+        0
+    ],
+    "hidden": false,
+    "disabled": false,
+    "required_cogs": {},
+    "requirements": [
+        "mcstatus==11.1.1"
+    ],
+    "tags": [
+        "minecraft",
+        "utility"
+    ],
+    "type": "COG"
+}
