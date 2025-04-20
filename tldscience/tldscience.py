@@ -1,6 +1,5 @@
 import base64
 from anthropic.types.text_block import TextBlock
-from anthropic.types.tool_use_block import ToolUseBlock
 import httpx
 from redbot.core import commands, Config
 from redbot.core.bot import Red
