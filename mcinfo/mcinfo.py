@@ -349,3 +349,16 @@ class McInfo(commands.Cog):
         # update the task loop with the new interval
         self.perform_check.change_interval(minutes=interval)
         await ctx.send(f"Set server check interval to {interval} minutes.")
+
+    # simple command to get a single server's status and send it as a message
+    @mcinfo.command(name="status")
+    async def status(self, ctx: commands.Context, address: str):
+        """Get the status of a single server and send it as a message."""
+        # fetch the server status
+        server_status = await fetch_servers([address])
+        # format the embed for the message
+        embed = await format_message_embed(server_status)
+        # send the message with the embed
+        await ctx.send(embed=embed)
+        # log the status for debugging
+        self.logger.info(f"Server status for {address}: {server_status}")
