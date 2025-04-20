@@ -148,7 +148,7 @@ class McInfo(commands.Cog):
         await self.bot.wait_until_ready()
 
     # region: commands
-    @commands.group(name="mcinfo", aliases=["mcstatus"], invoke_without_command=True)
+    @commands.group(name="mcinfo", aliases=["mc"], invoke_without_command=True)
     async def mcinfo(self, ctx: commands.Context):
         """Minecraft server status commands."""
         await ctx.send_help()
