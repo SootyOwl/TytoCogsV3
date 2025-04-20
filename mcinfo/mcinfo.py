@@ -203,7 +203,7 @@ class McInfo(commands.Cog):
             # run the checker to update the message for the channel
         else:
             await ctx.send(f"Message id is set to {message_id} for channel {channel.mention}.")
-        await self._execute_channel_check(channel.id, self.config.channel(channel))
+        await self._execute_channel_check(channel.id, await self.config.channel(channel).all())
 
     # manage servers for this channel via a menu
     @mcinfo.command(name="manageservers")
@@ -321,7 +321,7 @@ class McInfo(commands.Cog):
         )
 
         # trigger the checker to update the channel description or message
-        await self._execute_channel_check(channel.id, self.config.channel(channel))
+        await self._execute_channel_check(channel.id, await self.config.channel(channel).all())
 
     @mcinfo.command(name="setinterval")
     @commands.admin_or_can_manage_channel()
