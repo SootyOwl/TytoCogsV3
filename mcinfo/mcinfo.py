@@ -27,7 +27,7 @@ from redbot.core.utils import bounded_gather
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
 from redbot.core.config import Group
 import logging
-from mcinfo.helpers import fetch_servers, format_channel_desc, format_message_embed
+from mcinfo.helpers import fetch_servers, format_channel_desc, format_message_embed, JavaStatusResponse
 
 
 class Mode(StrEnum):
@@ -35,6 +35,14 @@ class Mode(StrEnum):
 
     CHANNEL_DESC = "desc"
     MESSAGE = "msg"
+
+
+class MessageIdNotFound(KeyError):
+    """Exception raised when the message ID is not found in the config."""
+
+
+class BadChannelError(ValueError):
+    """Exception raised when the channel is not found or not a text channel."""
 
 
 class McInfo(commands.Cog):
@@ -96,22 +104,16 @@ class McInfo(commands.Cog):
         """Perform the server check for a single channel."""
         # get the channel
         channel = self.bot.get_channel(channel_id)
-        if not channel:
-            await self.remove_channel_from_config(channel_id)
-            self.logger.warning(f"Channel {channel_id} not found - removing from config.")
-            return "Channel not found - removed from config."
-
-        # ensure the channel is a text channel
-        if not isinstance(channel, discord.TextChannel):
-            await self.remove_channel_from_config(channel_id)
-            return f"Channel {channel_id} is not a text channel - removed from config."
+        if not channel or not isinstance(channel, discord.TextChannel):
+            await self._remove_channel_from_config(channel_id)
+            raise BadChannelError(f"Channel {channel_id} not found or not a text channel.")
 
         # get the mode and servers from the config
         mode = channel_config.get("mode")
         servers = channel_config.get("servers")
         if not servers:
-            await self.remove_channel_from_config(channel_id)
-            return f"No servers found in config for channel {channel_id} - removed from config."
+            await self._remove_channel_from_config(channel_id)
+            raise ValueError(f"No servers found in config for channel {channel_id}.")
 
         # fetch the server statuses
         self.logger.info(f"Fetching server statuses for channel {channel_id}...")
@@ -127,20 +129,47 @@ class McInfo(commands.Cog):
             await channel.edit(topic=description)
             return description
         elif mode == Mode.MESSAGE:
-            # get the message id from the config
-            message_id = channel_config.get("message_id")
-            if not message_id:
-                return "No message id found in config."
-            # get the message
-            message = await channel.fetch_message(message_id)
-            if not message:
-                return "Message not found."
-            # format the embed for the message
-            embed = await format_message_embed(server_statuses)
-            # edit the message with the new embed
-            await message.edit(embed=embed)
+            try:
+                return await self._handle_message(channel, channel_config, server_statuses)
+            except (MessageIdNotFound, discord.NotFound, discord.Forbidden) as e:
+                self.logger.error(f"Error updating message in channel {channel_id}: {e}")
+                await self._remove_channel_from_config(channel_id)
+                raise e
+            except discord.HTTPException as e:
+                self.logger.error(f"Error updating message in channel {channel_id}: {e}")
+                raise e
 
-    async def remove_channel_from_config(self, channel_id):
+    async def _handle_message(
+        self, channel: discord.TextChannel, channel_config: dict, server_statuses: dict[str, JavaStatusResponse | None]
+    ):
+        """Handle the message update for the channel.
+
+        Args:
+            channel (discord.TextChannel): The channel to update.
+            channel_config (dict): The config for the channel.
+            server_statuses (dict): The server statuses to update the message with.
+
+        Returns:
+            discord.Message: The updated message.
+
+        Raises:
+            ValueError: If the message ID is not found in the config.
+            discord.NotFound: If the message is not found in the channel.
+            discord.Forbidden: If the bot does not have the correct permissions to get/edit the message.
+            discord.HTTPException: If there is an error with the HTTP request.
+        """
+        message_id = channel_config.get("message_id")
+
+        if not message_id:
+            raise MessageIdNotFound("Message ID not found in config.")
+
+        message = await channel.fetch_message(message_id)
+        # format the embed for the message
+        embed = await format_message_embed(server_statuses)
+        # edit the message with the new embed
+        return await message.edit(embed=embed)
+
+    async def _remove_channel_from_config(self, channel_id):
         self.logger.info(f"Removing channel {channel_id} from config.")
         await self.config.channel_from_id(channel_id).clear()
 
@@ -365,3 +394,5 @@ class McInfo(commands.Cog):
         await ctx.send(embed=embed)
         # log the status for debugging
         self.logger.info(f"Server status for {address}: {server_status}")
+
+    # endregion
