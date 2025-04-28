@@ -1,15 +1,17 @@
 """Too Long; Didn't Watch (TLDW) - Summarize YouTube videos."""
 
 import re
-from typing import List
+from typing import List, Optional
 import discord
 from redbot.core import commands, Config, app_commands
 from redbot.core.bot import Red
 
 from anthropic import AsyncAnthropic as AsyncLLM
 from anthropic.types.text_block import TextBlock
+from anthropic.types.content_block import ContentBlock
 
 from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api.proxies import GenericProxyConfig
 from youtube_transcript_api.formatters import TextFormatter
 from collections import OrderedDict
 
@@ -34,25 +36,35 @@ class TLDWatch(commands.Cog):
             "https_proxy": None,
         }
         self.config.register_global(**default_global)
-        self.llm_client = None
+
+        self.llm_client: Optional[AsyncLLM] = None
         self._summary_cache = OrderedDict()
+        self.ytt_api = YouTubeTranscriptApi()
 
         # context menu names must be between 1-32 characters
         self.youtube_summary_context_menu = app_commands.ContextMenu(
-            callback=self.summarize_msg, name="Summarize YouTube (Public)"
+            callback=self.summarize_msg_callback, name="Summarize YouTube (Public)", extras={"is_private": False}
+        )
+        # private mode is only visible to the user who created the context menu using ephemeral=True
+        self.youtube_summary_context_menu_private = app_commands.ContextMenu(
+            callback=self.summarize_msg_callback, name="Summarize YouTube (Private)", extras={"is_private": True}
         )
         self.bot.tree.add_command(self.youtube_summary_context_menu)
-        # private mode is only visible to the user who created the context menu
-        self.youtube_summary_context_menu_private = app_commands.ContextMenu(
-            callback=self.summarize_msg_private, name="Summarize YouTube (Private)"
-        )
         self.bot.tree.add_command(self.youtube_summary_context_menu_private)
 
     async def initialize(self) -> None:
-        """Initialize the LLM client with the stored API key"""
+        """Initialize the LLM client with the stored API key,
+        and the youtube transcript API with the stored proxy."""
         api_key = await self.config.api_key()
         if api_key:
             self.llm_client = AsyncLLM(api_key=api_key)
+
+        # currently no support for the WebShareProxyConfig
+        https_proxy = await self.config.https_proxy()
+        proxy_config = GenericProxyConfig(https_url=https_proxy) if https_proxy else None
+        self.ytt_api = YouTubeTranscriptApi(
+            proxy_config=proxy_config,
+        )
 
     async def cog_load(self) -> None:
         """Called when the cog is loaded"""
@@ -92,13 +104,14 @@ class TLDWatch(commands.Cog):
 
     @commands.is_owner()
     @tldwset.command(name="proxy")
-    async def set_proxy(self, ctx: commands.Context, https_proxy: str = None) -> None:
+    async def set_proxy(self, ctx: commands.Context, https_proxy: Optional[str] = None) -> None:
         """Set the https proxy (admin only). Can be used to bypass YT IP restrictions."""
         if https_proxy is None:
             await self.config.https_proxy.clear()
             await ctx.send("https proxy cleared successfully.")
             return
         await self.config.https_proxy.set(https_proxy)
+
         await ctx.send("https proxy set successfully.")
 
     @commands.hybrid_command(name="tldw")
@@ -113,28 +126,19 @@ class TLDWatch(commands.Cog):
                 summary = await self.handlesummarize(video_url)
             except Exception as e:
                 await ctx.send(f"An error occurred: {e}")
-                return
+                raise  # so we can get traceback in the bot
 
         await ctx.reply(f"{summary}")
 
-    async def summarize_msg(self, inter: discord.Interaction, message: discord.Message) -> None:
+    async def summarize_msg_callback(self, inter: discord.Interaction, message: discord.Message) -> None:
         """Summarize a YouTube video using Claude"""
-        await inter.response.defer(thinking=True)
+        is_private = inter.extras.get("is_private", False)
+        await inter.response.defer(thinking=True, ephemeral=is_private)
         try:
             summary = await self._process_video_message(message)
         except Exception as e:
             await inter.edit_original_response(content=str(e))
-            return
-        await inter.edit_original_response(content=summary)
-
-    async def summarize_msg_private(self, inter: discord.Interaction, message: discord.Message) -> None:
-        """Summarize a YouTube video using Claude"""
-        await inter.response.defer(thinking=True, ephemeral=True)
-        try:
-            summary = await self._process_video_message(message)
-        except Exception as e:
-            await inter.edit_original_response(content=str(e))
-            return
+            raise  # so we can get traceback in the bot
         await inter.edit_original_response(content=summary)
 
     async def _process_video_message(self, message: discord.Message) -> str:
@@ -170,10 +174,13 @@ class TLDWatch(commands.Cog):
         # get the transcript of the video using the video id
         # get the https proxy from the config if it's set
         https_proxy = await self.config.https_proxy()
-        transcript = await get_transcript(video_id, https_proxy)
+        transcript = await get_transcript(self.ytt_api, video_id)
 
         # summarize the transcript using Claude
         summary = await self.generate_summary(transcript)
+        if not summary:
+            raise ValueError("Failed to generate a summary.")
+        # cleanup the summary
         summary = cleanup_summary(summary)
 
         # store the computed summary in the cache
@@ -185,63 +192,46 @@ class TLDWatch(commands.Cog):
 
         return summary
 
-    async def generate_summary(self, text: str) -> str:
+    async def generate_summary(self, text: str) -> List[ContentBlock]:
         """Generate a summary using Claude"""
+        if not self.llm_client:
+            raise ValueError("API key is not set. Please set the API key first.")
+        if not self.llm_client.api_key:
+            raise ValueError("API key is not set. Please set the API key first.")
         if not text:
             raise ValueError("No text to summarize.")
+        system_prompt = await self.config.system_prompt()
 
-        response = await self.llm_client.messages.create(
-            model="claude-3-5-sonnet-latest",
-            max_tokens=2048,
-            temperature=0,
-            system=await self.config.system_prompt(),
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": text},
-                        {
-                            "type": "text",
-                            "text": "Summarise the key points in this video transcript in the form of markdown-formatted concise notes.",
-                        },
-                    ],
-                },
-                {
-                    "role": "assistant",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Here are the key points from the video transcript:\n\n```markdown",
-                        }
-                    ],
-                },
-            ],
-        )
+        return await get_llm_response(self.llm_client, text, system_prompt)
 
-        return response.content
 
-def cleanup_summary(summary: List[TextBlock]) -> str:
+def cleanup_summary(summary: List[ContentBlock]) -> str:
     """The summary should have a closing ```"""
     if not summary:
-        raise ValueError("Failed to generate a summary.")
+        raise ValueError("Failed to generate a summary, no content found.")
+    # ensure it's a text block and not a tool use block
+    if not isinstance(summary[0], TextBlock):
+        raise ValueError("Failed to generate a summary, expected a text block but got %s", type(summary[0]))
 
     # get the actual text from the response content
     output = summary[0].text
 
     # the closing ``` indicates the end of the summary, only keep everything before it
     output = output.split("```")[0]
+    # remove any leading or trailing whitespace
+    output = output.strip()
+    # remove any leading or trailing newlines
+    output = output.strip("\n")
 
     return output
 
 
-async def get_transcript(video_id: str, https_proxy: str = None) -> str:
+async def get_transcript(ytt_api: YouTubeTranscriptApi, video_id: str) -> str:
     """Get the transcript of a YouTube video."""
     # get the transcript of the video using the video id
     try:
-        params = {"video_id": video_id, "languages": ("en", "en-US", "en-GB")}
-        if https_proxy:
-            params["proxies"] = {"https": https_proxy}
-        transcript = YouTubeTranscriptApi.get_transcript(**params)
+        params = {"languages": ("en-US", "en-GB", "en")}
+        transcript = ytt_api.fetch(video_id=video_id, **params)
     except Exception as e:
         raise ValueError("Error getting transcript: " + str(e))
 
@@ -258,3 +248,34 @@ def get_video_id(video_url: str) -> str:
         return video_id.group(0)
     else:
         raise ValueError("Invalid YouTube video URL")
+
+
+async def get_llm_response(llm_client: AsyncLLM, text: str, system_prompt: str) -> List[ContentBlock]:
+    response = await llm_client.messages.create(
+        model="claude-3-5-sonnet-latest",
+        max_tokens=2048,
+        temperature=0,
+        system=system_prompt,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text},
+                    {
+                        "type": "text",
+                        "text": "Summarise the key points in this video transcript in the form of markdown-formatted concise notes.",
+                    },
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Here are the key points from the video transcript:\n\n```markdown",
+                    }
+                ],
+            },
+        ],
+    )
+    return response.content

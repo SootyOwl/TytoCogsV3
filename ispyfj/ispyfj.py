@@ -8,7 +8,7 @@ from typing import Optional, Dict, Tuple
 import aiohttp
 from bs4 import BeautifulSoup
 from discord import File
-from redbot.core import Config, app_commands, commands
+from redbot.core import Config, commands
 from redbot.core.bot import Red
 
 logger = logging.getLogger("red.ispyfj")
@@ -29,8 +29,84 @@ class IspyFJ(commands.Cog):
             request_timeout=30,
             # Debug mode for extra logging
             debug_mode=False
+            # cookies
+            userId="1802371",  # can be anything
+            fjsession=None,
         )
         self.cache = {}  # Simple in-memory cache: {url: (timestamp, video_url)}
+
+        self.config = Config.get_conf(cog_instance=self, identifier=2985734269283475620983465, force_registration=True)
+        self.config.register_global(**self.default_global)
+        self.session = requests.Session()
+
+    async def cog_load(self) -> None:
+        """Load the cog."""
+        self.session.cookies.set("fjsession", await self.config.userId())
+        self.session.cookies.set("userId", await self.config.fjsession())
+
+    async def cog_unload(self) -> None:
+        """Unload the cog."""
+        self.session.cookies.clear()
+
+    @commands.group(name="fjset")
+    async def fjset(self, ctx: commands.Context):
+        """Funnyjunk settings."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @fjset.command(name="fjsession")
+    async def set_fjsession(self, ctx: commands.Context, fjsession: str):
+        """Set the fjsession cookie."""
+        await self.config.fjsession.set(fjsession)
+        await ctx.reply("fjsession set.")
+        self.session.cookies.set("fjsession", fjsession)
+
+    @commands.is_owner()
+    @commands.hybrid_command(name="setcookies")
+    async def set_cookies(self, ctx: commands.Context, userId: str, fjsession: str):
+        """Set the cookies needed to bypass login protection."""
+        await self.config.userId.set(userId)
+        await self.config.fjsession.set(fjsession)
+        await ctx.reply("Cookies set.")
+
+        # the two cookies needed to bypass login protection
+        self.default_global = {
+            "userId": "1802371",  # can be anything
+            "fjsession": None,
+        }
+        self.config = Config.get_conf(cog_instance=self, identifier=2985734269283475620983465, force_registration=True)
+        self.config.register_global(**self.default_global)
+        self.session = requests.Session()
+
+    async def cog_load(self) -> None:
+        """Load the cog."""
+        self.session.cookies.set("fjsession", await self.config.userId())
+        self.session.cookies.set("userId", await self.config.fjsession())
+
+    async def cog_unload(self) -> None:
+        """Unload the cog."""
+        self.session.cookies.clear()
+
+    @commands.group(name="fjset")
+    async def fjset(self, ctx: commands.Context):
+        """Funnyjunk settings."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @fjset.command(name="fjsession")
+    async def set_fjsession(self, ctx: commands.Context, fjsession: str):
+        """Set the fjsession cookie."""
+        await self.config.fjsession.set(fjsession)
+        await ctx.reply("fjsession set.")
+        self.session.cookies.set("fjsession", fjsession)
+
+    @commands.is_owner()
+    @commands.hybrid_command(name="setcookies")
+    async def set_cookies(self, ctx: commands.Context, userId: str, fjsession: str):
+        """Set the cookies needed to bypass login protection."""
+        await self.config.userId.set(userId)
+        await self.config.fjsession.set(fjsession)
+        await ctx.reply("Cookies set.")
 
     @commands.hybrid_command(name="fj")
     async def convert(self, ctx: commands.Context, link: str):
@@ -400,6 +476,7 @@ class IspyFJ(commands.Cog):
         """Clear the URL cache."""
         self.cache = {}
         await ctx.send("Cache cleared.")
+
 
 
 class VideoNotFoundError(Exception):

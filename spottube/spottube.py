@@ -73,7 +73,9 @@ class SpotTube(commands.Cog):
         except spotify.errors.HTTPException as e:
             return await ctx.reply(f"`{e}`")
 
-        links = [YT_STRING + vid.id.videoId for vid in result]
+        links = [YT_STRING + vid.id.videoId for vid in result if vid.id.videoId]
+        if not links:
+            return await ctx.reply("No valid YouTube video links found.")
         return await menu(ctx=ctx, pages=links, controls=DEFAULT_CONTROLS)
 
     async def _get_spotify_api_keys(self) -> Tuple[str, str]:
