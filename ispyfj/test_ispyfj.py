@@ -126,31 +126,34 @@ async def test_video_url_to_file():
     """Test file creation from video URL."""
     # Create mock response
     mock_resp = mock.AsyncMock()
+    mock_resp.status = 200
+    mock_resp.ok = True
     mock_resp.read = mock.AsyncMock(return_value=b"test video content")
+    # Mock raise_for_status to do nothing for a successful mock
+    mock_resp.raise_for_status = mock.Mock()
+
 
     # Create mock session
     mock_session = mock.AsyncMock()
-    mock_session.get.return_value.__aenter__.return_value = mock_resp
+    mock_session.get.return_value = mock_resp
 
     # Create bot and cog instance
     mock_bot = mock.MagicMock()
     cog = IspyFJ(mock_bot)
 
-    # Patch ClientSession to return our mock session when used as a context manager
-    with mock.patch("aiohttp.ClientSession") as mock_session_class:
-        mock_session_class.return_value.__aenter__.return_value = mock_session
+    # Assign the mock session to the cog
+    cog.session = mock_session
+    # Test file creation
+    url = "https://example.com/test_video.mp4"
+    file = await cog.video_url_to_file(url)
 
-        # Test file creation
-        url = "https://example.com/test_video.mp4"
-        file = await cog.video_url_to_file(url)
+    # Assertions
+    assert file.filename == "test_video.mp4"
+    assert file.spoiler is False
+    assert isinstance(file.fp, io.BytesIO)
 
-        # Assertions
-        assert file.filename == "test_video.mp4"
-        assert file.spoiler is False
-        assert isinstance(file.fp, io.BytesIO)
-
-        # Clean up
-        file.close()
+    # Clean up
+    file.close()
 
 
 @pytest.mark.asyncio

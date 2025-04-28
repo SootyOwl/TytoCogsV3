@@ -107,7 +107,7 @@ class IspyFJ(commands.Cog):
                     video_file = await self.video_url_to_file(video_url)
                     await ctx.reply(file=video_file)
                 except Exception as e:
-                    logger.error(f"Failed to send video file: {e}")
+                    logger.exception(f"Failed to send video file: {e}")
                     # Just send the URL if we can't download the file
                     await ctx.reply(f"{video_url}")
                 finally:
@@ -147,31 +147,41 @@ class IspyFJ(commands.Cog):
         debug_mode = settings["debug_mode"]
 
         try:
-            response = await self.session.get(
-                link, headers={"User-Agent": settings["user_agent"]}, timeout=settings["request_timeout"]
-            )
-            response_text = await response.text()
-
-            if not response_text:
-                raise VideoNotFoundError("Empty response from server.")
-
-            if debug_mode:
-                logger.debug(f"Response status: {response.status}")
-                logger.debug(f"Response length: {len(response_text)} characters")
-
-            # Extract the video URL using multiple methods
-            video_url = self._find_video_url(response_text)
-
-            if not video_url:
-                raise VideoNotFoundError("Could not find video URL in the page HTML.")
-
+            for attempt in range(3):
+                response, response_text = await self.fetch_video_page(link, settings)
+                if not response_text:
+                    raise VideoNotFoundError("Empty response from server.")
+                if debug_mode:
+                    logger.debug(f"Response status: {response.status}")
+                    logger.debug(f"Response length: {len(response_text)} characters")
+                # Extract the video URL using multiple methods
+                video_url = self._find_video_url(response_text)
+                if not video_url:
+                    raise VideoNotFoundError("Could not find video URL in the page HTML.")
+                if video_url.strip() == link.strip():
+                    # we probably need to login again
+                    await self.login_to_funnyjunk(
+                        username=settings.get("username"), password=settings.get("password"), remember=True
+                    )
+                    # retry the request
+                    continue
+                break
+            else:
+                raise VideoNotFoundError("Failed to extract video URL after multiple attempts.")
             # Cache the result
             self.cache[link] = (current_time, video_url)
             return video_url
-
         except aiohttp.ClientError as e:
             logger.error(f"Error fetching FunnyJunk link: {e}")
             raise VideoNotFoundError("Failed to fetch the page.")
+
+    async def fetch_video_page(self, link, settings):
+        response = await self.session.get(
+            link, headers={"User-Agent": settings["user_agent"]}, timeout=settings["request_timeout"]
+        )
+        response_text = await response.text()
+        # check if response is empty or contains "Login"
+        return response, response_text
 
     def _find_video_url(self, html: str) -> Optional[str]:
         """Find video URL using multiple strategies."""
