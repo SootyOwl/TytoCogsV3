@@ -16,7 +16,7 @@
     "hidden" : false,
     "disabled" : false,
     "required_cogs" : {},
-    "requirements" : ["anthropic", "youtube-transcript-api"],
+    "requirements" : ["anthropic>=0.50.0", "youtube-transcript-api>=1.0.3"],
     "tags" : ["claude", "youtube", "video", "summarize"],
     "type" : "COG"
 }

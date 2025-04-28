@@ -14,8 +14,8 @@ beautifulsoup4 = "^4.12.3"
 html2image = "^2.0.4.3"
 wand = "^0.6.13"
 redvid = "^2.0.5"
-anthropic = "^0.42.0"
-youtube-transcript-api = "^0.6.3"
+anthropic = "^0.50.0"
+youtube-transcript-api = "^1.0.3"
 mcstatus = "^11.1.1"
 
 [tool.poetry.group.dev.dependencies]
@@ -23,6 +23,8 @@ pytest = "^8.2.2"
 flake8 = "^4.0.1"
 black = { extras = ["d"], version = "^21.12-beta.0" }
 pytest-asyncio = "^0.23.7"
+pytest-mock = "^3.14.0"
+dotenv = "^0.9.9"
 
 [tool.black]
 line-length = 120
