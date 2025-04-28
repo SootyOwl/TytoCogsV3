@@ -30,9 +30,9 @@ class IspyFJ(commands.Cog):
             request_timeout=30,
             # Debug mode for extra logging
             debug_mode=False,
-            # cookies
-            userId="1802371",  # can be anything
-            fjsession=None,
+            # credentials (we hope there is never a captcha)
+            username=None,
+            password=None,
         )
         self.cache = {}  # Simple in-memory cache: {url: (timestamp, video_url)}
 
@@ -40,23 +40,46 @@ class IspyFJ(commands.Cog):
 
     async def cog_load(self) -> None:
         """Load the cog."""
-        # Load the fjsession cookie if set
-        fjsession = await self.config.fjsession()
-        userId = await self.config.userId()
-        if fjsession:
-            # Set the cookie for the session
-            cookies = {
-                "fjsession": fjsession,
-                "userId": userId,
-            }
-            await self.update_cookie_session(**cookies)
+        # Set up the aiohttp session with the user agent
+        await self.set_user_agent()
+        # Load the username and password from the config
+        username = await self.config.username()
+        password = await self.config.password()
+        # If username and password are set, login to FunnyJunk
+        if username and password:
+            await self.login_to_funnyjunk(username=username, password=password, remember=True)
         else:
-            logger.warning("No fjsession cookie set. Some features may not work as expected.")
+            logger.info("No username/password set, skipping login to FunnyJunk.")
 
-    async def update_cookie_session(self, **cookies):
-        self.session.cookie_jar.update_cookies(
-            cookies
-        )
+    async def set_user_agent(self):
+        user_agent = await self.config.user_agent()
+        self.session.headers.update({"User-Agent": user_agent})
+
+    async def login_to_funnyjunk(self, **credentials):
+        try:
+            # Attempt to login to FunnyJunk
+            response = await self.session.post(
+                "https://funnyjunk.com/ajax/login",
+                data=credentials,
+            )
+            if response.status == 200:
+                # Login successful
+                logger.info("Logged in to FunnyJunk successfully.")
+            else:
+                # Login failed
+                logger.error(f"Failed to log in to FunnyJunk: {response.status}")
+        except aiohttp.ClientError as e:
+            # Handle network errors
+            logger.error(f"Network error during FunnyJunk login: {e}")
+            raise e
+        except Exception as e:
+            # Handle other exceptions
+            logger.error(f"Unexpected error during FunnyJunk login: {e}")
+            raise e
+
+    async def cog_unload(self) -> None:
+        """Unload the cog."""
+        await self.session.close()
 
     @commands.hybrid_command(name="fj")
     async def convert(self, ctx: commands.Context, link: str):
@@ -124,22 +147,20 @@ class IspyFJ(commands.Cog):
         debug_mode = settings["debug_mode"]
 
         try:
-            # Make the request with the user agent
-            async with self.session as session:
-                response = await session.get(
-                    link, headers={"User-Agent": settings["user_agent"]}, timeout=settings["request_timeout"]
-                )
-                response_text = await response.text()
+            response = await self.session.get(
+                link, headers={"User-Agent": settings["user_agent"]}, timeout=settings["request_timeout"]
+            )
+            response_text = await response.text()
 
-                if not response_text:
-                    raise VideoNotFoundError("Empty response from server.")
+            if not response_text:
+                raise VideoNotFoundError("Empty response from server.")
 
-                if debug_mode:
-                    logger.debug(f"Response status: {response.status}")
-                    logger.debug(f"Response length: {len(response_text)} characters")
+            if debug_mode:
+                logger.debug(f"Response status: {response.status}")
+                logger.debug(f"Response length: {len(response_text)} characters")
 
-                # Extract the video URL using multiple methods
-                video_url = self._find_video_url(response_text)
+            # Extract the video URL using multiple methods
+            video_url = self._find_video_url(response_text)
 
             if not video_url:
                 raise VideoNotFoundError("Could not find video URL in the page HTML.")
@@ -349,28 +370,27 @@ class IspyFJ(commands.Cog):
         settings = await self.get_settings()
 
         # Download the video with proper timeout and chunk handling
-        async with aiohttp.ClientSession() as session:
-            video_response = await session.get(
-                url, timeout=settings["request_timeout"], headers={"User-Agent": settings["user_agent"]}
-            )
-            video_response.raise_for_status()
+        video_response = await self.session.get(
+            url, timeout=settings["request_timeout"], headers={"User-Agent": settings["user_agent"]}
+        )
+        video_response.raise_for_status()
 
-            # Create a BytesIO object to hold the video
-            video_file = BytesIO()
+        # Create a BytesIO object to hold the video
+        video_file = BytesIO()
 
-            # Stream the content in chunks to avoid memory issues with large videos
-            async for chunk in await video_response.content.iter_chunked(8192):
-                if chunk:
-                    video_file.write(chunk)
+        # Stream the content in chunks to avoid memory issues with large videos
+        async for chunk in await video_response.content.iter_chunked(8192):
+            if chunk:
+                video_file.write(chunk)
 
-            # Reset the position to the beginning of the file
-            video_file.seek(0)
+        # Reset the position to the beginning of the file
+        video_file.seek(0)
 
-            # Extract filename from URL
-            filename = url.split("/")[-1]
+        # Extract filename from URL
+        filename = url.split("/")[-1]
 
-            # Create and return the file
-            return File(video_file, filename=filename)
+        # Create and return the file
+        return File(video_file, filename=filename)
 
     async def get_settings(self) -> Dict:
         """Get the current settings."""
@@ -379,8 +399,8 @@ class IspyFJ(commands.Cog):
             "request_timeout": await self.config.request_timeout(),
             "cache_duration": await self.config.cache_duration(),
             "debug_mode": await self.config.debug_mode(),
-            "fjsession": await self.config.fjsession(),
-            "userId": await self.config.userId(),
+            "username": await self.config.username(),
+            "password?": True if await self.config.password() else False,
         }
 
     @commands.group(name="fjset")
@@ -392,12 +412,19 @@ class IspyFJ(commands.Cog):
             settings_str = "\n".join([f"{k}: {v}" for k, v in settings.items()])
             await ctx.send(f"Current settings:\n```\n{settings_str}\n```")
 
-    @fjset.command(name="fjsession")
-    async def set_fjsession(self, ctx: commands.Context, fjsession: str):
-        """Set the fjsession cookie."""
-        await self.config.fjsession.set(fjsession)
-        await ctx.reply("fjsession set.")
-        await self.update_cookie_session()
+    @fjset.command(name="credentials")
+    async def set_credentials(self, ctx: commands.Context, username: str, password: str):
+        """Set your FunnyJunk credentials."""
+        # delete the ctx message immediately
+        try:
+            await ctx.message.delete()
+        except Exception as e:
+            logger.debug(f"Failed to delete message: {e}")
+        # Set the credentials in the config
+        await self.config.username.set(username)
+        await self.config.password.set(password)
+        await ctx.send("Credentials set.")
+        await self.login_to_funnyjunk(username=username, password=password, remember=True)
 
     @fjset.command(name="useragent")
     async def set_useragent(self, ctx: commands.Context, *, user_agent: str):

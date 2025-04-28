@@ -1,4 +1,5 @@
 import io
+import os
 import pytest
 import requests
 import unittest.mock as mock
@@ -181,6 +182,18 @@ async def test_find_video_url():
     assert video_url == "https://example.com/cached-video.mp4"
 
 
+@pytest.fixture
+def funnyjunk_credentials():
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    return {
+        "username": os.getenv("FUNNYJUNK_USERNAME", "test_username"),
+        "password": os.getenv("FUNNYJUNK_PASSWORD", "test_password"),
+    }
+
+
 # try with actual url: https://funnyjunk.com/Crose+rid/wrrcTje/
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -202,11 +215,6 @@ async def test_find_video_url():
             "https://funnyjunk.com/Unkempt+luckless+rapidfire/GivzRTv/",
             "https://loginportal123.funnyjunk.com/hdgifs/Unkempt+luckless+rapgym+boyzire_4c3d1f_11751038.mp4",
         ),
-        (  # login required
-            "White people things",
-            "https://funnyjunk.com/White+people+things/jcveTwp/",
-            "https://loginportal123.funnyjunk.com/hdgifs/White+people+things_5635e1_12450679.mp4",
-        ),
     ],
 )
 async def test_get_video_url(name, input_url, expected_url):
@@ -214,15 +222,32 @@ async def test_get_video_url(name, input_url, expected_url):
     # Create bot and cog instance
     mock_bot = mock.MagicMock()
     cog = IspyFJ(mock_bot)
-    # set the cookie
-    await cog.update_cookie_session(
-        **{
-            "fjsession": "09a2880d3a6f657c1d56949bf5f445cda3d5633e4be77768_u",
-            "userId": "1802371",
-        }
-    )
+
     # Test the method
     video_url = await cog.get_video_url(input_url)
 
     # Assertions
     assert video_url == expected_url
+
+
+@pytest.mark.asyncio
+async def test_get_video_url_login_required(funnyjunk_credentials):
+    url = "https://funnyjunk.com/White+people+things/jcveTwp/"
+    expected = "https://loginportal123.funnyjunk.com/hdgifs/White+people+things_5635e1_12450679.mp4"
+
+    # Create bot and cog instance
+    mock_bot = mock.MagicMock()
+    cog = IspyFJ(mock_bot)
+
+    # login to the site
+    await cog.login_to_funnyjunk(**funnyjunk_credentials)
+
+    # assert the session's cookies are set
+    assert cog.session.cookie_jar.filter_cookies("https://funnyjunk.com").get("fjsession") is not None
+    assert cog.session.cookie_jar.filter_cookies("https://funnyjunk.com").get("userId") is not None
+
+    # Test the method
+    video_url = await cog.get_video_url(url)
+
+    # Assertions
+    assert video_url == expected
