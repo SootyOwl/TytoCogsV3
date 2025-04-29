@@ -34,6 +34,7 @@ class TLDWatch(commands.Cog):
             "api_key": None,
             "system_prompt": ("You are a YouTube video note taker and summarizer."),
             "https_proxy": None,
+            "languages": ["en-US", "en-GB", "en"],
         }
         self.config.register_global(**default_global)
 
@@ -76,6 +77,7 @@ class TLDWatch(commands.Cog):
         pass
 
     @commands.is_owner()
+    @commands.dm_only()
     @tldwset.command(name="apikey")
     async def set_api_key(self, ctx: commands.Context, api_key: str) -> None:
         """Set the LLM API key (admin only)
@@ -113,6 +115,76 @@ class TLDWatch(commands.Cog):
         await self.config.https_proxy.set(https_proxy)
 
         await ctx.send("https proxy set successfully.")
+
+    @tldwset.group(name="languages", invoke_without_command=True)
+    async def languages(self, ctx: commands.Context) -> None:
+        """Set the languages for the transcript API"""
+        await ctx.send_help()
+
+    @commands.admin()
+    @languages.command(name="add")
+    async def add_language(self, ctx: commands.Context, language: str) -> None:
+        """Add a language to the list of languages for the transcript API"""
+        async with self.config.languages() as languages:
+            if language not in languages:
+                languages.append(language)
+                await ctx.send(f"Language '{language}' added successfully.")
+            else:
+                await ctx.send(f"Language '{language}' is already in the list.")
+
+    @commands.admin()
+    @languages.command(name="remove")
+    async def remove_language(self, ctx: commands.Context, language: str) -> None:
+        """Remove a language from the list of languages for the transcript API"""
+        async with self.config.languages() as languages:
+            if language in languages:
+                languages.remove(language)
+                await ctx.send(f"Language '{language}' removed successfully.")
+            else:
+                await ctx.send(f"Language '{language}' is not in the list.")
+
+    @commands.admin()
+    @languages.command(name="list")
+    async def list_languages(self, ctx: commands.Context) -> None:
+        """List the languages for the transcript API"""
+        languages = await self.config.languages()
+        if languages:
+            await ctx.send(f"Languages: {', '.join(languages)}")
+        else:
+            await ctx.send("No languages set.")
+
+    @commands.admin()
+    @languages.command(name="clear")
+    async def clear_languages(self, ctx: commands.Context) -> None:
+        """Clear the list of languages for the transcript API"""
+        await self.config.languages.clear()
+        await ctx.send("Languages cleared successfully.")
+
+    # allow reordering (reprioritising) of the languages
+    @commands.admin()
+    @languages.command(name="reorder")
+    async def reorder_languages(self, ctx: commands.Context, *languages: str) -> None:
+        """Reorder the languages for the transcript API.
+        
+        The order of the languages will be set to the order provided.
+        Any languages not provided will be appended to the end of the list.
+
+        Example: 
+            When the current languages are ['en-US', 'en-GB', 'en']
+            and the command is called with ['en-GB', 'en-US']
+            the new order will be ['en-GB', 'en-US', 'en']
+        """
+        async with self.config.languages() as lang_list:
+            # check if all languages are in the list
+            for lang in languages:
+                if lang not in lang_list:
+                    await ctx.send(f"Language '{lang}' is not in the list. Please add it first.")
+                    return
+            # reorder the list
+            reordered_list = [lang for lang in languages if lang in lang_list]
+            remaining_languages = [lang for lang in lang_list if lang not in reordered_list]
+            lang_list[:] = reordered_list + remaining_languages
+            await ctx.send(f"Languages reordered successfully to: {', '.join(lang_list)}")
 
     @commands.hybrid_command(name="tldw")
     async def summarize(self, ctx: commands.Context, video_url: str) -> None:
@@ -172,9 +244,7 @@ class TLDWatch(commands.Cog):
             return self._summary_cache[video_id]
 
         # get the transcript of the video using the video id
-        # get the https proxy from the config if it's set
-        https_proxy = await self.config.https_proxy()
-        transcript = await get_transcript(self.ytt_api, video_id)
+        transcript = await get_transcript(self.ytt_api, video_id, languages=await self.config.languages())
 
         # summarize the transcript using Claude
         summary = await self.generate_summary(transcript)
@@ -226,12 +296,11 @@ def cleanup_summary(summary: List[ContentBlock]) -> str:
     return output
 
 
-async def get_transcript(ytt_api: YouTubeTranscriptApi, video_id: str) -> str:
+async def get_transcript(ytt_api: YouTubeTranscriptApi, video_id: str, languages: list[str] = ["en-US", "en-GB", "en"]) -> str:
     """Get the transcript of a YouTube video."""
     # get the transcript of the video using the video id
     try:
-        params = {"languages": ("en-US", "en-GB", "en")}
-        transcript = ytt_api.fetch(video_id=video_id, **params)
+        transcript = ytt_api.fetch(video_id=video_id, languages=languages)
     except Exception as e:
         raise ValueError("Error getting transcript: " + str(e))
 
@@ -263,7 +332,7 @@ async def get_llm_response(llm_client: AsyncLLM, text: str, system_prompt: str) 
                     {"type": "text", "text": text},
                     {
                         "type": "text",
-                        "text": "Summarise the key points in this video transcript in the form of markdown-formatted concise notes.",
+                        "text": "Summarise the key points in this video transcript in the form of markdown-formatted concise notes, in the language of the transcript.",
                     },
                 ],
             },
