@@ -157,7 +157,8 @@ class TLDWatch(commands.Cog):
     @languages.command(name="clear")
     async def clear_languages(self, ctx: commands.Context) -> None:
         """Clear the list of languages for the transcript API"""
-        await self.config.languages.clear()
+        async with self.config.languages() as languages:
+            languages.clear()
         await ctx.send("Languages cleared successfully.")
 
     # allow reordering (reprioritising) of the languages
