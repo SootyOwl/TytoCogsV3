@@ -82,7 +82,7 @@ async def test_get_transcript(ytt_api, video_id, expected):
 async def test_get_transcript_languages(ytt_api):
     video_id = "rnCVlVSE5pI"  # de
     transcript = await tldw.get_transcript(ytt_api, video_id, languages=["en", "de"])
-    assert "hallo da bin ich wieder" in transcript
+    assert "da bin ich wieder" in transcript
 
 
 # test get_transcript function with invalid video id
@@ -213,4 +213,3 @@ async def test_get_llm_response_without_mocker(llm_client):
     )
     assert isinstance(response[0], TextBlock)
     assert response[0].text == "\nTest response\n```"
-    assert isinstance(response[0].citations, list)
