@@ -1,0 +1,43 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: Run Python Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.11"
+    - name: Install Poetry Action
+      # You may pin to the exact commit or the version.
+      # uses: snok/install-poetry@93ada01c735cc8a383ce0ce2ae205a21c415379b
+      uses: snok/install-poetry@v1.3.4
+      with:
+        # The Poetry version to install
+        version: 2.1.2          
+    - name: Install dependencies
+      run: |
+        poetry install
+    - name: Setup FFmpeg
+      uses: federicocarboni/setup-ffmpeg@v3.1
+    - name: Test with pytest
+      env:  # set secrets as input
+        FUNNYJUNK_USERNAME: ${{ secrets.FUNNYJUNK_USERNAME }}
+        FUNNYJUNK_PASSWORD: ${{ secrets.FUNNYJUNK_PASSWORD }}
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
+      run: |
+        poetry run pytest

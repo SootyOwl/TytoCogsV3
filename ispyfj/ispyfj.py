@@ -10,6 +10,8 @@ from bs4 import BeautifulSoup
 from discord import File
 from redbot.core import Config, commands
 from redbot.core.bot import Red
+import socket
+
 
 logger = logging.getLogger("red.ispyfj")
 
@@ -35,21 +37,28 @@ class IspyFJ(commands.Cog):
             password=None,
         )
         self.cache = {}  # Simple in-memory cache: {url: (timestamp, video_url)}
-
-        self.session = aiohttp.ClientSession()
+        conn = aiohttp.TCPConnector(
+            family=socket.AF_INET,
+            ssl=False,
+        )
+        self.session = aiohttp.ClientSession(connector=conn)
 
     async def cog_load(self) -> None:
         """Load the cog."""
         # Set up the aiohttp session with the user agent
         await self.set_user_agent()
         # Load the username and password from the config
-        username = await self.config.username()
-        password = await self.config.password()
+        username, password = await self.get_credentials()
         # If username and password are set, login to FunnyJunk
         if username and password:
             await self.login_to_funnyjunk(username=username, password=password, remember=True)
         else:
             logger.info("No username/password set, skipping login to FunnyJunk.")
+
+    async def get_credentials(self):
+        username = await self.config.username()
+        password = await self.config.password()
+        return username, password
 
     async def set_user_agent(self):
         user_agent = await self.config.user_agent()
@@ -159,10 +168,8 @@ class IspyFJ(commands.Cog):
                 if not video_url:
                     raise VideoNotFoundError("Could not find video URL in the page HTML.")
                 if video_url.strip() == link.strip():
-                    # we probably need to login again
-                    await self.login_to_funnyjunk(
-                        username=settings.get("username"), password=settings.get("password"), remember=True
-                    )
+                    u, p = await self.get_credentials()
+                    await self.login_to_funnyjunk(username=u, password=p, remember=True)
                     # retry the request
                     continue
                 break
@@ -380,25 +387,28 @@ class IspyFJ(commands.Cog):
         settings = await self.get_settings()
 
         # Download the video with proper timeout and chunk handling
-        video_response = await self.session.get(
-            url, timeout=settings["request_timeout"], headers={"User-Agent": settings["user_agent"]}
-        )
-        video_response.raise_for_status()
+        async with self.session.get(
+            url,
+            timeout=settings["request_timeout"],
+            headers={"User-Agent": settings["user_agent"]},
+            allow_redirects=True,
+        ) as video_response:
+            video_response.raise_for_status()
+            # check the size of the file
+            if video_response.content_length is not None:
+                if video_response.content_length > 25 * 1024 * 1024:  # 25 MB limit on discord
+                    # we should send the url instead, so raise an exception
+                    raise VideoTooLargeError("Video too large to send directly.")
 
-        # Create a BytesIO object to hold the video
-        video_file = BytesIO()
-
-        # Stream the content in chunks to avoid memory issues with large videos
-        async for chunk in await video_response.content.iter_chunked(8192):
-            if chunk:
+            # Create a BytesIO object to hold the video in memory
+            video_file = BytesIO()
+            async for chunk in video_response.content.iter_chunked(1024):
                 video_file.write(chunk)
 
         # Reset the position to the beginning of the file
         video_file.seek(0)
-
         # Extract filename from URL
         filename = url.split("/")[-1]
-
         # Create and return the file
         return File(video_file, filename=filename)
 
@@ -469,5 +479,11 @@ class IspyFJ(commands.Cog):
 
 class VideoNotFoundError(Exception):
     """Exception raised when a video cannot be found on the page."""
+
+    pass
+
+
+class VideoTooLargeError(Exception):
+    """Exception raised when the video is too large to send."""
 
     pass

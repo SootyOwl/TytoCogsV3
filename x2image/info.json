@@ -1,22 +1,28 @@
 {
-    "author" : [
+    "author": [
         "Tyto"
     ],
-    "description" : "Convert x.com links to images.",
-    "install_msg" : "",
-    "short" : "Convert x.com links to images.",
-    "end_user_data_statement" : "",
-    "min_bot_version" : "3.1.8",
-    "max_bot_version" : "0.0.0",
-    "min_python_version" : [
+    "description": "THIS COG HAS BEEN DISABLED DUE TO CHANGES IN CHROME'S HEADLESS MODE THAT ARE TOO MUCH WORK FOR ME TO FIX AT THE MOMENT. Convert x.com links to images.",
+    "install_msg": "",
+    "short": "Convert x.com links to images.",
+    "end_user_data_statement": "",
+    "min_bot_version": "3.1.8",
+    "max_bot_version": "0.0.0",
+    "min_python_version": [
         3,
         8,
         0
     ],
-    "hidden" : false,
-    "disabled" : false,
-    "required_cogs" : {},
-    "requirements" : ["requests", "html2image", "wand"],
-    "tags" : ["utility"],
-    "type" : "COG"
+    "hidden": true,
+    "disabled": true,
+    "required_cogs": {},
+    "requirements": [
+        "requests",
+        "html2image",
+        "wand"
+    ],
+    "tags": [
+        "utility"
+    ],
+    "type": "COG"
 }

@@ -1,5 +1,6 @@
 import io
 import os
+import sys
 import pytest
 import requests
 import unittest.mock as mock
@@ -122,35 +123,27 @@ async def test_extraction_methods(html_content, expected_url, extraction_method)
 
 
 @pytest.mark.asyncio
-async def test_video_url_to_file():
+async def test_video_url_to_file(funnyjunk_credentials):
     """Test file creation from video URL."""
-    # Create mock response
-    mock_resp = mock.AsyncMock()
-    mock_resp.status = 200
-    mock_resp.ok = True
-    mock_resp.read = mock.AsyncMock(return_value=b"test video content")
-    # Mock raise_for_status to do nothing for a successful mock
-    mock_resp.raise_for_status = mock.Mock()
-
-
-    # Create mock session
-    mock_session = mock.AsyncMock()
-    mock_session.get.return_value = mock_resp
-
     # Create bot and cog instance
     mock_bot = mock.MagicMock()
     cog = IspyFJ(mock_bot)
+    cog.config.username
+    await cog.cog_load()
+    await cog.login_to_funnyjunk(**funnyjunk_credentials)
 
     # Assign the mock session to the cog
-    cog.session = mock_session
+    # cog.session = mock_session
     # Test file creation
-    url = "https://example.com/test_video.mp4"
+    url = "https://user_uploaded_content.funnyjunk.com/movies/Crose+rid_5be80c_12352736.mp4"
     file = await cog.video_url_to_file(url)
 
     # Assertions
-    assert file.filename == "test_video.mp4"
+    assert file.filename == "Crose+rid_5be80c_12352736.mp4"
     assert file.spoiler is False
     assert isinstance(file.fp, io.BytesIO)
+    assert file.fp.tell() == 0  # Ensure the file pointer is at the start
+    assert sys.getsizeof(file.fp) > 0  # Ensure the file is not empty
 
     # Clean up
     file.close()
@@ -205,13 +198,13 @@ def funnyjunk_credentials():
         (
             "Crose Rid",
             "https://funnyjunk.com/Crose+rid/wrrcTje/",
-            "https://bigmemes123.funnyjunk.com/movies/Crose+rid_5be80c_12352736.mp4",
+            "https://user_uploaded_content.funnyjunk.com/movies/Crose+rid_5be80c_12352736.mp4",
         ),
         # TODO: Add more real URLs to test the various extraction methods
         (  # normal video URL
             "How dreaming feels like",
             "https://funnyjunk.com/How+dreaming+feels+like/vttzRig/",
-            "https://bigmemes123.funnyjunk.com/hdgifs/How+dreaming+feels+like_247d10_11748871.mp4",
+            "https://user_uploaded_content.funnyjunk.com/hdgifs/How+dreaming+feels+like_247d10_11748871.mp4",
         ),
         (  # spaces in the video URL are replaced with '+'
             "Unkempt luckless rapidfire",
