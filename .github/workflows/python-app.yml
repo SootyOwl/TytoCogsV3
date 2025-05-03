@@ -32,5 +32,10 @@ jobs:
       run: |
         poetry install
     - name: Test with pytest
+      env:  # set secrets as input
+        FUNNYJUNK_USERNAME: ${{ secrets.FUNNYJUNK_USERNAME }}
+        FUNNYJUNK_PASSWORD: ${{ secrets.FUNNYJUNK_PASSWORD }}
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
       run: |
         poetry run pytest
