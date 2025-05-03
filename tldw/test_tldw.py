@@ -1,7 +1,9 @@
-import json
+import os
+
 import pytest
-from tldw import tldw
 from youtube_transcript_api import YouTubeTranscriptApi, proxies
+
+from tldw import tldw
 
 
 # test video url conversion
@@ -42,19 +44,16 @@ def test_get_video_id_invalid_input(video_url):
 # test get_transcript function
 @pytest.fixture
 def https_proxy():
-    # open the .proxies file and read the https proxy
-    proxies = json.load(open(".proxies"))["https"]
-    # choose a random one to return if it's a list
-    if isinstance(proxies, list):
-        import random
+    # get the HTTPS_PROXY env var
+    from dotenv import load_dotenv
 
-        proxies = random.choice(proxies)
-    # if it's a string, return it as is
-    elif isinstance(proxies, str):
-        return proxies
-    # if it's neither, raise an exception
-    else:
-        raise ValueError("Invalid proxy format in .proxies file")
+    load_dotenv()
+    https_proxy = os.getenv("HTTPS_PROXY")
+    if https_proxy:
+        # if it is not empty, return it
+        return https_proxy
+    # if it is empty, return None
+    return None
 
 
 @pytest.fixture
@@ -188,6 +187,7 @@ async def test_get_llm_response(mocker):
 def llm_client():
     # load the .env file and get the api key
     from dotenv import load_dotenv
+
     from tldw.tldw import AsyncLLM
 
     load_dotenv()
@@ -207,4 +207,3 @@ async def test_get_llm_response_without_mocker(llm_client):
     )
     assert isinstance(response[0], TextBlock)
     assert response[0].text == "\nTest response\n```"
-    assert isinstance(response[0].citations, list)

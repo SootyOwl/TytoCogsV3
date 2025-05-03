@@ -9,9 +9,11 @@ def REDDITURL():
     return "https://www.reddit.com/r/Minecraft/comments/1eszhxx/finally_minecarts_are_getting_updated_24w33a/"
 
 
-def test_download_reddit_video(REDDITURL, tmp_path):
-    video = download_reddit_video(REDDITURL, max_size=7 * (1 << 20), path=tmp_path.name)
+@pytest.mark.asyncio
+async def test_download_reddit_video(request, REDDITURL, tmp_path):
+    video = await download_reddit_video(REDDITURL, max_size=(1 << 20), path=tmp_path.name)
     assert video is not None
+    
 
 
 def test_check_video_result(tmp_path):
