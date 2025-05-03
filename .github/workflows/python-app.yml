@@ -31,6 +31,8 @@ jobs:
     - name: Install dependencies
       run: |
         poetry install
+    - name: Setup FFmpeg
+      uses: federicocarboni/setup-ffmpeg@v3.1
     - name: Test with pytest
       env:  # set secrets as input
         FUNNYJUNK_USERNAME: ${{ secrets.FUNNYJUNK_USERNAME }}
