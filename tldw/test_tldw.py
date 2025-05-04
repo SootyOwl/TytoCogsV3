@@ -77,6 +77,12 @@ async def test_get_transcript(ytt_api, video_id, expected):
     transcript = await tldw.get_transcript(ytt_api, video_id)
     assert expected in transcript
 
+@pytest.mark.asyncio
+async def test_get_transcript_languages(ytt_api):
+    video_id = "rnCVlVSE5pI"  # de
+    transcript = await tldw.get_transcript(ytt_api, video_id, languages=["en", "de"])
+    assert "da bin ich wieder" in transcript
+
 
 # test get_transcript function with invalid video id
 @pytest.mark.asyncio
