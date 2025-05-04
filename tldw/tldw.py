@@ -277,12 +277,13 @@ class TLDWatch(commands.Cog):
             # get the language index from the button id
             lang_index = int(interaction.data.get("custom_id"))
             async with self.config.languages() as langs:
+                moved_lang = langs[lang_index]  # Save the language before modifying the list
                 langs.insert(0, langs.pop(lang_index))
             # update the view with the new order
             view = await make_view()
             view.message = interaction.message
             await interaction.response.edit_message(
-                content=f"Language '{langs[lang_index]}' moved to the top.",
+                content=f"Language '{moved_lang}' moved to the top.",  # Use the saved language
                 view=view,
             )
 
