@@ -167,7 +167,7 @@ class TLDWatch(commands.Cog):
     @commands.is_owner()
     @languages.command(name="remove")
     async def remove_languages(self, ctx: commands.Context, number: Optional[int] = None) -> None:
-        """Remove a languages by number the list of languages for the transcript API"""
+        """Remove a language from the list of languages for the transcript API by its number."""
         languages = await self.config.languages()
         if not languages:
             await ctx.send("No languages set.")
