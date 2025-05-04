@@ -1,11 +1,13 @@
 """Too Long; Didn't Watch (TLDW) - Summarize YouTube videos."""
 
+from gc import disable
 import re
 from typing import List, Optional
 import discord
+from discord import ButtonStyle
 from redbot.core import commands, Config, app_commands
 from redbot.core.bot import Red
-
+from redbot.core.utils.views import ConfirmView
 from anthropic import AsyncAnthropic as AsyncLLM
 from anthropic.types.text_block import TextBlock
 from anthropic.types.content_block import ContentBlock
@@ -71,6 +73,15 @@ class TLDWatch(commands.Cog):
         """Called when the cog is loaded"""
         await self.initialize()
 
+    async def cog_unload(self) -> None:
+        """Called when the cog is unloaded"""
+        self.bot.tree.remove_command(
+            self.youtube_summary_context_menu.name, type=self.youtube_summary_context_menu.type
+        )
+        self.bot.tree.remove_command(
+            self.youtube_summary_context_menu_private.name, type=self.youtube_summary_context_menu_private.type
+        )
+
     @commands.group()
     async def tldwset(self, ctx: commands.Context) -> None:
         """Settings for the video summarizer"""
@@ -121,71 +132,162 @@ class TLDWatch(commands.Cog):
         """Set the languages for the transcript API"""
         await ctx.send_help()
 
-    @commands.admin()
+    @commands.is_owner()
     @languages.command(name="add")
-    async def add_language(self, ctx: commands.Context, language: str) -> None:
+    async def add_language(self, ctx: commands.Context, language: Optional[str] = None) -> None:
         """Add a language to the list of languages for the transcript API"""
-        async with self.config.languages() as languages:
-            if language not in languages:
-                languages.append(language)
-                await ctx.send(f"Language '{language}' added successfully.")
-            else:
-                await ctx.send(f"Language '{language}' is already in the list.")
 
-    @commands.admin()
+        async with self.config.languages() as langs:
+            if language:
+                # add the language to the list if it isn't already there
+                if language in langs:
+                    await ctx.reply(f"Language '{language}' already exists.")
+                    return
+                langs.append(language)
+                # send a message to the user with the language added
+                await ctx.reply(f"Language '{language}' added successfully.")
+                return
+
+            class AddLanguageModal(discord.ui.Modal, title="Add Language"):
+                language = discord.ui.TextInput(label="Language", placeholder="e.g. en-US", required=True)
+
+                async def on_submit(self, interaction: discord.Interaction) -> None:
+                    langs.append(self.language.value)
+                    await interaction.response.edit_message(
+                        content=f"Language '{self.language.value}' added successfully.", view=None
+                    )
+
+            class MyView(discord.ui.View):
+                @discord.ui.button(label="Add Language", style=ButtonStyle.blurple)
+                async def button_callback(self, interaction, button):
+                    return await interaction.response.send_modal(AddLanguageModal())
+
+            await ctx.reply("Click the button to add a language:", view=MyView())
+
+    @commands.is_owner()
     @languages.command(name="remove")
-    async def remove_language(self, ctx: commands.Context, language: str) -> None:
-        """Remove a language from the list of languages for the transcript API"""
-        async with self.config.languages() as languages:
-            if language in languages:
-                languages.remove(language)
-                await ctx.send(f"Language '{language}' removed successfully.")
-            else:
-                await ctx.send(f"Language '{language}' is not in the list.")
+    async def remove_languages(self, ctx: commands.Context, number: Optional[int] = None) -> None:
+        """Remove a languages by number the list of languages for the transcript API"""
+        languages = await self.config.languages()
+        if not languages:
+            await ctx.send("No languages set.")
+            return
 
-    @commands.admin()
+        if number is not None:
+            # remove the language by number
+            async with self.config.languages() as langs:
+                removed_lang = langs.pop(number - 1)
+            await ctx.send(f"Language '{removed_lang}' removed successfully.")
+            return
+
+        # create a discord view to manage the languages
+        async def remove_callback(interaction: discord.Interaction) -> None:
+            # get the language index from the button id
+            lang_index = int(interaction.data.get("custom_id"))
+            async with self.config.languages() as langs:
+                removed_lang = langs.pop(lang_index)
+            await interaction.response.edit_message(
+                content=f"Language '{removed_lang}' removed successfully.", view=None
+            )
+
+        view = discord.ui.View(timeout=60)
+        for i, lang in enumerate(languages):
+            button = discord.ui.Button(label=lang, style=ButtonStyle.red, custom_id=str(i))
+            button.callback = remove_callback
+            view.add_item(button)
+
+        await ctx.send("Select a language to remove:", view=view)
+
+    @commands.is_owner()
     @languages.command(name="list")
     async def list_languages(self, ctx: commands.Context) -> None:
         """List the languages for the transcript API"""
         languages = await self.config.languages()
-        if languages:
-            await ctx.send(f"Languages: {', '.join(languages)}")
-        else:
+        if not languages:
             await ctx.send("No languages set.")
+            return
+        # create a discord embed to display the languages
+        embed = discord.Embed(
+            title="Languages", description="\n".join(f"[{i+1}] {lang}" for i, lang in enumerate(languages))
+        )
+        embed.set_footer(
+            text="Use `tldwset languages remove <number>` to remove a language, or `tldwset languages add <language>` to add a language."
+        )
 
-    @commands.admin()
+    @commands.is_owner()
     @languages.command(name="clear")
     async def clear_languages(self, ctx: commands.Context) -> None:
         """Clear the list of languages for the transcript API"""
-        async with self.config.languages() as languages:
-            languages.clear()
-        await ctx.send("Languages cleared successfully.")
+        view = ConfirmView(ctx.author)
+        view.message = await ctx.send(
+            "Are you sure you want to clear the list of languages? This will remove all languages.",
+            view=view,
+        )
+        await view.wait()
+        if view.result:
+            async with self.config.languages() as languages:
+                languages.clear()
+            await ctx.reply("Languages cleared successfully.")
+        else:
+            await ctx.reply("Languages not cleared.")
 
     # allow reordering (reprioritising) of the languages
-    @commands.admin()
+    @commands.is_owner()
     @languages.command(name="reorder")
-    async def reorder_languages(self, ctx: commands.Context, *languages: str) -> None:
+    async def reorder_languages(self, ctx: commands.Context) -> None:
         """Reorder the languages for the transcript API.
-        
+
         The order of the languages will be set to the order provided.
         Any languages not provided will be appended to the end of the list.
 
-        Example: 
+        Example:
             When the current languages are ['en-US', 'en-GB', 'en']
             and the command is called with ['en-GB', 'en-US']
             the new order will be ['en-GB', 'en-US', 'en']
         """
-        async with self.config.languages() as lang_list:
-            # check if all languages are in the list
-            for lang in languages:
-                if lang not in lang_list:
-                    await ctx.send(f"Language '{lang}' is not in the list. Please add it first.")
-                    return
-            # reorder the list
-            reordered_list = [lang for lang in languages if lang in lang_list]
-            remaining_languages = [lang for lang in lang_list if lang not in reordered_list]
-            lang_list[:] = reordered_list + remaining_languages
-            await ctx.send(f"Languages reordered successfully to: {', '.join(lang_list)}")
+        if not await self.config.languages():
+            await ctx.reply(f"No languages set. Add a language first using `{ctx.clean_prefix}tldwset languages add`.")
+            return
+
+        # create a discord view to manage the languages
+        async def make_view():
+            # create a discord view to manage the languages
+            view = discord.ui.View(timeout=60)
+            for i, lang in enumerate(await self.config.languages()):
+                button = discord.ui.Button(label=lang, style=ButtonStyle.blurple, custom_id=str(i))
+                button.callback = reorder_callback
+                view.add_item(button)
+
+            done_button = discord.ui.Button(label="Done", style=ButtonStyle.green, row=4)
+            done_button.callback = done
+            view.add_item(done_button)
+
+            async def on_timeout():
+                view.stop()
+                await view.message.edit(view=None, content="Timeout! Please try again.")
+
+            view.on_timeout = on_timeout
+            return view
+
+        async def done(interaction: discord.Interaction) -> None:
+            view.stop()
+            await view.message.edit(view=None, content="Done reordering languages.")
+
+        async def reorder_callback(interaction: discord.Interaction) -> None:
+            # get the language index from the button id
+            lang_index = int(interaction.data.get("custom_id"))
+            async with self.config.languages() as langs:
+                langs.insert(0, langs.pop(lang_index))
+            # update the view with the new order
+            view = await make_view()
+            view.message = interaction.message
+            await interaction.response.edit_message(
+                content=f"Language '{langs[lang_index]}' moved to the top.",
+                view=view,
+            )
+
+        view = await make_view()
+        view.message = await ctx.reply("Select a language to move to the top:", view=view)
 
     @commands.hybrid_command(name="tldw")
     async def summarize(self, ctx: commands.Context, video_url: str) -> None:
@@ -297,7 +399,9 @@ def cleanup_summary(summary: List[ContentBlock]) -> str:
     return output
 
 
-async def get_transcript(ytt_api: YouTubeTranscriptApi, video_id: str, languages: list[str] = ["en-US", "en-GB", "en"]) -> str:
+async def get_transcript(
+    ytt_api: YouTubeTranscriptApi, video_id: str, languages: list[str] = ["en-US", "en-GB", "en"]
+) -> str:
     """Get the transcript of a YouTube video."""
     # get the transcript of the video using the video id
     try:
