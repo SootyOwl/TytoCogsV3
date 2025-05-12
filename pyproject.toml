@@ -8,7 +8,7 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<3.12"
-Red-DiscordBot = "^3.4.16"
+Red-DiscordBot = "^3.5.20"
 openai = "^1.78.1"
 beautifulsoup4 = "^4.12.3"
 html2image = "^2.0.5"
