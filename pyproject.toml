@@ -14,7 +14,7 @@ beautifulsoup4 = "^4.12.3"
 html2image = "^2.0.5"
 wand = "^0.6.13"
 redvid = "^2.0.5"
-anthropic = "^0.50.0"
+anthropic = "^0.51.0"
 youtube-transcript-api = "^1.0.3"
 mcstatus = "^11.1.1"
 
