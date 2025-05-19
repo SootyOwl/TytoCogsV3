@@ -992,14 +992,14 @@ files = [
 
 [[package]]
 name = "html2image"
-version = "2.0.6"
+version = "2.0.7"
 description = "Package acting as a wrapper around the headless mode of existing web browsers to generate images from URLs and from HTML+CSS strings or files."
 optional = false
 python-versions = ">=3.6"
 groups = ["main"]
 files = [
-    {file = "html2image-2.0.6-py3-none-any.whl", hash = "sha256:31bcd3867e88dd342fa8dd6595578cf78362b71cf1cefeae1dda9ec49d1fffed"},
-    {file = "html2image-2.0.6.tar.gz", hash = "sha256:aa3ca2ce9402cd61c7c3cd1a98ef7a2823d68c1927620a75fbce544ef50beaa4"},
+    {file = "html2image-2.0.7-py3-none-any.whl", hash = "sha256:1806df797e8320ba3246f45149e7034314911be6a285787cbff3edf5bbe9de40"},
+    {file = "html2image-2.0.7.tar.gz", hash = "sha256:8644fd424cff2805977f4583f965b0235733f9eb08569e4c02f6befe6e7fafcc"},
 ]
 
 [package.dependencies]
@@ -1399,14 +1399,14 @@ files = [
 
 [[package]]
 name = "openai"
-version = "1.78.1"
+version = "1.79.0"
 description = "The official Python library for the openai API"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "openai-1.78.1-py3-none-any.whl", hash = "sha256:7368bf147ca499804cc408fe68cdb6866a060f38dec961bbc97b04f9d917907e"},
-    {file = "openai-1.78.1.tar.gz", hash = "sha256:8b26b364531b100df1b961d03560042e5f5be11301d7d49a6cd1a2b9af824dca"},
+    {file = "openai-1.79.0-py3-none-any.whl", hash = "sha256:d5050b92d5ef83f869cb8dcd0aca0b2291c3413412500eec40c66981b3966992"},
+    {file = "openai-1.79.0.tar.gz", hash = "sha256:e3b627aa82858d3e42d16616edc22aa9f7477ee5eb3e6819e9f44a961d899a4c"},
 ]
 
 [package.dependencies]
@@ -2846,4 +2846,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.8.1,<3.12"
-content-hash = "aea42e55db34233626181ae2ad236411ab7b33c177f8eac8bc28f2331d627937"
+content-hash = "ce17599cdf8514b17eba834725ee48d62fd8a4cf5abaea32dca2b49adb7ad2cb"
