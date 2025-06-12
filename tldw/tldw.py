@@ -12,9 +12,7 @@ from anthropic import AsyncAnthropic as AsyncLLM
 from anthropic.types.text_block import TextBlock
 from anthropic.types.content_block import ContentBlock
 
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.proxies import GenericProxyConfig
-from youtube_transcript_api.formatters import TextFormatter
+from yt_transcript_fetcher import NoTranscriptError, VideoNotFoundError, YouTubeTranscriptFetcher
 from collections import OrderedDict
 
 MAX_CACHE_SIZE = 100
@@ -35,14 +33,13 @@ class TLDWatch(commands.Cog):
         default_global = {
             "api_key": None,
             "system_prompt": ("You are a YouTube video note taker and summarizer."),
-            "https_proxy": None,
             "languages": ["en-US", "en-GB", "en"],
         }
         self.config.register_global(**default_global)
 
         self.llm_client: Optional[AsyncLLM] = None
         self._summary_cache = OrderedDict()
-        self.ytt_api = YouTubeTranscriptApi()
+        self.yt_transcript_fetcher = YouTubeTranscriptFetcher()
 
         # context menu names must be between 1-32 characters
         self.youtube_summary_context_menu = app_commands.ContextMenu(
@@ -61,13 +58,6 @@ class TLDWatch(commands.Cog):
         api_key = await self.config.api_key()
         if api_key:
             self.llm_client = AsyncLLM(api_key=api_key)
-
-        # currently no support for the WebShareProxyConfig
-        https_proxy = await self.config.https_proxy()
-        proxy_config = GenericProxyConfig(https_url=https_proxy) if https_proxy else None
-        self.ytt_api = YouTubeTranscriptApi(
-            proxy_config=proxy_config,
-        )
 
     async def cog_load(self) -> None:
         """Called when the cog is loaded"""
@@ -348,7 +338,7 @@ class TLDWatch(commands.Cog):
             return self._summary_cache[video_id]
 
         # get the transcript of the video using the video id
-        transcript = await get_transcript(self.ytt_api, video_id, languages=await self.config.languages())
+        transcript = await get_transcript(self.yt_transcript_fetcher, video_id, languages=await self.config.languages())
 
         # summarize the transcript using Claude
         summary = await self.generate_summary(transcript)
@@ -401,17 +391,29 @@ def cleanup_summary(summary: List[ContentBlock]) -> str:
 
 
 async def get_transcript(
-    ytt_api: YouTubeTranscriptApi, video_id: str, languages: list[str] = ["en-US", "en-GB", "en"]
+    transcript_fetcher: YouTubeTranscriptFetcher, video_id: str, languages: list[str] = ["en-US", "en-GB", "en"]
 ) -> str:
     """Get the transcript of a YouTube video."""
     # get the transcript of the video using the video id
     try:
-        transcript = ytt_api.fetch(video_id=video_id, languages=languages)
+        available_languages = transcript_fetcher.list_languages(video_id=video_id)
+        # find the first language in the list of languages that is available for the video
+        language = next((lang for lang in languages if lang in available_languages), None)
+        if not language:
+            raise ValueError(f"No available transcript for video {video_id} in languages {languages}.\nAvailable languages: {[lang.code for lang in available_languages]}")
+        # fetch the transcript in the specified language
+        transcript = transcript_fetcher.get_transcript(video_id=video_id, language=language)
+    except NoTranscriptError as e:
+        raise ValueError(f"No transcript available for video {video_id} in language {language}.") from e
+    except VideoNotFoundError as e:
+        raise ValueError(
+            f"Couldn't find transcript for video {video_id}. Please check the video ID exists and is accessible."
+        ) from e
     except Exception as e:
         raise ValueError("Error getting transcript: " + str(e))
 
-    # format the transcript as text
-    return TextFormatter().format_transcript(transcript)
+    # return the transcript as text
+    return transcript.text if transcript else ""
 
 
 def get_video_id(video_url: str) -> str:
