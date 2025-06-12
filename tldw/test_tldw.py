@@ -1,10 +1,9 @@
 import os
 
 import pytest
-from youtube_transcript_api import YouTubeTranscriptApi, proxies
 
 from tldw import tldw
-
+from yt_transcript_fetcher import YouTubeTranscriptFetcher
 
 # test video url conversion
 @pytest.mark.parametrize(
@@ -41,27 +40,9 @@ def test_get_video_id_invalid_input(video_url):
         tldw.get_video_id(video_url)
 
 
-# test get_transcript function
 @pytest.fixture
-def https_proxy():
-    # get the HTTPS_PROXY env var
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    https_proxy = os.getenv("HTTPS_PROXY")
-    if https_proxy:
-        # if it is not empty, return it
-        return https_proxy
-    # if it is empty, return None
-    return None
-
-
-@pytest.fixture
-def ytt_api(https_proxy):
-    # Create a YouTubeTranscriptApi instance with the proxy
-    if https_proxy:
-        return YouTubeTranscriptApi(proxy_config=proxies.GenericProxyConfig(https_url=https_proxy))
-    return YouTubeTranscriptApi()
+def ytt_api():
+    return YouTubeTranscriptFetcher()
 
 
 @pytest.mark.parametrize(
@@ -69,7 +50,7 @@ def ytt_api(https_proxy):
     [
         ("75WFTHpOw8Y", "hello it is Christmas time"),  # bjork talking about tv
         # ("j04IAbWCszg", "in short this equation derived and published by"), # en-GB only, Matt Parker talking about tariffs
-        ("NcZxaFfxloo", "JON STEWART: Is that the\nresult of their $5 million\nplanning fund"),  # en-US only
+        ("NcZxaFfxloo", "JON STEWART: Is that the\nresult of their $5 million planning fund"),  # en-US only
     ],
 )
 @pytest.mark.asyncio
