@@ -198,13 +198,13 @@ def funnyjunk_credentials():
         (
             "Crose Rid",
             "https://funnyjunk.com/Crose+rid/wrrcTje/",
-            "https://user_uploaded_content.funnyjunk.com/movies/Crose+rid_5be80c_12352736.mp4",
+            "https://loginportal123.funnyjunk.com/movies/Crose+rid_5be80c_12352736.mp4",
         ),
         # TODO: Add more real URLs to test the various extraction methods
         (  # normal video URL
             "How dreaming feels like",
             "https://funnyjunk.com/How+dreaming+feels+like/vttzRig/",
-            "https://user_uploaded_content.funnyjunk.com/hdgifs/How+dreaming+feels+like_247d10_11748871.mp4",
+            "https://loginportal123.funnyjunk.com/hdgifs/How+dreaming+feels+like_247d10_11748871.mp4",
         ),
         (  # spaces in the video URL are replaced with '+'
             "Unkempt luckless rapidfire",

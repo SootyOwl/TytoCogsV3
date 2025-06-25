@@ -175,6 +175,8 @@ class IspyFJ(commands.Cog):
                 break
             else:
                 raise VideoNotFoundError("Failed to extract video URL after multiple attempts.")
+            # If the video url has 'user_uploaded_content', replace that with 'loginportal123' - this fixes an issue with discord embedding
+            video_url = video_url.replace('user_uploaded_content', 'loginportal123')
             # Cache the result
             self.cache[link] = (current_time, video_url)
             return video_url
