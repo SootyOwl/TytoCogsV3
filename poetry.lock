@@ -141,14 +141,14 @@ files = [
 
 [[package]]
 name = "anthropic"
-version = "0.51.0"
+version = "0.57.1"
 description = "The official Python library for the anthropic API"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "anthropic-0.51.0-py3-none-any.whl", hash = "sha256:b8b47d482c9aa1f81b923555cebb687c2730309a20d01be554730c8302e0f62a"},
-    {file = "anthropic-0.51.0.tar.gz", hash = "sha256:6f824451277992af079554430d5b2c8ff5bc059cc2c968cdc3f06824437da201"},
+    {file = "anthropic-0.57.1-py3-none-any.whl", hash = "sha256:33afc1f395af207d07ff1bffc0a3d1caac53c371793792569c5d2f09283ea306"},
+    {file = "anthropic-0.57.1.tar.gz", hash = "sha256:7815dd92245a70d21f65f356f33fc80c5072eada87fb49437767ea2918b2c4b0"},
 ]
 
 [package.dependencies]
@@ -161,6 +161,7 @@ sniffio = "*"
 typing-extensions = ">=4.10,<5"
 
 [package.extras]
+aiohttp = ["aiohttp", "httpx-aiohttp (>=0.1.6)"]
 bedrock = ["boto3 (>=1.28.57)", "botocore (>=1.31.57)"]
 vertex = ["google-auth[requests] (>=2,<3)"]
 
@@ -974,14 +975,14 @@ files = [
 
 [[package]]
 name = "html2image"
-version = "2.0.6"
+version = "2.0.7"
 description = "Package acting as a wrapper around the headless mode of existing web browsers to generate images from URLs and from HTML+CSS strings or files."
 optional = false
 python-versions = ">=3.6"
 groups = ["main"]
 files = [
-    {file = "html2image-2.0.6-py3-none-any.whl", hash = "sha256:31bcd3867e88dd342fa8dd6595578cf78362b71cf1cefeae1dda9ec49d1fffed"},
-    {file = "html2image-2.0.6.tar.gz", hash = "sha256:aa3ca2ce9402cd61c7c3cd1a98ef7a2823d68c1927620a75fbce544ef50beaa4"},
+    {file = "html2image-2.0.7-py3-none-any.whl", hash = "sha256:1806df797e8320ba3246f45149e7034314911be6a285787cbff3edf5bbe9de40"},
+    {file = "html2image-2.0.7.tar.gz", hash = "sha256:8644fd424cff2805977f4583f965b0235733f9eb08569e4c02f6befe6e7fafcc"},
 ]
 
 [package.dependencies]
@@ -1236,19 +1237,19 @@ files = [
 
 [[package]]
 name = "mcstatus"
-version = "11.1.1"
+version = "12.0.2"
 description = "A library to query Minecraft Servers for their status and capabilities."
 optional = false
-python-versions = ">=3.8.1,<4"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "mcstatus-11.1.1-py3-none-any.whl", hash = "sha256:7f5f7f44fa1d17c4e05c0ae94ecc114d9d146ef572e7dd9f2d9da72771ce135c"},
-    {file = "mcstatus-11.1.1.tar.gz", hash = "sha256:b2856ee4032faf810b0c6af10a141381e6115caf14a7348c47edc8e3da84f5d4"},
+    {file = "mcstatus-12.0.2-py3-none-any.whl", hash = "sha256:b2ee5ff189a4ebf255c658e3983b3e2c74a1e0d222d3e74cfe04c2b4f64f66e6"},
+    {file = "mcstatus-12.0.2.tar.gz", hash = "sha256:85546aa508d023524ffcbdb6911307cbaf88809465dfd71ef08e5edee1690e26"},
 ]
 
 [package.dependencies]
-asyncio-dgram = ">=2.1.2,<3.0.0"
-dnspython = ">=2.4.2,<3.0.0"
+asyncio-dgram = ">=2.1.2"
+dnspython = ">=2.4.2"
 
 [[package]]
 name = "mdurl"
@@ -1381,14 +1382,14 @@ files = [
 
 [[package]]
 name = "openai"
-version = "1.78.1"
+version = "1.97.0"
 description = "The official Python library for the openai API"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "openai-1.78.1-py3-none-any.whl", hash = "sha256:7368bf147ca499804cc408fe68cdb6866a060f38dec961bbc97b04f9d917907e"},
-    {file = "openai-1.78.1.tar.gz", hash = "sha256:8b26b364531b100df1b961d03560042e5f5be11301d7d49a6cd1a2b9af824dca"},
+    {file = "openai-1.97.0-py3-none-any.whl", hash = "sha256:a1c24d96f4609f3f7f51c9e1c2606d97cc6e334833438659cfd687e9c972c610"},
+    {file = "openai-1.97.0.tar.gz", hash = "sha256:0be349569ccaa4fb54f97bb808423fd29ccaeb1246ee1be762e0c81a47bae0aa"},
 ]
 
 [package.dependencies]
@@ -1402,6 +1403,7 @@ tqdm = ">4"
 typing-extensions = ">=4.11,<5"
 
 [package.extras]
+aiohttp = ["aiohttp", "httpx-aiohttp (>=0.1.8)"]
 datalib = ["numpy (>=1)", "pandas (>=1.2.3)", "pandas-stubs (>=1.1.0.11)"]
 realtime = ["websockets (>=13,<16)"]
 voice-helpers = ["numpy (>=2.0.2)", "sounddevice (>=0.5.1)"]
@@ -2815,4 +2817,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9,<3.12"
-content-hash = "057e61567002fcfb0fc73f3418c15924e0a9055683f9a35d9e8d7dfb144d2fd3"
+content-hash = "cf3bef9fa48bcb8706ec23d5cf415eef9f8cd12a85fbcbd8248c3c10a05b9cfc"
