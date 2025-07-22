@@ -38,12 +38,12 @@ DATA_ATTR_HTML = """
 <body>
 <div class="contentContainer videoEle">
     <div class="flashmovie player videoContent">
-        <a class="cnt-video-cont" 
-           onclick="return content.makeVideo(this);" 
-           data-cachedvideosrc="https://example.com/cached-video.mp4" 
+        <a class="cnt-video-cont"
+           onclick="return content.makeVideo(this);"
+           data-cachedvideosrc="https://example.com/cached-video.mp4"
            data-poster="https://example.com/poster.jpg">
             <div class="cnt-video-play"><!--  --></div>
-            <img style="max-width: 100%; display: block;" src="https://example.com/poster.jpg" 
+            <img style="max-width: 100%; display: block;" src="https://example.com/poster.jpg"
                  alt="Video title" title="Video title"/>
         </a>
     </div>
@@ -198,18 +198,18 @@ def funnyjunk_credentials():
         (
             "Crose Rid",
             "https://funnyjunk.com/Crose+rid/wrrcTje/",
-            "https://loginportal123.funnyjunk.com/movies/Crose+rid_5be80c_12352736.mp4",
+            "https://vibes.funnyjunk.com/movies/Crose+rid_5be80c_12352736.mp4",
         ),
         # TODO: Add more real URLs to test the various extraction methods
         (  # normal video URL
             "How dreaming feels like",
             "https://funnyjunk.com/How+dreaming+feels+like/vttzRig/",
-            "https://loginportal123.funnyjunk.com/hdgifs/How+dreaming+feels+like_247d10_11748871.mp4",
+            "https://vibes.funnyjunk.com/hdgifs/How+dreaming+feels+like_247d10_11748871.mp4",
         ),
         (  # spaces in the video URL are replaced with '+'
             "Unkempt luckless rapidfire",
             "https://funnyjunk.com/Unkempt+luckless+rapidfire/GivzRTv/",
-            "https://loginportal123.funnyjunk.com/hdgifs/Unkempt+luckless+rapgym+boyzire_4c3d1f_11751038.mp4",
+            "https://anime.funnyjunk.com/hdgifs/Unkempt+luckless+rapgym+boyzire_4c3d1f_11751038.mp4",
         ),
     ],
 )
@@ -229,7 +229,7 @@ async def test_get_video_url(name, input_url, expected_url):
 @pytest.mark.asyncio
 async def test_get_video_url_login_required(funnyjunk_credentials):
     url = "https://funnyjunk.com/White+people+things/jcveTwp/"
-    expected = "https://loginportal123.funnyjunk.com/hdgifs/White+people+things_5635e1_12450679.mp4"
+    expected = "https://anime.funnyjunk.com/hdgifs/White+people+things_5635e1_12450679.mp4"
 
     # Create bot and cog instance
     mock_bot = mock.MagicMock()
