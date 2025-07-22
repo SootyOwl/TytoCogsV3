@@ -1,6 +1,5 @@
 """Too Long; Didn't Watch (TLDW) - Summarize YouTube videos."""
 
-from gc import disable
 import re
 from typing import List, Optional
 import discord
@@ -400,7 +399,9 @@ async def get_transcript(
         # find the first language in the list of languages that is available for the video
         language = next((lang for lang in languages if lang in available_languages), None)
         if not language:
-            raise ValueError(f"No available transcript for video {video_id} in languages {languages}.\nAvailable languages: {[lang.code for lang in available_languages]}")
+            raise ValueError(
+                f"No available transcript for video {video_id} in languages {languages}.\nAvailable languages: {[lang.code for lang in available_languages]}"
+            )
         # fetch the transcript in the specified language
         transcript = transcript_fetcher.get_transcript(video_id=video_id, language=language)
     except NoTranscriptError as e:
