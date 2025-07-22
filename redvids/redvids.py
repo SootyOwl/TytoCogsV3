@@ -90,6 +90,7 @@ def video_path_to_discord_file(video_path: str) -> discord.File:
 def check_url(url: str) -> bool:
     """Check if the URL is a valid Reddit URL."""
     from urllib.parse import urlparse
+
     try:
         parsed_url = urlparse(url)
         hostname = parsed_url.hostname
