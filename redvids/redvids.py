@@ -1,6 +1,7 @@
 """Use `redvid` to embed Reddit videos in Discord messages."""
 
 import logging
+from typing import Optional
 
 logger = logging.getLogger("redvids")
 logger.setLevel(logging.DEBUG)
@@ -15,11 +16,13 @@ from redvid import Downloader
 # create an enum for the error codes
 import enum
 
+
 class RedVidsError(enum.IntEnum):
     """0: Size exceeds maximum
-        1: Duration exceeds maximum
-        2: File exists
+    1: Duration exceeds maximum
+    2: File exists
     """
+
     SIZE_EXCEEDS_MAXIMUM = 0
     DURATION_EXCEEDS_MAXIMUM = 1
     FILE_EXISTS = 2
@@ -40,7 +43,7 @@ class RedVids(commands.Cog):
         """Download and send a Reddit video."""
         if not check_url(url):
             return await ctx.reply("That's not a Reddit video URL.", ephemeral=True)
-        
+
         logger.debug("Downloading video.")
         async with ctx.typing():
             with tempfile.TemporaryDirectory(dir=self.data_path) as tempdir:
@@ -49,7 +52,7 @@ class RedVids(commands.Cog):
                 except Exception as e:
                     logger.exception("Failed to download video.")
                     return await ctx.reply("Failed to download the video.", ephemeral=True)
-                
+
                 if isinstance(video, RedVidsError):
                     if video == RedVidsError.SIZE_EXCEEDS_MAXIMUM:
                         return await ctx.reply("The video is too large.", ephemeral=True)
@@ -63,18 +66,21 @@ class RedVids(commands.Cog):
                 await ctx.reply(file=video_path_to_discord_file(video))
         logger.debug("Sent video file.")
 
-async def download_reddit_video(url: str, max_size: int =7 * (1 << 20), path: str=".") -> RedVidsError | str:
+
+async def download_reddit_video(url: str, max_size: int = 7 * (1 << 20), path: str = ".") -> RedVidsError | str:
     """Download a Reddit video."""
     downloader = Downloader(url, max_s=max_size, path=path, auto_max=True)
     downloader.check()
     video = downloader.download()
     return check_video_result(video)
 
+
 def check_video_result(video: int | str) -> RedVidsError | str:
     """Handle the result of a video download."""
     if isinstance(video, int):
         return RedVidsError(video)
     return video
+
 
 def video_path_to_discord_file(video_path: str) -> discord.File:
     """Convert a video file path to a Discord File."""
