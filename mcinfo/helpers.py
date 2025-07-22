@@ -18,6 +18,7 @@ async def fetch_server_status(address: str) -> JavaStatusResponse:
     except TimeoutError as e:
         raise ConnectionError(f"Connection timed out for address {address}: {e}")
 
+
 async def fetch_servers(addresses: list[str]) -> dict[str, JavaStatusResponse | None]:
     """Fetch multiple server status simultaneously."""
     # Create a list of tasks for each server address

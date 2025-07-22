@@ -1,6 +1,6 @@
 {
     "author" : [
-        "Tyto", 
+        "Tyto",
         "Nyko"
     ],
     "description" : "GPT3 Chatbot using OpenAI API to respond to messages. Comes with personas with the possibility of adding more!",
