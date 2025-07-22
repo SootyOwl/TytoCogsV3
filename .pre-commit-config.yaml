@@ -2,6 +2,7 @@ default_install_hook_types:
 - pre-commit
 - commit-msg
 - pre-push
+
 repos:
 - hooks:
   - id: trailing-whitespace
@@ -21,3 +22,7 @@ repos:
     - pre-push
   repo: https://github.com/commitizen-tools/commitizen
   rev: v4.8.3
+
+ci:
+  autofix_commit_msg: 'ci(pre-commit.ci): auto fixes from pre-commit.com hooks\n\nfor more information, see https://pre-commit.ci'
+  autoupdate_commit_msg: 'ci(pre-commit.ci): pre-commit autoupdate'
