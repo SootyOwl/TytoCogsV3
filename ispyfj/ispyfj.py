@@ -1,19 +1,92 @@
-from io import BytesIO
+import asyncio
 import json
 import logging
 import re
+import socket
 import time
-from typing import Optional, Dict, Tuple
+from functools import wraps
+from io import BytesIO
+from typing import Any, Callable, Dict, Optional
 
 import aiohttp
 from bs4 import BeautifulSoup
 from discord import File
 from redbot.core import Config, commands
 from redbot.core.bot import Red
-import socket
-
+from yarl import URL
 
 logger = logging.getLogger("red.ispyfj")
+
+
+def exponential_backoff_retry(
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    exponential_base: float = 2.0,
+    max_delay: float = 60.0,
+    retry_on_exceptions: tuple = (aiohttp.ClientError,),
+    retry_condition: Optional[Callable[[Any], bool]] = None,
+):
+    """
+    Exponential backoff retry decorator for async functions.
+
+    Args:
+        max_retries: Maximum number of retry attempts
+        base_delay: Initial delay in seconds
+        exponential_base: Base for exponential backoff calculation
+        max_delay: Maximum delay between retries
+        retry_on_exceptions: Tuple of exceptions that should trigger a retry
+        retry_condition: Optional function to determine if result should trigger retry
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            last_exception = None
+
+            for attempt in range(max_retries + 1):
+                try:
+                    result = await func(*args, **kwargs)
+
+                    # Check if we should retry based on the result
+                    if retry_condition and retry_condition(result) and attempt < max_retries:
+                        delay = min(base_delay * (exponential_base**attempt), max_delay)
+                        logger.warning(
+                            f"Retry condition met for {func.__name__}, attempt {attempt + 1}/{max_retries + 1}. "
+                            f"Waiting {delay:.1f}s before retry..."
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+
+                    return result
+
+                except retry_on_exceptions as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        delay = min(base_delay * (exponential_base**attempt), max_delay)
+                        logger.warning(
+                            f"Exception {type(e).__name__} in {func.__name__}, attempt {attempt + 1}/{max_retries + 1}. "
+                            f"Waiting {delay:.1f}s before retry..."
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        # Last attempt failed, re-raise the exception
+                        raise e
+
+            # This should not be reached, but just in case
+            if last_exception:
+                raise last_exception
+
+        return wrapper
+
+    return decorator
+
+
+def _should_retry_login(response_data: dict) -> bool:
+    """Check if login response indicates rate limiting."""
+    if not isinstance(response_data, dict):
+        return False
+    return not response_data.get("success", False) and "wait" in response_data.get("message", "").lower()
 
 
 class IspyFJ(commands.Cog):
@@ -64,27 +137,63 @@ class IspyFJ(commands.Cog):
         user_agent = await self.config.user_agent()
         self.session.headers.update({"User-Agent": user_agent})
 
-    async def login_to_funnyjunk(self, **credentials):
+    async def _perform_login_request(self, **credentials) -> dict:
+        """Perform the actual login request and return parsed response data."""
+        # Clear any existing cookies to ensure clean login
+        self.session.cookie_jar.clear()
+
+        # Attempt to login to FunnyJunk
+        response = await self.session.post(
+            "https://funnyjunk.com/members/ajaxlogin",
+            data=credentials,
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+        )
+
+        response_text = await response.text()
+        logger.debug(f"Login response status: {response.status}")
+        logger.debug(f"Login response text: {response_text}")
+        logger.debug(f"Login response cookies: {dict(response.cookies)}")
+
+        if response.status != 200:
+            raise aiohttp.ClientError(f"HTTP {response.status}: {response_text}")
+
+        # Parse the response
         try:
-            # Attempt to login to FunnyJunk
-            response = await self.session.post(
-                "https://funnyjunk.com/ajax/login",
-                data=credentials,
-            )
-            if response.status == 200:
-                # Login successful
-                logger.info("Logged in to FunnyJunk successfully.")
-            else:
-                # Login failed
-                logger.error(f"Failed to log in to FunnyJunk: {response.status}")
-        except aiohttp.ClientError as e:
-            # Handle network errors
-            logger.error(f"Network error during FunnyJunk login: {e}")
-            raise e
-        except Exception as e:
-            # Handle other exceptions
-            logger.error(f"Unexpected error during FunnyJunk login: {e}")
-            raise e
+            response_data = json.loads(response_text)
+        except json.JSONDecodeError:
+            # If it's not JSON, assume success for backward compatibility
+            response_data = {"success": True}
+
+        return response_data
+
+    @exponential_backoff_retry(
+        max_retries=3,
+        base_delay=1.0,
+        exponential_base=2.0,
+        retry_condition=_should_retry_login,
+        retry_on_exceptions=(aiohttp.ClientError,),
+    )
+    async def login_to_funnyjunk(self, **credentials):
+        """Login to FunnyJunk with automatic retry on rate limiting."""
+        response_data = await self._perform_login_request(**credentials)
+
+        if not response_data.get("success", False):
+            message = response_data.get("message", "Unknown error")
+            logger.error(f"Login failed: {message}")
+            # Return the response data so retry_condition can check it
+            return response_data
+
+        # Login successful - check if we have the expected cookies
+        cookies = self.session.cookie_jar.filter_cookies(URL("https://funnyjunk.com"))
+        if cookies.get("fjsession"):
+            logger.info("Logged in to FunnyJunk successfully.")
+        else:
+            logger.error("Login appeared successful but no fjsession cookie was set.")
+
+        return response_data
 
     async def cog_unload(self) -> None:
         """Unload the cog."""
@@ -176,7 +285,7 @@ class IspyFJ(commands.Cog):
             else:
                 raise VideoNotFoundError("Failed to extract video URL after multiple attempts.")
             # If the video url has 'user_uploaded_content', replace that with 'loginportal123' - this fixes an issue with discord embedding
-            video_url = video_url.replace('user_uploaded_content', 'loginportal123')
+            video_url = video_url.replace("user_uploaded_content", "loginportal123")
             # Cache the result
             self.cache[link] = (current_time, video_url)
             return video_url

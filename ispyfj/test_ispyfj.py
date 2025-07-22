@@ -1,27 +1,23 @@
 import io
 import os
 import sys
+
+import aiohttp
 import pytest
 import requests
-import unittest.mock as mock
-import aiohttp
 
 from ispyfj.ispyfj import IspyFJ, VideoNotFoundError
 
 
-# Mock responses for testing
-class MockResponse:
-    def __init__(self, text, status_code=200, content=b"test content"):
-        self.text = text
-        self.status_code = status_code
-        self.content = content
-
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise requests.HTTPError(f"HTTP Error: {self.status_code}")
-
-    def iter_content(self, chunk_size=1):
-        yield self.content
+@pytest.fixture()
+async def cog(mocker):
+    mock_bot = mocker.MagicMock()
+    cog = IspyFJ(mock_bot)
+    yield cog
+    # Cleanup after tests
+    await cog.cog_unload()
+    await cog.session.close()
+    del cog
 
 
 # HTML templates for testing
@@ -108,12 +104,8 @@ META_TAG_HTML = """
         (META_TAG_HTML, "https://example.com/meta-video.mp4", "_extract_from_meta"),
     ],
 )
-async def test_extraction_methods(html_content, expected_url, extraction_method):
+async def test_extraction_methods(html_content, expected_url, extraction_method, cog):
     """Test different extraction methods."""
-    # Create bot and cog instance
-    mock_bot = mock.MagicMock()
-    cog = IspyFJ(mock_bot)
-
     # Call the specific extraction method
     method = getattr(cog, extraction_method)
     result = method(html_content)
@@ -123,11 +115,8 @@ async def test_extraction_methods(html_content, expected_url, extraction_method)
 
 
 @pytest.mark.asyncio
-async def test_video_url_to_file(funnyjunk_credentials):
+async def test_video_url_to_file(funnyjunk_credentials, cog):
     """Test file creation from video URL."""
-    # Create bot and cog instance
-    mock_bot = mock.MagicMock()
-    cog = IspyFJ(mock_bot)
     cog.config.username
     await cog.cog_load()
     await cog.login_to_funnyjunk(**funnyjunk_credentials)
@@ -150,27 +139,19 @@ async def test_video_url_to_file(funnyjunk_credentials):
 
 
 @pytest.mark.asyncio
-async def test_error_handling():
+async def test_error_handling(cog, mocker):
     """Test error handling in get_video_url."""
     # Setup mock of aiohttp.ClientSession.get
-    mock_get = mock.AsyncMock(side_effect=aiohttp.ClientError)
-    with mock.patch("aiohttp.ClientSession.get", mock_get):
-        # Create bot and cog instance
-        mock_bot = mock.MagicMock()
-        cog = IspyFJ(mock_bot)
-
-        # Test error handling
-        with pytest.raises(VideoNotFoundError):
-            await cog.get_video_url("https://example.com")
+    mock_get = mocker.AsyncMock(side_effect=aiohttp.ClientError)
+    mocker.patch("aiohttp.ClientSession.get", mock_get)
+    # Test error handling
+    with pytest.raises(VideoNotFoundError):
+        await cog.get_video_url("https://example.com")
 
 
 @pytest.mark.asyncio
-async def test_find_video_url():
+async def test_find_video_url(cog):
     """Test the combined _find_video_url method."""
-    # Create bot and cog instance
-    mock_bot = mock.MagicMock()
-    cog = IspyFJ(mock_bot)
-
     # Test the method
     video_url = cog._find_video_url(html=DATA_ATTR_HTML)
 
@@ -213,34 +194,29 @@ def funnyjunk_credentials():
         ),
     ],
 )
-async def test_get_video_url(name, input_url, expected_url):
+async def test_get_video_url(name, input_url, expected_url, cog):
     """Test the get_video_url method"""
-    # Create bot and cog instance
-    mock_bot = mock.MagicMock()
-    cog = IspyFJ(mock_bot)
-
-    # Test the method
     video_url = await cog.get_video_url(input_url)
-
-    # Assertions
     assert video_url == expected_url
 
 
 @pytest.mark.asyncio
-async def test_get_video_url_login_required(funnyjunk_credentials):
+async def test_get_video_url_login_required(funnyjunk_credentials, cog, mocker):
+    """Test the get_video_url method with login required."""
     url = "https://funnyjunk.com/White+people+things/jcveTwp/"
     expected = "https://anime.funnyjunk.com/hdgifs/White+people+things_5635e1_12450679.mp4"
 
-    # Create bot and cog instance
-    mock_bot = mock.MagicMock()
-    cog = IspyFJ(mock_bot)
-
-    # login to the site
-    await cog.login_to_funnyjunk(**funnyjunk_credentials)
+    # login to the site and wait for the session to be established
+    cog.config.username = mocker.AsyncMock(return_value=funnyjunk_credentials["username"])
+    cog.config.password = mocker.AsyncMock(return_value=funnyjunk_credentials["password"])
+    await cog.cog_load()
 
     # assert the session's cookies are set
-    assert cog.session.cookie_jar.filter_cookies("https://funnyjunk.com").get("fjsession") is not None
-    assert cog.session.cookie_jar.filter_cookies("https://funnyjunk.com").get("userId") is not None
+    from yarl import URL
+
+    cookies = cog.session.cookie_jar.filter_cookies(URL("https://funnyjunk.com"))
+    assert cookies.get("fjsession") is not None
+    assert cookies.get("userId") is not None
 
     # Test the method
     video_url = await cog.get_video_url(url)
