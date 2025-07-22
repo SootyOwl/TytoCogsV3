@@ -1,30 +1,41 @@
-[tool.poetry]
+[project]
 name = "tytocogsv3"
 version = "0.2.1"
 description = "Cogs for Red-DiscordBot"
-authors = ["SootyOwl <tyto@tyto.cc>"]
+authors = [{ name = "SootyOwl", email = "tyto@tyto.cc" }]
+requires-python = ">=3.9,<3.12"
 readme = "README.md"
-package-mode = false
+dependencies = [
+    "Red-DiscordBot>=3.5.20,<4",
+    "openai>=1.78.1,<2",
+    "beautifulsoup4>=4.12.3,<5",
+    "html2image>=2.0.6,<3",
+    "wand>=0.6.13,<0.7",
+    "redvid>=2.0.5,<3",
+    "anthropic>=0.51.0,<0.52",
+    "mcstatus>=11.1.1,<12",
+    "yt-transcript-fetcher>=1.1.1,<2",
+    "pip>=25.1.1",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.9,<3.12"
-Red-DiscordBot = "^3.5.20"
-openai = "^1.78.1"
-beautifulsoup4 = "^4.12.3"
-html2image = "^2.0.6"
-wand = "^0.6.13"
-redvid = "^2.0.5"
-anthropic = "^0.51.0"
-mcstatus = "^11.1.1"
-yt-transcript-fetcher = "^1.1.1"
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1,<9",
+    "flake8>=7.3.0,<8",
+    "black[d]>=24.3.0,<25",
+    "pytest-asyncio>=1.0.0,<2",
+    "pytest-mock>=3.14.1,<4",
+    "dotenv>=0.9.9,<0.10",
+    "pytest-dotenv>=0.5.2",
+    "pre-commit>=4.2.0",
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.4.1"
-flake8 = "^7.3.0"
-black = { extras = ["d"], version = "^24.3.0" }
-pytest-asyncio = "^1.0.0"
-pytest-mock = "^3.14.1"
-dotenv = "^0.9.9"
+[tool.uv]
+package = false
+
+[build-system]
+requires = ["hatchling", "pip"]
+build-backend = "hatchling.build"
 
 [tool.black]
 line-length = 120
@@ -48,7 +59,3 @@ exclude = '''
                      # the root of the project
 )
 '''
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
