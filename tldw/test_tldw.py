@@ -5,6 +5,7 @@ import pytest
 from tldw import tldw
 from yt_transcript_fetcher import YouTubeTranscriptFetcher
 
+
 # test video url conversion
 @pytest.mark.parametrize(
     "video_url, expected",
@@ -57,6 +58,7 @@ def ytt_api():
 async def test_get_transcript(ytt_api, video_id, expected):
     transcript = await tldw.get_transcript(ytt_api, video_id)
     assert expected in transcript
+
 
 @pytest.mark.asyncio
 async def test_get_transcript_languages(ytt_api):
@@ -139,7 +141,7 @@ async def test_get_llm_response(mocker):
     )
     assert response[0].text == "Test response"
     assert isinstance(response[0], TextBlock)
-    assert mock_client.messages.create.called_once_with(
+    assert await mock_client.messages.create.called_once_with(
         model="claude-3-5-sonnet-latest",
         max_tokens=2048,
         temperature=0,
