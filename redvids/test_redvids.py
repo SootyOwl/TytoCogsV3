@@ -4,6 +4,7 @@ from redvids.redvids import RedVidsError, download_reddit_video, check_video_res
 
 import tempfile
 
+
 @pytest.fixture
 def REDDITURL():
     return "https://www.reddit.com/r/Minecraft/comments/1eszhxx/finally_minecarts_are_getting_updated_24w33a/"
@@ -11,14 +12,13 @@ def REDDITURL():
 
 @pytest.mark.asyncio
 async def test_download_reddit_video(request, REDDITURL, tmp_path):
-    video = await download_reddit_video(REDDITURL, max_size=(1 << 20), path=tmp_path.name)
+    video = await download_reddit_video(REDDITURL, max_size=(1 << 12), path=tmp_path.name)
     assert video is not None
-    
 
 
 def test_check_video_result(tmp_path):
     """Test the check_video_result function.
-    
+
     The function should return the video path if the video is valid,
     otherwise it should return a RedVidsError.
     """
