@@ -88,6 +88,12 @@ def video_path_to_discord_file(video_path: str) -> discord.File:
 
 
 def check_url(url: str) -> bool:
-    """Simple check to make sure we have a Reddit URL."""
-    # TODO: Expand upon this check
-    return "reddit.com" in url
+    """Check if the URL is a valid Reddit URL."""
+    from urllib.parse import urlparse
+    try:
+        parsed_url = urlparse(url)
+        hostname = parsed_url.hostname
+        # Allow "reddit.com" and subdomains like "www.reddit.com"
+        return hostname == "reddit.com" or (hostname and hostname.endswith(".reddit.com"))
+    except Exception:
+        return False
