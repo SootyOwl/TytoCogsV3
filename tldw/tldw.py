@@ -167,6 +167,8 @@ class TLDWatch(commands.Cog):
             self.youtube_summary_context_menu_private.name,
             type=self.youtube_summary_context_menu_private.type,
         )
+        if self.llm_client:
+            await self.llm_client.close()
 
     @commands.group()
     async def tldwset(self, ctx: commands.Context) -> None:
