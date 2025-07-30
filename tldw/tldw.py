@@ -1,9 +1,11 @@
 """Too Long; Didn't Watch (TLDW) - Summarize YouTube videos."""
 
+import logging
 import re
-from collections import OrderedDict
 import typing as t
+from collections import OrderedDict
 
+import aiohttp
 import discord
 from discord import ButtonStyle
 from openai import AsyncOpenAI as AsyncLLM
@@ -136,13 +138,10 @@ class TLDWatch(commands.Cog):
                         p=self.bot.command_prefix
                     )
                 )
-
                 try:
                     await app_info.owner.send(embed=embed)
                 except discord.Forbidden:
                     # If we can't DM the owner, log it instead
-                    import logging
-
                     log = logging.getLogger("red.cogs.tldw")
                     log.info(
                         "Could not send migration notification to the bot owner. Please check their DM settings."
@@ -187,7 +186,6 @@ class TLDWatch(commands.Cog):
             return
 
         # validate the model name against the available models
-        import aiohttp
 
         async with aiohttp.ClientSession() as session:
             async with session.get("https://openrouter.ai/api/v1/models") as resp:
@@ -196,11 +194,6 @@ class TLDWatch(commands.Cog):
                 except aiohttp.ClientResponseError as e:
                     await ctx.send(
                         f"Failed to fetch available models: {e}. Please check your internet connection or try again later."
-                    )
-                    return
-                if resp.status != 200:
-                    await ctx.send(
-                        "Failed to fetch available models. Please try again later."
                     )
                     return
                 data = await resp.json()
@@ -561,9 +554,8 @@ class TLDWatch(commands.Cog):
 
 def cleanup_summary(summary: str) -> str:
     """The summary should have a closing ```"""
-    if not summary or summary.strip() == "":
+    if not summary or not summary.strip():
         raise ValueError("Failed to generate a summary, no content found.")
-
     # remove any leading or trailing whitespace
     return (
         summary.split("```")[
