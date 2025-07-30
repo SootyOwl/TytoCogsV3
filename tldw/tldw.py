@@ -187,11 +187,25 @@ class TLDWatch(commands.Cog):
             return
 
         # validate the model name against the available models
-        import requests
+        import aiohttp
 
-        available_models = (
-            requests.get("https://openrouter.ai/api/v1/models").json().get("data", [])
-        )
+        async with aiohttp.ClientSession() as session:
+            async with session.get("https://openrouter.ai/api/v1/models") as resp:
+                try:
+                    resp.raise_for_status()
+                except aiohttp.ClientResponseError as e:
+                    await ctx.send(
+                        f"Failed to fetch available models: {e}. Please check your internet connection or try again later."
+                    )
+                    return
+                if resp.status != 200:
+                    await ctx.send(
+                        "Failed to fetch available models. Please try again later."
+                    )
+                    return
+                data = await resp.json()
+                available_models = data.get("data", [])
+
         if model not in [m["id"] for m in available_models]:
             await ctx.send(
                 f"Model '{model}' is not available, please check the available models at https://openrouter.ai/models."
@@ -547,7 +561,7 @@ class TLDWatch(commands.Cog):
 
 def cleanup_summary(summary: str) -> str:
     """The summary should have a closing ```"""
-    if not summary:
+    if not summary or summary.strip() == "":
         raise ValueError("Failed to generate a summary, no content found.")
 
     # remove any leading or trailing whitespace
