@@ -38,6 +38,7 @@ class TLDWatch(commands.Cog):
             "other_models": [],
             "system_prompt": ("You are a YouTube video note taker and summarizer."),
             "languages": ["en-US", "en-GB", "en"],
+            "migration_notified": False,  # Track if user has been notified about OpenRouter migration
         }
         self.config.register_global(**default_global)
 
@@ -64,12 +65,73 @@ class TLDWatch(commands.Cog):
         """Initialize the LLM client with the stored API key."""
         api_key = await self.config.api_key()
         if api_key:
-            self.llm_client = AsyncLLM(
-                base_url="https://openrouter.ai/api/v1", api_key=api_key
-            )
+            self.llm_client = AsyncLLM(api_key=api_key)
+
+    async def _check_migration_notification(self) -> None:
+        """Check if we need to show the OpenRouter migration notification."""
+        # Only check if we haven't already notified the user
+        if await self.config.migration_notified():
+            return
+
+        # Check if there's an API key set but the user hasn't been notified about the migration
+        api_key2 = await self.config.api_key()
+        if api_key2:
+            # Send migration notification to bot owner
+            await self._send_migration_notification()
+            # User has an API key set, mark as notified so we don't show this again
+            await self.config.migration_notified.set(True)
+
+    async def _send_migration_notification(self) -> None:
+        """Send a migration notification to the bot owner."""
+        try:
+            app_info = await self.bot.application_info()
+            if app_info.owner:
+                embed = discord.Embed(
+                    title="🔄 TLDW Cog Migration Notice",
+                    description="The TLDW cog has been updated to use OpenRouter instead of Anthropic Claude.",
+                    color=0x00FF00,
+                )
+                embed.add_field(
+                    name="⚠️ Action Required",
+                    value=(
+                        "You need to update your API key to use OpenRouter:\n\n"
+                        "1. Get an OpenRouter API key from https://openrouter.ai/ \n"
+                        "2. Set it using: `[p]tldwset apikey <your_openrouter_key>`\n"
+                        "3. The cog now supports multiple LLM providers through OpenRouter"
+                    ),
+                    inline=False,
+                )
+                embed.add_field(
+                    name="ℹ️ What Changed",
+                    value=(
+                        "• Switched from Anthropic Claude API to OpenRouter\n"
+                        "• Now supports multiple AI models\n"
+                        "• Better reliability and model selection\n"
+                        "• Same functionality, better backend"
+                    ),
+                    inline=False,
+                )
+                embed.set_footer(text="This message will only be shown once.")
+
+                try:
+                    await app_info.owner.send(embed=embed)
+                except discord.Forbidden:
+                    # If we can't DM the owner, log it instead
+                    import logging
+
+                    log = logging.getLogger("red.cogs.tldw")
+                    log.info(
+                        "TLDW Migration Notice: The TLDW cog has been updated to use OpenRouter. "
+                        "Please update your API key. See: https://openrouter.ai/"
+                    )
+        except Exception:
+            # Silently fail if we can't send the notification
+            pass
 
     async def cog_load(self) -> None:
         """Called when the cog is loaded"""
+        # Check if we need to show the OpenRouter migration notification
+        await self._check_migration_notification()
         await self.initialize()
 
     async def cog_unload(self) -> None:
@@ -91,11 +153,15 @@ class TLDWatch(commands.Cog):
     @commands.is_owner()
     @commands.dm_only()
     @tldwset.command(name="apikey")
-    async def set_api_key(self, ctx: commands.Context, api_key: str) -> None:
+    async def set_api_key(self, ctx: commands.Context, api_key: str):
         """Set the LLM API key (admin only)
 
         Note: Use this command in DM to keep your API key private
         """
+        # deprecated: use `[p]set api openrouter api_key <your_key>` instead
+        return await ctx.send(
+            "This command is deprecated. Please use `[p]set api openrouter api_key <your_key>` instead."
+        )
         # Delete the command message if it's not in DMs
         if ctx.guild is not None:
             try:
@@ -113,24 +179,31 @@ class TLDWatch(commands.Cog):
 
     @commands.is_owner()
     @tldwset.command(name="prompt")
-    async def set_prompt(self, ctx: commands.Context, *, prompt: str) -> None:
-        """Set the system prompt for Claude (admin only)"""
+    async def set_prompt(self, ctx: commands.Context, *, prompt: Optional[str]) -> None:
+        """Set the system prompt (owner only)"""
+        if not prompt:
+            # send the current prompt
+            current_prompt = await self.config.system_prompt()
+            await ctx.send(f"Current system prompt: {current_prompt}")
+            return
         await self.config.system_prompt.set(prompt)
         await ctx.send("System prompt set successfully.")
 
     @commands.is_owner()
-    @tldwset.command(name="proxy")
-    async def set_proxy(
-        self, ctx: commands.Context, https_proxy: Optional[str] = None
-    ) -> None:
-        """Set the https proxy (admin only). Can be used to bypass YT IP restrictions."""
-        if https_proxy is None:
-            await self.config.https_proxy.clear()
-            await ctx.send("https proxy cleared successfully.")
-            return
-        await self.config.https_proxy.set(https_proxy)
+    @tldwset.command(name="reset_migration")
+    async def reset_migration_notification(self, ctx: commands.Context) -> None:
+        """Reset the migration notification flag (owner only)"""
+        await self.config.migration_notified.set(False)
+        await ctx.send(
+            "Migration notification flag has been reset. The notification will be shown again on next cog load."
+        )
 
-        await ctx.send("https proxy set successfully.")
+    @commands.is_owner()
+    @tldwset.command(name="show_migration")
+    async def show_migration_notification(self, ctx: commands.Context) -> None:
+        """Manually show the migration notification (owner only)"""
+        await self._send_migration_notification()
+        await ctx.send("Migration notification sent!")
 
     @tldwset.group(name="languages", invoke_without_command=True)
     async def languages(self, ctx: commands.Context) -> None:
@@ -319,7 +392,7 @@ class TLDWatch(commands.Cog):
 
     @commands.hybrid_command(name="tldw")
     async def summarize(self, ctx: commands.Context, video_url: str) -> None:
-        """Summarize a YouTube video using Claude"""
+        """Summarize a YouTube video using OpenRouter."""
         if not self.llm_client:
             await ctx.send("API key is not set. Please set the API key first.")
             return
