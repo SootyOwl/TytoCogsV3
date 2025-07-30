@@ -32,6 +32,7 @@ jobs:
         FUNNYJUNK_USERNAME: ${{ secrets.FUNNYJUNK_USERNAME }}
         FUNNYJUNK_PASSWORD: ${{ secrets.FUNNYJUNK_PASSWORD }}
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
         HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
       run: uv run pytest
