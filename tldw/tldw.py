@@ -1,21 +1,20 @@
 """Too Long; Didn't Watch (TLDW) - Summarize YouTube videos."""
 
 import re
-from typing import Optional
+from collections import OrderedDict
+import typing as t
+
 import discord
 from discord import ButtonStyle
-from redbot.core import commands, Config, app_commands
-from redbot.core.bot import Red
-from redbot.core.utils.views import ConfirmView
-
 from openai import AsyncOpenAI as AsyncLLM
-
+from redbot.core import Config, app_commands, commands
+from redbot.core.bot import Red
+from redbot.core.utils.views import ConfirmView, SetApiView
 from yt_transcript_fetcher import (
     NoTranscriptError,
     VideoNotFoundError,
     YouTubeTranscriptFetcher,
 )
-from collections import OrderedDict
 
 MAX_CACHE_SIZE = 100
 
@@ -42,7 +41,7 @@ class TLDWatch(commands.Cog):
         }
         self.config.register_global(**default_global)
 
-        self.llm_client: Optional[AsyncLLM] = None
+        self.llm_client: t.Optional[AsyncLLM] = None
         self._summary_cache = OrderedDict()
         self.yt_transcript_fetcher = YouTubeTranscriptFetcher()
 
@@ -63,9 +62,20 @@ class TLDWatch(commands.Cog):
 
     async def initialize(self) -> None:
         """Initialize the LLM client with the stored API key."""
-        api_key = await self.config.api_key()
-        if api_key:
+        openrouter_keys = await self.bot.get_shared_api_tokens("openrouter")
+        if api_key := openrouter_keys.get("api_key"):
             self.llm_client = AsyncLLM(api_key=api_key)
+
+    @commands.Cog.listener()
+    async def on_red_api_tokens_update(
+        self, service_name: str, api_tokens: t.Dict[str, str]
+    ) -> None:
+        """Update the LLM client when the API tokens are updated."""
+        if service_name != "openrouter":
+            return
+
+        if "api_key" in api_tokens:
+            await self.initialize()
 
     async def _check_migration_notification(self) -> None:
         """Check if we need to show the OpenRouter migration notification."""
@@ -95,13 +105,13 @@ class TLDWatch(commands.Cog):
                     name="⚠️ Action Required",
                     value=(
                         "You need to update your API key to use OpenRouter:\n\n"
-                        "1. Get an OpenRouter API key from https://openrouter.ai/ \n"
-                        "2. Set it using: `[p]tldwset apikey <your_openrouter_key>`\n"
-                        "3. The cog now supports multiple LLM providers through OpenRouter"
-                    ),
+                        "1. Sign up or log in to OpenRouter at https://openrouter.ai/\n"
+                        "2. Get an OpenRouter API key from https://openrouter.ai/settings/keys \n"
+                        "3. Set it using: `{p}set api openrouter api_key,<your_openrouter_key>`\n"
+                        "4. The cog now supports multiple LLM providers through OpenRouter"
+                    ).format(p=self.bot.command_prefix),
                     inline=False,
-                )
-                embed.add_field(
+                ).add_field(
                     name="ℹ️ What Changed",
                     value=(
                         "• Switched from Anthropic Claude API to OpenRouter\n"
@@ -110,8 +120,22 @@ class TLDWatch(commands.Cog):
                         "• Same functionality, better backend"
                     ),
                     inline=False,
+                ).add_field(  # using existing anthropic key on OpenRouter BYOK
+                    name="🔑 Using Existing Key",
+                    value=(
+                        "If you already have an Anthropic API key, you can use it on OpenRouter by following the instructions below:\n"
+                        "1. Obtain and set your OpenRouter API key as described above.\n"
+                        "2. Go to https://openrouter.ai/settings/integrations and add your Anthropic key in the list of providers.\n"
+                        "3. Set the model to `anthropic/claude-3.5-sonnet` or any [other Claude model](https://openrouter.ai/anthropic) you prefer, using the command:\n"
+                        "\t`{p}tldwset model anthropic/claude-3.5-sonnet`.\n"
+                        "4. Now you can use the TLDW cog with your existing Anthropic key on OpenRouter, which will route requests to Claude models and use existing credits."
+                    ).format(p=self.bot.command_prefix),
+                    inline=False,
+                ).set_footer(
+                    text="This message will only be shown once. If you need to see it again, use the command `{p}tldwset show_migration`.".format(
+                        p=self.bot.command_prefix
+                    )
                 )
-                embed.set_footer(text="This message will only be shown once.")
 
                 try:
                     await app_info.owner.send(embed=embed)
@@ -121,8 +145,7 @@ class TLDWatch(commands.Cog):
 
                     log = logging.getLogger("red.cogs.tldw")
                     log.info(
-                        "TLDW Migration Notice: The TLDW cog has been updated to use OpenRouter. "
-                        "Please update your API key. See: https://openrouter.ai/"
+                        "Could not send migration notification to the bot owner. Please check their DM settings."
                     )
         except Exception:
             # Silently fail if we can't send the notification
@@ -150,36 +173,52 @@ class TLDWatch(commands.Cog):
         """Settings for the video summarizer"""
         pass
 
-    @commands.is_owner()
-    @commands.dm_only()
-    @tldwset.command(name="apikey")
-    async def set_api_key(self, ctx: commands.Context, api_key: str):
-        """Set the LLM API key (admin only)
+    @tldwset.command(name="model")
+    async def set_model(
+        self, ctx: commands.Context, model: t.Optional[str] = None
+    ) -> None:
+        """Set the model to use for summarization (owner only)"""
+        if not model:
+            # send the current model
+            current_model = await self.config.model()
+            await ctx.send(f"Current model: {current_model}")
+            return
 
-        Note: Use this command in DM to keep your API key private
-        """
-        # deprecated: use `[p]set api openrouter api_key <your_key>` instead
-        return await ctx.send(
-            "This command is deprecated. Please use `[p]set api openrouter api_key <your_key>` instead."
+        # validate the model name against the available models
+        import requests
+
+        available_models = (
+            requests.get("https://openrouter.ai/api/v1/models").json().get("data", [])
         )
-        # Delete the command message if it's not in DMs
-        if ctx.guild is not None:
-            try:
-                await ctx.message.delete()
-            except (discord.errors.Forbidden, discord.errors.NotFound):
-                pass
-
+        if model not in [m["id"] for m in available_models]:
             await ctx.send(
-                "Please use this command in DM to keep your API key private."
+                f"Model '{model}' is not available, please check the available models at https://openrouter.ai/models."
             )
             return
-        await self.config.api_key.set(api_key)
-        await self.initialize()
-        await ctx.send("API key set successfully.")
+
+        await self.config.model.set(model)
+        await ctx.send(f"Model set to: {model}")
+
+    @commands.is_owner()
+    @tldwset.command(name="apikey")
+    async def set_api_key(self, ctx: commands.Context):
+        """Set the LLM API key (admin only)."""
+        view = SetApiView(
+            default_service="openrouter",
+            default_keys={
+                "api_key": ""  # Placeholder for the OpenRouter API key
+            },
+        )
+        await ctx.send(
+            "Click the button below to set the API key for OpenRouter. This will allow you to use the TLDW cog.",
+            view=view,
+        )
 
     @commands.is_owner()
     @tldwset.command(name="prompt")
-    async def set_prompt(self, ctx: commands.Context, *, prompt: Optional[str]) -> None:
+    async def set_prompt(
+        self, ctx: commands.Context, *, prompt: t.Optional[str]
+    ) -> None:
         """Set the system prompt (owner only)"""
         if not prompt:
             # send the current prompt
@@ -213,7 +252,7 @@ class TLDWatch(commands.Cog):
     @commands.is_owner()
     @languages.command(name="add")
     async def add_language(
-        self, ctx: commands.Context, language: Optional[str] = None
+        self, ctx: commands.Context, language: t.Optional[str] = None
     ) -> None:
         """Add a language to the list of languages for the transcript API"""
 
@@ -250,7 +289,7 @@ class TLDWatch(commands.Cog):
     @commands.is_owner()
     @languages.command(name="remove")
     async def remove_languages(
-        self, ctx: commands.Context, number: Optional[int] = None
+        self, ctx: commands.Context, number: t.Optional[int] = None
     ) -> None:
         """Remove a language from the list of languages for the transcript API by its number."""
         languages = await self.config.languages()
