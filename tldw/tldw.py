@@ -1,15 +1,14 @@
 """Too Long; Didn't Watch (TLDW) - Summarize YouTube videos."""
 
 import re
-from typing import List, Optional
+from typing import Optional
 import discord
 from discord import ButtonStyle
 from redbot.core import commands, Config, app_commands
 from redbot.core.bot import Red
 from redbot.core.utils.views import ConfirmView
-from anthropic import AsyncAnthropic as AsyncLLM
-from anthropic.types.text_block import TextBlock
-from anthropic.types.content_block import ContentBlock
+
+from openai import AsyncOpenAI as AsyncLLM
 
 from yt_transcript_fetcher import (
     NoTranscriptError,
@@ -22,7 +21,7 @@ MAX_CACHE_SIZE = 100
 
 
 class TLDWatch(commands.Cog):
-    """Use Claude to create short summaries of youtube videos from their transcripts."""
+    """Use a LLM from OpenRouter to create short summaries of youtube videos from their transcripts."""
 
     def __init__(self, bot: Red) -> None:
         self.bot = bot
@@ -35,6 +34,8 @@ class TLDWatch(commands.Cog):
         # Default settings
         default_global = {
             "api_key": None,
+            "model": "openrouter/auto",
+            "other_models": [],
             "system_prompt": ("You are a YouTube video note taker and summarizer."),
             "languages": ["en-US", "en-GB", "en"],
         }
@@ -60,11 +61,12 @@ class TLDWatch(commands.Cog):
         self.bot.tree.add_command(self.youtube_summary_context_menu_private)
 
     async def initialize(self) -> None:
-        """Initialize the LLM client with the stored API key,
-        and the youtube transcript API with the stored proxy."""
+        """Initialize the LLM client with the stored API key."""
         api_key = await self.config.api_key()
         if api_key:
-            self.llm_client = AsyncLLM(api_key=api_key)
+            self.llm_client = AsyncLLM(
+                base_url="https://openrouter.ai/api/v1", api_key=api_key
+            )
 
     async def cog_load(self) -> None:
         """Called when the cog is loaded"""
@@ -334,7 +336,7 @@ class TLDWatch(commands.Cog):
     async def summarize_msg_callback(
         self, inter: discord.Interaction, message: discord.Message
     ) -> None:
-        """Summarize a YouTube video using Claude"""
+        """Summarize a YouTube video using OpenRouter from a message context menu."""
         is_private = inter.extras.get("is_private", False)
         await inter.response.defer(thinking=True, ephemeral=is_private)
         try:
@@ -397,8 +399,8 @@ class TLDWatch(commands.Cog):
 
         return summary
 
-    async def generate_summary(self, text: str) -> List[ContentBlock]:
-        """Generate a summary using Claude"""
+    async def generate_summary(self, text: str) -> str | None:
+        """Generate a summary using OpenRouter."""
         if not self.llm_client:
             raise ValueError("API key is not set. Please set the API key first.")
         if not self.llm_client.api_key:
@@ -406,32 +408,42 @@ class TLDWatch(commands.Cog):
         if not text:
             raise ValueError("No text to summarize.")
         system_prompt = await self.config.system_prompt()
+        if not system_prompt:
+            raise ValueError(
+                "System prompt is not set. Please set the system prompt first."
+            )
+        model = await self.config.model()
+        other_models = await self.config.other_models()
+        if not model:
+            raise ValueError("Model is not set. Please set the model first.")
+        if not other_models:
+            other_models = []
+        # Call the get_llm_response coroutine to get the summary
+        try:
+            return await get_llm_response(
+                self.llm_client,
+                text,
+                system_prompt,
+                model=model,
+                other_models=other_models,
+            )
+        except Exception as e:
+            raise ValueError(f"Error generating summary: {e}") from e
 
-        return await get_llm_response(self.llm_client, text, system_prompt)
 
-
-def cleanup_summary(summary: List[ContentBlock]) -> str:
+def cleanup_summary(summary: str) -> str:
     """The summary should have a closing ```"""
     if not summary:
         raise ValueError("Failed to generate a summary, no content found.")
-    # ensure it's a text block and not a tool use block
-    if not isinstance(summary[0], TextBlock):
-        raise ValueError(
-            "Failed to generate a summary, expected a text block but got %s",
-            type(summary[0]),
-        )
 
-    # get the actual text from the response content
-    output = summary[0].text
-
-    # the closing ``` indicates the end of the summary, only keep everything before it
-    output = output.split("```")[0]
     # remove any leading or trailing whitespace
-    output = output.strip()
-    # remove any leading or trailing newlines
-    output = output.strip("\n")
-
-    return output
+    return (
+        summary.split("```")[
+            0
+        ]  # the closing ``` indicates the end of the summary, only keep everything before it
+        .strip()  # remove leading/trailing whitespace
+        .strip("\n")
+    )
 
 
 async def get_transcript(
@@ -484,33 +496,36 @@ def get_video_id(video_url: str) -> str:
 
 
 async def get_llm_response(
-    llm_client: AsyncLLM, text: str, system_prompt: str
-) -> List[ContentBlock]:
-    response = await llm_client.messages.create(
-        model="claude-3-5-sonnet-latest",
+    llm_client: AsyncLLM,
+    text: str,
+    system_prompt: str,
+    model: str = "openrouter/auto",
+    other_models: list[str] = [],
+) -> str | None:
+    response = await llm_client.chat.completions.create(
+        model=model,
+        extra_body={
+            "models": other_models,
+        },
         max_tokens=2048,
-        temperature=0,
-        system=system_prompt,
+        temperature=0.0,
+        n=1,
+        stop=["```"],
         messages=[
             {
+                "role": "developer",
+                "content": system_prompt,
+            },
+            {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": text},
-                    {
-                        "type": "text",
-                        "text": "Summarise the key points in this video transcript in the form of markdown-formatted concise notes, in the language of the transcript.",
-                    },
-                ],
+                "content": text
+                + "\n\n"
+                + "Summarise the key points in this video transcript in the form of markdown-formatted concise notes, in the language of the transcript.",
             },
             {
                 "role": "assistant",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Here are the key points from the video transcript:\n\n```markdown",
-                    }
-                ],
+                "content": "Here are the key points from the video transcript:\n\n```markdown",
             },
         ],
     )
-    return response.content
+    return response.choices[0].message.content

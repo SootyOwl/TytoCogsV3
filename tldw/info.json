@@ -1,10 +1,11 @@
 {
+    "$schema": "https://raw.githubusercontent.com/Cog-Creators/Red-DiscordBot/V3/develop/schema/red_cog.schema.json",
     "author" : [
         "Tyto"
     ],
-    "description" : "Summarize youtube videos with Claude.",
-    "install_msg" : "Make sure to set your anthropic api key.",
-    "short" : "TLDW with Claude",
+    "description" : "Summarize youtube videos with OpenRouter",
+    "install_msg" : "Make sure to set your OpenRouter api key.",
+    "short" : "Too Long, Didn't Watch with OpenRouter",
     "end_user_data_statement" : "No end user data is stored",
     "min_bot_version" : "3.1.8",
     "max_bot_version" : "0.0.0",
@@ -16,7 +17,7 @@
     "hidden" : false,
     "disabled" : false,
     "required_cogs" : {},
-    "requirements" : ["anthropic>=0.50.0", "yt-transcript-fetcher>=1.1.1"],
-    "tags" : ["claude", "youtube", "video", "summarize"],
+    "requirements" : ["yt-transcript-fetcher>=1.1.1", "openai>=1.78.1,<2"],
+    "tags" : ["llm", "youtube", "video", "summarize", "openrouter"],
     "type" : "COG"
 }
