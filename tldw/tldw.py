@@ -66,7 +66,9 @@ class TLDWatch(commands.Cog):
         """Initialize the LLM client with the stored API key."""
         openrouter_keys = await self.bot.get_shared_api_tokens("openrouter")
         if api_key := openrouter_keys.get("api_key"):
-            self.llm_client = AsyncLLM(api_key=api_key)
+            self.llm_client = AsyncLLM(
+                api_key=api_key, base_url="https://openrouter.ai/api/v1"
+            )
 
     @commands.Cog.listener()
     async def on_red_api_tokens_update(
@@ -624,6 +626,8 @@ async def get_llm_response(
 ) -> str | None:
     response = await llm_client.chat.completions.create(
         model=model,
+        # The `extra_body` parameter with the `models` key is specific to OpenRouter.
+        # It enables OpenRouter's model fallback feature, allowing the use of alternative models.
         extra_body={
             "models": other_models,
         },
