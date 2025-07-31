@@ -1,4 +1,5 @@
 import pytest
+from pytest_mock import MockerFixture
 
 from tldw import tldw
 from yt_transcript_fetcher import YouTubeTranscriptFetcher
@@ -81,40 +82,27 @@ async def test_get_transcript_invalid_video_id(ytt_api):
 
 # test cleanup_summary function
 def test_cleanup_summary(mocker):
-    # Mock the TextBlock object so it can be used in the test
-    class MockTextBlock:
-        def __init__(self, text):
-            self.text = text
-
-        def __str__(self):
-            return self.text
-
-    # Mock the TextBlock class in the tldw module so type checking works
-    mocker.patch("tldw.tldw.ContentBlock", MockTextBlock)
-    mocker.patch("tldw.tldw.TextBlock", MockTextBlock)
-
     # Test case 1: Basic test
-    summary = [MockTextBlock("This is a test summary.```")]
+    summary = "This is a test summary.```"
     cleaned_summary = tldw.cleanup_summary(summary)
     assert cleaned_summary == "This is a test summary."
 
     # Test case 2: Summary with multiple ```
-    summary = [MockTextBlock("This is a test summary.```More text```")]
+    summary = "This is a test summary.```More text```"
     cleaned_summary = tldw.cleanup_summary(summary)
     assert cleaned_summary == "This is a test summary."
 
     # Test case 3: Summary without ```
-    summary = [MockTextBlock("This is a test summary.")]
+    summary = "This is a test summary."
     cleaned_summary = tldw.cleanup_summary(summary)
     assert cleaned_summary == "This is a test summary."
 
     # Test case 4: Empty summary
-    summary = [MockTextBlock("")]
-    cleaned_summary = tldw.cleanup_summary(summary)
-    assert cleaned_summary == ""
+    with pytest.raises(ValueError):
+        tldw.cleanup_summary("")
 
     # Test case 5: Summary with ``` at the beginning
-    summary = [MockTextBlock("```This is a test summary.")]
+    summary = "```This is a test summary."
     cleaned_summary = tldw.cleanup_summary(summary)
     assert cleaned_summary == ""
 
@@ -127,16 +115,16 @@ def test_cleanup_summary_invalid_input():
 
 # test get_llm_response coroutine
 @pytest.mark.asyncio
-async def test_get_llm_response(mocker):
-    from tldw.tldw import TextBlock
-
-    # Mock the Anthropic LLM Client (tldw.AsyncLLM)
-    mock_client = mocker.Mock()
-    # mock the messages.create method to return a mock response
-    mock_response = mocker.Mock()
-    mock_response.content = [TextBlock(text="Test response", type="text")]
-    # make the .messages.create a coroutine
-    mock_client.messages.create = mocker.AsyncMock(return_value=mock_response)
+async def test_get_llm_response(mocker: MockerFixture):
+    # FIXME: Update this test for the new AsyncLLM client (OpenRouter)
+    # Mock the LLM Client (tldw.AsyncLLM)
+    mock_client = mocker.AsyncMock()
+    mock_response = mocker.patch(
+        "openai.types.chat.chat_completion.ChatCompletion", autospec=True
+    )
+    mock_response.choices = [mocker.Mock()]
+    mock_response.choices[0].message.content = "Test response"
+    mock_client.chat.completions.create = mocker.AsyncMock(return_value=mock_response)
     # Mock the Anthropic LLM Client (tldw.AsyncLLM) in the tldw module
     mocker.patch("tldw.tldw.AsyncLLM", return_value=mock_client)
     # Test the get_llm_response function
@@ -145,36 +133,9 @@ async def test_get_llm_response(mocker):
         text="Test prompt",
         system_prompt=("You are a YouTube video note taker and summarizer."),
     )
-    assert response[0].text == "Test response"
-    assert isinstance(response[0], TextBlock)
-    assert await mock_client.messages.create.called_once_with(
-        model="claude-3-5-sonnet-latest",
-        max_tokens=2048,
-        temperature=0,
-        system="You are a YouTube video note taker and summarizer.",
-        tool_choice={"type": "none"},
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Test prompt"},
-                    {
-                        "type": "text",
-                        "text": "Summarise the key points in this video transcript in the form of markdown-formatted concise notes.",
-                    },
-                ],
-            },
-            {
-                "role": "assistant",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Here are the key points from the video transcript:\n\n```markdown",
-                    }
-                ],
-            },
-        ],
-    )
+    assert response == "Test response"
+    assert isinstance(response, str)
+    assert mock_client.chat.completions.create.called
 
 
 # test without mocking
@@ -187,13 +148,12 @@ def llm_client():
 
     load_dotenv()
 
-    return AsyncLLM()
+    return AsyncLLM(base_url="https://openrouter.ai/api/v1")
 
 
 @pytest.mark.asyncio
 async def test_get_llm_response_without_mocker(llm_client):
-    from tldw.tldw import TextBlock
-
+    """Test the get_llm_response function without mocking."""
     # Test the get_llm_response function
     response = await tldw.get_llm_response(
         llm_client=llm_client,
@@ -202,5 +162,5 @@ async def test_get_llm_response_without_mocker(llm_client):
             "You are a YouTube video note taker and summarizer, under test. Respond *only* with 'Test response'."
         ),  # type: ignore
     )
-    assert isinstance(response[0], TextBlock)
-    assert response[0].text == "\nTest response\n```"
+    assert isinstance(response, str)
+    assert response == "Test response"

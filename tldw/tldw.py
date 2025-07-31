@@ -1,28 +1,28 @@
 """Too Long; Didn't Watch (TLDW) - Summarize YouTube videos."""
 
+import logging
 import re
-from typing import List, Optional
+import typing as t
+from collections import OrderedDict
+
+import aiohttp
 import discord
 from discord import ButtonStyle
-from redbot.core import commands, Config, app_commands
+from openai import AsyncOpenAI as AsyncLLM
+from redbot.core import Config, app_commands, commands
 from redbot.core.bot import Red
-from redbot.core.utils.views import ConfirmView
-from anthropic import AsyncAnthropic as AsyncLLM
-from anthropic.types.text_block import TextBlock
-from anthropic.types.content_block import ContentBlock
-
+from redbot.core.utils.views import ConfirmView, SetApiView
 from yt_transcript_fetcher import (
     NoTranscriptError,
     VideoNotFoundError,
     YouTubeTranscriptFetcher,
 )
-from collections import OrderedDict
 
 MAX_CACHE_SIZE = 100
 
 
 class TLDWatch(commands.Cog):
-    """Use Claude to create short summaries of youtube videos from their transcripts."""
+    """Use a LLM from OpenRouter to create short summaries of youtube videos from their transcripts."""
 
     def __init__(self, bot: Red) -> None:
         self.bot = bot
@@ -35,12 +35,15 @@ class TLDWatch(commands.Cog):
         # Default settings
         default_global = {
             "api_key": None,
+            "model": "openrouter/auto",
+            "other_models": [],
             "system_prompt": ("You are a YouTube video note taker and summarizer."),
             "languages": ["en-US", "en-GB", "en"],
+            "migration_notified": False,  # Track if user has been notified about OpenRouter migration
         }
         self.config.register_global(**default_global)
 
-        self.llm_client: Optional[AsyncLLM] = None
+        self.llm_client: t.Optional[AsyncLLM] = None
         self._summary_cache = OrderedDict()
         self.yt_transcript_fetcher = YouTubeTranscriptFetcher()
 
@@ -60,14 +63,99 @@ class TLDWatch(commands.Cog):
         self.bot.tree.add_command(self.youtube_summary_context_menu_private)
 
     async def initialize(self) -> None:
-        """Initialize the LLM client with the stored API key,
-        and the youtube transcript API with the stored proxy."""
-        api_key = await self.config.api_key()
-        if api_key:
-            self.llm_client = AsyncLLM(api_key=api_key)
+        """Initialize the LLM client with the stored API key."""
+        openrouter_keys = await self.bot.get_shared_api_tokens("openrouter")
+        if api_key := openrouter_keys.get("api_key"):
+            self.llm_client = AsyncLLM(
+                api_key=api_key, base_url="https://openrouter.ai/api/v1"
+            )
+
+    @commands.Cog.listener()
+    async def on_red_api_tokens_update(
+        self, service_name: str, api_tokens: t.Dict[str, str]
+    ) -> None:
+        """Update the LLM client when the API tokens are updated."""
+        if service_name != "openrouter":
+            return
+
+        if "api_key" in api_tokens:
+            await self.initialize()
+
+    async def _check_migration_notification(self) -> None:
+        """Check if we need to show the OpenRouter migration notification."""
+        # Only check if we haven't already notified the user
+        if await self.config.migration_notified():
+            return
+
+        # Check if there's an API key set but the user hasn't been notified about the migration
+        api_key2 = await self.config.api_key()
+        if api_key2:
+            # Send migration notification to bot owner
+            await self._send_migration_notification()
+            # User has an API key set, mark as notified so we don't show this again
+            await self.config.migration_notified.set(True)
+
+    async def _send_migration_notification(self) -> None:
+        """Send a migration notification to the bot owner."""
+        try:
+            app_info = await self.bot.application_info()
+            if app_info.owner:
+                embed = discord.Embed(
+                    title="🔄 TLDW Cog Migration Notice",
+                    description="The TLDW cog has been updated to use OpenRouter instead of Anthropic Claude.",
+                    color=0x00FF00,
+                )
+                embed.add_field(
+                    name="⚠️ Action Required",
+                    value=(
+                        "You need to update your API key to use OpenRouter:\n\n"
+                        "1. Sign up or log in to OpenRouter at https://openrouter.ai/\n"
+                        "2. Get an OpenRouter API key from https://openrouter.ai/settings/keys \n"
+                        "3. Set it using: `{p}set api openrouter api_key,<your_openrouter_key>`\n"
+                        "4. The cog now supports multiple LLM providers through OpenRouter"
+                    ).format(p=self.bot.command_prefix),
+                    inline=False,
+                ).add_field(
+                    name="ℹ️ What Changed",
+                    value=(
+                        "• Switched from Anthropic Claude API to OpenRouter\n"
+                        "• Now supports multiple AI models\n"
+                        "• Better reliability and model selection\n"
+                        "• Same functionality, better backend"
+                    ),
+                    inline=False,
+                ).add_field(  # using existing anthropic key on OpenRouter BYOK
+                    name="🔑 Using Existing Key",
+                    value=(
+                        "If you already have an Anthropic API key, you can use it on OpenRouter by following the instructions below:\n"
+                        "1. Obtain and set your OpenRouter API key as described above.\n"
+                        "2. Go to https://openrouter.ai/settings/integrations and add your Anthropic key in the list of providers.\n"
+                        "3. Set the model to `anthropic/claude-3.5-sonnet` or any [other Claude model](https://openrouter.ai/anthropic) you prefer, using the command:\n"
+                        "\t`{p}tldwset model anthropic/claude-3.5-sonnet`.\n"
+                        "4. Now you can use the TLDW cog with your existing Anthropic key on OpenRouter, which will route requests to Claude models and use existing credits."
+                    ).format(p=self.bot.command_prefix),
+                    inline=False,
+                ).set_footer(
+                    text="This message will only be shown once. If you need to see it again, use the command `{p}tldwset show_migration`.".format(
+                        p=self.bot.command_prefix
+                    )
+                )
+                try:
+                    await app_info.owner.send(embed=embed)
+                except discord.Forbidden:
+                    # If we can't DM the owner, log it instead
+                    log = logging.getLogger("red.cogs.tldw")
+                    log.info(
+                        "Could not send migration notification to the bot owner. Please check their DM settings."
+                    )
+        except Exception:
+            # Silently fail if we can't send the notification
+            pass
 
     async def cog_load(self) -> None:
         """Called when the cog is loaded"""
+        # Check if we need to show the OpenRouter migration notification
+        await self._check_migration_notification()
         await self.initialize()
 
     async def cog_unload(self) -> None:
@@ -80,55 +168,92 @@ class TLDWatch(commands.Cog):
             self.youtube_summary_context_menu_private.name,
             type=self.youtube_summary_context_menu_private.type,
         )
+        if self.llm_client:
+            await self.llm_client.close()
 
     @commands.group()
     async def tldwset(self, ctx: commands.Context) -> None:
         """Settings for the video summarizer"""
         pass
 
-    @commands.is_owner()
-    @commands.dm_only()
-    @tldwset.command(name="apikey")
-    async def set_api_key(self, ctx: commands.Context, api_key: str) -> None:
-        """Set the LLM API key (admin only)
+    @tldwset.command(name="model")
+    async def set_model(
+        self, ctx: commands.Context, model: t.Optional[str] = None
+    ) -> None:
+        """Set the model to use for summarization (owner only)"""
+        if not model:
+            # send the current model
+            current_model = await self.config.model()
+            await ctx.send(f"Current model: {current_model}")
+            return
 
-        Note: Use this command in DM to keep your API key private
-        """
-        # Delete the command message if it's not in DMs
-        if ctx.guild is not None:
-            try:
-                await ctx.message.delete()
-            except (discord.errors.Forbidden, discord.errors.NotFound):
-                pass
+        # validate the model name against the available models
 
+        async with aiohttp.ClientSession() as session:
+            async with session.get("https://openrouter.ai/api/v1/models") as resp:
+                try:
+                    resp.raise_for_status()
+                except aiohttp.ClientResponseError as e:
+                    await ctx.send(
+                        f"Failed to fetch available models: {e}. Please check your internet connection or try again later."
+                    )
+                    return
+                data = await resp.json()
+                available_models = data.get("data", [])
+
+        if model not in [m["id"] for m in available_models]:
             await ctx.send(
-                "Please use this command in DM to keep your API key private."
+                f"Model '{model}' is not available, please check the available models at https://openrouter.ai/models."
             )
             return
-        await self.config.api_key.set(api_key)
-        await self.initialize()
-        await ctx.send("API key set successfully.")
+
+        await self.config.model.set(model)
+        await ctx.send(f"Model set to: {model}")
+
+    @commands.is_owner()
+    @tldwset.command(name="apikey")
+    async def set_api_key(self, ctx: commands.Context):
+        """Set the LLM API key (admin only)."""
+        view = SetApiView(
+            default_service="openrouter",
+            default_keys={
+                "api_key": ""  # Placeholder for the OpenRouter API key
+            },
+        )
+        await ctx.send(
+            "Click the button below to set the API key for OpenRouter. This will allow you to use the TLDW cog.",
+            view=view,
+        )
 
     @commands.is_owner()
     @tldwset.command(name="prompt")
-    async def set_prompt(self, ctx: commands.Context, *, prompt: str) -> None:
-        """Set the system prompt for Claude (admin only)"""
+    async def set_prompt(
+        self, ctx: commands.Context, *, prompt: t.Optional[str]
+    ) -> None:
+        """Set the system prompt (owner only)"""
+        if not prompt:
+            # send the current prompt
+            current_prompt = await self.config.system_prompt()
+            await ctx.send(f"Current system prompt: {current_prompt}")
+            return
         await self.config.system_prompt.set(prompt)
         await ctx.send("System prompt set successfully.")
 
     @commands.is_owner()
-    @tldwset.command(name="proxy")
-    async def set_proxy(
-        self, ctx: commands.Context, https_proxy: Optional[str] = None
-    ) -> None:
-        """Set the https proxy (admin only). Can be used to bypass YT IP restrictions."""
-        if https_proxy is None:
-            await self.config.https_proxy.clear()
-            await ctx.send("https proxy cleared successfully.")
-            return
-        await self.config.https_proxy.set(https_proxy)
+    @tldwset.command(name="reset_migration")
+    async def reset_migration_notification(self, ctx: commands.Context) -> None:
+        """Reset the migration notification flag (owner only)"""
+        await self.config.migration_notified.set(False)
+        await ctx.send(
+            "Migration notification flag has been reset. The notification will be shown again on next cog load."
+        )
 
-        await ctx.send("https proxy set successfully.")
+    @commands.is_owner()
+    @tldwset.command(name="show_migration")
+    async def show_migration_notification(self, ctx: commands.Context) -> None:
+        """Manually show the migration notification (owner only)"""
+        await self._send_migration_notification()
+        await ctx.send("Migration notification sent!")
 
     @tldwset.group(name="languages", invoke_without_command=True)
     async def languages(self, ctx: commands.Context) -> None:
@@ -138,7 +263,7 @@ class TLDWatch(commands.Cog):
     @commands.is_owner()
     @languages.command(name="add")
     async def add_language(
-        self, ctx: commands.Context, language: Optional[str] = None
+        self, ctx: commands.Context, language: t.Optional[str] = None
     ) -> None:
         """Add a language to the list of languages for the transcript API"""
 
@@ -175,7 +300,7 @@ class TLDWatch(commands.Cog):
     @commands.is_owner()
     @languages.command(name="remove")
     async def remove_languages(
-        self, ctx: commands.Context, number: Optional[int] = None
+        self, ctx: commands.Context, number: t.Optional[int] = None
     ) -> None:
         """Remove a language from the list of languages for the transcript API by its number."""
         languages = await self.config.languages()
@@ -317,7 +442,7 @@ class TLDWatch(commands.Cog):
 
     @commands.hybrid_command(name="tldw")
     async def summarize(self, ctx: commands.Context, video_url: str) -> None:
-        """Summarize a YouTube video using Claude"""
+        """Summarize a YouTube video using OpenRouter."""
         if not self.llm_client:
             await ctx.send("API key is not set. Please set the API key first.")
             return
@@ -334,7 +459,7 @@ class TLDWatch(commands.Cog):
     async def summarize_msg_callback(
         self, inter: discord.Interaction, message: discord.Message
     ) -> None:
-        """Summarize a YouTube video using Claude"""
+        """Summarize a YouTube video using OpenRouter from a message context menu."""
         is_private = inter.extras.get("is_private", False)
         await inter.response.defer(thinking=True, ephemeral=is_private)
         try:
@@ -397,8 +522,8 @@ class TLDWatch(commands.Cog):
 
         return summary
 
-    async def generate_summary(self, text: str) -> List[ContentBlock]:
-        """Generate a summary using Claude"""
+    async def generate_summary(self, text: str) -> str | None:
+        """Generate a summary using OpenRouter."""
         if not self.llm_client:
             raise ValueError("API key is not set. Please set the API key first.")
         if not self.llm_client.api_key:
@@ -406,32 +531,41 @@ class TLDWatch(commands.Cog):
         if not text:
             raise ValueError("No text to summarize.")
         system_prompt = await self.config.system_prompt()
+        if not system_prompt:
+            raise ValueError(
+                "System prompt is not set. Please set the system prompt first."
+            )
+        model = await self.config.model()
+        other_models = await self.config.other_models()
+        if not model:
+            raise ValueError("Model is not set. Please set the model first.")
+        if not other_models:
+            other_models = []
+        # Call the get_llm_response coroutine to get the summary
+        try:
+            return await get_llm_response(
+                self.llm_client,
+                text,
+                system_prompt,
+                model=model,
+                other_models=other_models,
+            )
+        except Exception as e:
+            raise ValueError(f"Error generating summary: {e}") from e
 
-        return await get_llm_response(self.llm_client, text, system_prompt)
 
-
-def cleanup_summary(summary: List[ContentBlock]) -> str:
+def cleanup_summary(summary: str) -> str:
     """The summary should have a closing ```"""
-    if not summary:
+    if not summary or not summary.strip():
         raise ValueError("Failed to generate a summary, no content found.")
-    # ensure it's a text block and not a tool use block
-    if not isinstance(summary[0], TextBlock):
-        raise ValueError(
-            "Failed to generate a summary, expected a text block but got %s",
-            type(summary[0]),
-        )
-
-    # get the actual text from the response content
-    output = summary[0].text
-
-    # the closing ``` indicates the end of the summary, only keep everything before it
-    output = output.split("```")[0]
     # remove any leading or trailing whitespace
-    output = output.strip()
-    # remove any leading or trailing newlines
-    output = output.strip("\n")
-
-    return output
+    return (
+        summary.split("```")[
+            0
+        ]  # the closing ``` indicates the end of the summary, only keep everything before it
+        .strip()  # remove leading/trailing whitespace
+        .strip("\n")
+    )
 
 
 async def get_transcript(
@@ -484,33 +618,38 @@ def get_video_id(video_url: str) -> str:
 
 
 async def get_llm_response(
-    llm_client: AsyncLLM, text: str, system_prompt: str
-) -> List[ContentBlock]:
-    response = await llm_client.messages.create(
-        model="claude-3-5-sonnet-latest",
+    llm_client: AsyncLLM,
+    text: str,
+    system_prompt: str,
+    model: str = "openrouter/auto",
+    other_models: list[str] = [],
+) -> str | None:
+    response = await llm_client.chat.completions.create(
+        model=model,
+        # The `extra_body` parameter with the `models` key is specific to OpenRouter.
+        # It enables OpenRouter's model fallback feature, allowing the use of alternative models.
+        extra_body={
+            "models": other_models,
+        },
         max_tokens=2048,
-        temperature=0,
-        system=system_prompt,
+        temperature=0.0,
+        n=1,
+        stop=["```"],
         messages=[
             {
+                "role": "developer",
+                "content": system_prompt,
+            },
+            {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": text},
-                    {
-                        "type": "text",
-                        "text": "Summarise the key points in this video transcript in the form of markdown-formatted concise notes, in the language of the transcript.",
-                    },
-                ],
+                "content": text
+                + "\n\n"
+                + "Summarise the key points in this video transcript in the form of markdown-formatted concise notes, in the language of the transcript.",
             },
             {
                 "role": "assistant",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Here are the key points from the video transcript:\n\n```markdown",
-                    }
-                ],
+                "content": "Here are the key points from the video transcript:\n\n```markdown",
             },
         ],
     )
-    return response.content
+    return response.choices[0].message.content
