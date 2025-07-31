@@ -22,14 +22,20 @@ class APIKeyNotFoundError(KeyError):
             f"No {self.platform.capitalize()} API `{self.key.lower()}` set.\n"
             f"Set with `[p]set api {self.platform.lower()} {self.key.lower()},<{self.key.upper()}>`"
         )
-        extra_str = f"\n\nSee {self.help_link} for details on getting your API key(s)." if self.help_link else ""
+        extra_str = (
+            f"\n\nSee {self.help_link} for details on getting your API key(s)."
+            if self.help_link
+            else ""
+        )
         return base_str + extra_str
 
 
 class SpotifyKeyNotFoundError(APIKeyNotFoundError):
     def __init__(self, key):
         super().__init__(
-            platform="spotify", key=key, help_link="https://developer.spotify.com/documentation/web-api/quick-start/"
+            platform="spotify",
+            key=key,
+            help_link="https://developer.spotify.com/documentation/web-api/quick-start/",
         )
 
 
@@ -48,7 +54,9 @@ class SpotTube(commands.Cog):
     def __init__(self, bot: Red, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=250390443)  # randomly generated identifier
+        self.config = Config.get_conf(
+            self, identifier=250390443
+        )  # randomly generated identifier
 
     @commands.command()
     async def convert(self, ctx: commands.Context, link: str):
@@ -60,13 +68,19 @@ class SpotTube(commands.Cog):
             in this case:
         """
         try:
-            async with ctx.typing(), Client(*await self._get_spotify_api_keys()) as spoticlient:
+            async with (
+                ctx.typing(),
+                Client(*await self._get_spotify_api_keys()) as spoticlient,
+            ):
                 track_id = to_id(value=link.split(sep="?si=")[0])
                 track = await spoticlient.get_track(track_id)
 
                 ytapi = pyyoutube.Api(api_key=await self._get_youtube_api_key())
                 result: list = ytapi.search(
-                    search_type="video", q=f"{track.artist.name} - {track.name}", count=5, limit=5
+                    search_type="video",
+                    q=f"{track.artist.name} - {track.name}",
+                    count=5,
+                    limit=5,
                 ).items
         except APIKeyNotFoundError as e:
             return await ctx.reply(e)

@@ -48,7 +48,11 @@ def exponential_backoff_retry(
                     result = await func(*args, **kwargs)
 
                     # Check if we should retry based on the result
-                    if retry_condition and retry_condition(result) and attempt < max_retries:
+                    if (
+                        retry_condition
+                        and retry_condition(result)
+                        and attempt < max_retries
+                    ):
                         delay = min(base_delay * (exponential_base**attempt), max_delay)
                         logger.warning(
                             f"Retry condition met for {func.__name__}, attempt {attempt + 1}/{max_retries + 1}. "
@@ -86,7 +90,10 @@ def _should_retry_login(response_data: dict) -> bool:
     """Check if login response indicates rate limiting."""
     if not isinstance(response_data, dict):
         return False
-    return not response_data.get("success", False) and "wait" in response_data.get("message", "").lower()
+    return (
+        not response_data.get("success", False)
+        and "wait" in response_data.get("message", "").lower()
+    )
 
 
 class IspyFJ(commands.Cog):
@@ -124,7 +131,9 @@ class IspyFJ(commands.Cog):
         username, password = await self.get_credentials()
         # If username and password are set, login to FunnyJunk
         if username and password:
-            await self.login_to_funnyjunk(username=username, password=password, remember=True)
+            await self.login_to_funnyjunk(
+                username=username, password=password, remember=True
+            )
         else:
             logger.info("No username/password set, skipping login to FunnyJunk.")
 
@@ -211,7 +220,9 @@ class IspyFJ(commands.Cog):
                 # Try to get video URL
                 video_url = await self.get_video_url(link)
                 if not video_url:
-                    return await ctx.reply("Failed to extract video URL.", ephemeral=True)
+                    return await ctx.reply(
+                        "Failed to extract video URL.", ephemeral=True
+                    )
 
                 # Try to remove the preview embed from the triggering message
                 try:
@@ -233,7 +244,8 @@ class IspyFJ(commands.Cog):
                     if video_file and hasattr(video_file, "close"):
                         try:
                             video_file.close()
-                        except:
+                        except Exception as e:
+                            logger.debug(f"Failed to close video file: {e}")
                             pass
 
             except VideoNotFoundError as e:
@@ -275,7 +287,9 @@ class IspyFJ(commands.Cog):
                 # Extract the video URL using multiple methods
                 video_url = self._find_video_url(response_text)
                 if not video_url:
-                    raise VideoNotFoundError("Could not find video URL in the page HTML.")
+                    raise VideoNotFoundError(
+                        "Could not find video URL in the page HTML."
+                    )
                 if video_url.strip() == link.strip():
                     u, p = await self.get_credentials()
                     await self.login_to_funnyjunk(username=u, password=p, remember=True)
@@ -283,7 +297,9 @@ class IspyFJ(commands.Cog):
                     continue
                 break
             else:
-                raise VideoNotFoundError("Failed to extract video URL after multiple attempts.")
+                raise VideoNotFoundError(
+                    "Failed to extract video URL after multiple attempts."
+                )
             # If the video url has 'user_uploaded_content', replace that with 'loginportal123' - this fixes an issue with discord embedding
             video_url = video_url.replace("user_uploaded_content", "loginportal123")
             # Cache the result
@@ -295,7 +311,9 @@ class IspyFJ(commands.Cog):
 
     async def fetch_video_page(self, link, settings):
         response = await self.session.get(
-            link, headers={"User-Agent": settings["user_agent"]}, timeout=settings["request_timeout"]
+            link,
+            headers={"User-Agent": settings["user_agent"]},
+            timeout=settings["request_timeout"],
         )
         response_text = await response.text()
         # check if response is empty or contains "Login"
@@ -325,7 +343,9 @@ class IspyFJ(commands.Cog):
                     if not video_url.startswith("http"):
                         # Handle relative URLs
                         video_url = (
-                            "https:" + video_url if video_url.startswith("//") else "https://funnyjunk.com" + video_url
+                            "https:" + video_url
+                            if video_url.startswith("//")
+                            else "https://funnyjunk.com" + video_url
                         )
                     return video_url
             except Exception as e:
@@ -339,7 +359,12 @@ class IspyFJ(commands.Cog):
         soup = BeautifulSoup(html, "html.parser")
 
         # Try to find the video tag with different selectors
-        selectors = [{"id": "content-video"}, {"class_": "hdgif"}, {"src": True}, {"data-original": True}]
+        selectors = [
+            {"id": "content-video"},
+            {"class_": "hdgif"},
+            {"src": True},
+            {"data-original": True},
+        ]
 
         for selector in selectors:
             video_tag = soup.find("video", **selector)
@@ -427,13 +452,19 @@ class IspyFJ(commands.Cog):
                 # Handle different JSON-LD structures
                 if isinstance(json_data, dict):
                     # Case 1: Direct VideoObject
-                    if json_data.get("@type") == "VideoObject" and "contentUrl" in json_data:
+                    if (
+                        json_data.get("@type") == "VideoObject"
+                        and "contentUrl" in json_data
+                    ):
                         return json_data["contentUrl"]
 
                     # Case 2: Nested VideoObject
                     if "@graph" in json_data:
                         for item in json_data["@graph"]:
-                            if item.get("@type") == "VideoObject" and "contentUrl" in item:
+                            if (
+                                item.get("@type") == "VideoObject"
+                                and "contentUrl" in item
+                            ):
                                 return item["contentUrl"]
 
             except (json.JSONDecodeError, TypeError, AttributeError) as e:
@@ -461,12 +492,17 @@ class IspyFJ(commands.Cog):
                 return video_matches[0][0]
 
             # Pattern 2: Look for data-cachedvideosrc attributes
-            cached_matches = re.findall(r'data-cachedvideosrc=["\']([^"\']+)["\']', script_text)
+            cached_matches = re.findall(
+                r'data-cachedvideosrc=["\']([^"\']+)["\']', script_text
+            )
             if cached_matches:
                 return cached_matches[0]
 
             # Pattern 3: Look for videoSrc or videoUrl variables
-            variable_matches = re.findall(r'(videoUrl|videoSrc)\s*=\s*[\'"]([^"\']+\.(?:mp4|webm))[\'"]', script_text)
+            variable_matches = re.findall(
+                r'(videoUrl|videoSrc)\s*=\s*[\'"]([^"\']+\.(?:mp4|webm))[\'"]',
+                script_text,
+            )
             if variable_matches:
                 return variable_matches[0][1]
 
@@ -507,7 +543,9 @@ class IspyFJ(commands.Cog):
             video_response.raise_for_status()
             # check the size of the file
             if video_response.content_length is not None:
-                if video_response.content_length > 25 * 1024 * 1024:  # 25 MB limit on discord
+                if (
+                    video_response.content_length > 25 * 1024 * 1024
+                ):  # 25 MB limit on discord
                     # we should send the url instead, so raise an exception
                     raise VideoTooLargeError("Video too large to send directly.")
 
@@ -544,7 +582,9 @@ class IspyFJ(commands.Cog):
             await ctx.send(f"Current settings:\n```\n{settings_str}\n```")
 
     @fjset.command(name="credentials")
-    async def set_credentials(self, ctx: commands.Context, username: str, password: str):
+    async def set_credentials(
+        self, ctx: commands.Context, username: str, password: str
+    ):
         """Set your FunnyJunk credentials."""
         # delete the ctx message immediately
         try:
@@ -555,7 +595,9 @@ class IspyFJ(commands.Cog):
         await self.config.username.set(username)
         await self.config.password.set(password)
         await ctx.send("Credentials set.")
-        await self.login_to_funnyjunk(username=username, password=password, remember=True)
+        await self.login_to_funnyjunk(
+            username=username, password=password, remember=True
+        )
 
     @fjset.command(name="useragent")
     async def set_useragent(self, ctx: commands.Context, *, user_agent: str):

@@ -14,7 +14,9 @@ from gpt3chatbot.personalities import personalities_dict
 log = logging.getLogger("red.tytocogsv3.gpt3chatbot")
 log.setLevel(os.getenv("TYTOCOGS_LOG_LEVEL", "INFO"))
 
-CUSTOM_EMOJI = re.compile("<(?P<animated>a?):(?P<name>[a-zA-Z0-9_]{2,32}):(?P<id>[0-9]{18,22})>")  # from brainshop cog
+CUSTOM_EMOJI = re.compile(
+    "<(?P<animated>a?):(?P<name>[a-zA-Z0-9_]{2,32}):(?P<id>[0-9]{18,22})>"
+)  # from brainshop cog
 
 
 class GPT3ChatBot(commands.Cog):
@@ -25,8 +27,15 @@ class GPT3ChatBot(commands.Cog):
     def __init__(self, bot, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=259390542)  # randomly generated identifier
-        default_global = {"reply": True, "memory": 20, "personalities": personalities_dict, "model": "ada"}
+        self.config = Config.get_conf(
+            self, identifier=259390542
+        )  # randomly generated identifier
+        default_global = {
+            "reply": True,
+            "memory": 20,
+            "personalities": personalities_dict,
+            "model": "ada",
+        }
         self.config.register_global(**default_global)
         default_guild = {  # default per-guild settings
             "reply": True,
@@ -96,19 +105,25 @@ class GPT3ChatBot(commands.Cog):
         :return: True if we should respond, False otherwise (bool)"""
         # ignore bots
         if message.author.bot:
-            log.debug(f"Ignoring message, author is a bot: {message.author.bot=} | {message.clean_content=}")
+            log.debug(
+                f"Ignoring message, author is a bot: {message.author.bot=} | {message.clean_content=}"
+            )
             return False
 
         global_reply = await self.config.reply()
-        starts_with_mention = message.content.startswith((f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>"))
-        is_reply = (message.reference is not None and message.reference.resolved is not None) and (
-            message.reference.resolved.author.id == self.bot.user.id
+        starts_with_mention = message.content.startswith(
+            (f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>")
         )
+        is_reply = (
+            message.reference is not None and message.reference.resolved is not None
+        ) and (message.reference.resolved.author.id == self.bot.user.id)
 
         # command is in DMs
         if not message.guild:
             if not (starts_with_mention or is_reply) or not global_reply:
-                log.debug("Ignoring DM, bot does not respond unless asked if global auto-reply is off.")
+                log.debug(
+                    "Ignoring DM, bot does not respond unless asked if global auto-reply is off."
+                )
                 return False
         # command is in a server
         else:
@@ -124,9 +139,12 @@ class GPT3ChatBot(commands.Cog):
             guild_settings = await self.config.guild(message.guild).all()
             # Not in auto-channel
             if message.channel.id not in guild_settings["channels"] and (
-                not (starts_with_mention or is_reply) or not (guild_settings["reply"] or global_reply)
+                not (starts_with_mention or is_reply)
+                or not (guild_settings["reply"] or global_reply)
             ):  # Both guild & global auto are toggled off
-                log.debug("Not in auto-channel, does not start with mention or auto-replies are turned off.")
+                log.debug(
+                    "Not in auto-channel, does not start with mention or auto-replies are turned off."
+                )
                 return False
         # passed the checks
         log.debug("Message OK.")
@@ -163,7 +181,9 @@ class GPT3ChatBot(commands.Cog):
             )
         except openai.error.InvalidRequestError as e:
             log.error(e)
-            return await message.reply(e.user_message + "\n This reply chain may be too long...")
+            return await message.reply(
+                e.user_message + "\n This reply chain may be too long..."
+            )
         log.debug(f"{response=}")
         reply: str = response["choices"][0]["text"].strip()
         return reply
@@ -201,12 +221,22 @@ class GPT3ChatBot(commands.Cog):
         log.debug(f"{group.name=}, {persona=}")
         return persona
 
-    async def _get_user_or_member_config_from_message(self, message: Union[discord.Message, commands.Context]):
-        return self.config.member(message.author) if message.guild else self.config.user(message.author)
+    async def _get_user_or_member_config_from_message(
+        self, message: Union[discord.Message, commands.Context]
+    ):
+        return (
+            self.config.member(message.author)
+            if message.guild
+            else self.config.user(message.author)
+        )
 
-    async def _get_user_or_member_config_from_author(self, author: Union[discord.User, discord.Member]):
+    async def _get_user_or_member_config_from_author(
+        self, author: Union[discord.User, discord.Member]
+    ):
         try:
-            config = self.config.member(author)  # will raise AttributeError if we're not in a guild
+            config = self.config.member(
+                author
+            )  # will raise AttributeError if we're not in a guild
         except AttributeError:
             log.debug("User has no guild, assuming DMs.")
             config = self.config.user(author)  # in DMs!
@@ -234,7 +264,9 @@ class GPT3ChatBot(commands.Cog):
         else:
             # message isn't from the bot (i.e. it's an input)
             # we just continue looking for bot messages that we can build "input reply" duos with
-            return await self._build_reply_history(await self._get_input_from_reply(message))
+            return await self._build_reply_history(
+                await self._get_input_from_reply(message)
+            )
 
     @staticmethod
     @memoize
@@ -259,10 +291,13 @@ class GPT3ChatBot(commands.Cog):
     async def list_personas(self, ctx: commands.Context):
         """Lists available personas."""
         personas_mbed = discord.Embed(
-            title="My personas", description="A list of configured personas by name, with description."
+            title="My personas",
+            description="A list of configured personas by name, with description.",
         )
         for persona in (persona_dict := await self.config.personalities()).keys():
-            personas_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=False)
+            personas_mbed.add_field(
+                name=persona, value=persona_dict[persona]["description"], inline=False
+            )
 
         return await ctx.send(embed=personas_mbed)
 
@@ -270,12 +305,15 @@ class GPT3ChatBot(commands.Cog):
     async def persona_get(self, ctx: commands.Context):
         """Get your current persona."""
         persona_mbed = discord.Embed(
-            title="My persona", description="The currently configured persona's name, with description."
+            title="My persona",
+            description="The currently configured persona's name, with description.",
         )
 
         persona_dict = await self.config.personalities()
         persona = await self._get_persona_from_message(ctx)
-        persona_mbed.add_field(name=persona, value=persona_dict[persona]["description"], inline=True)
+        persona_mbed.add_field(
+            name=persona, value=persona_dict[persona]["description"], inline=True
+        )
         return await ctx.send(embed=persona_mbed)
 
     @commands.command(name="setmypersona", aliases=["pset"])
@@ -338,7 +376,9 @@ class GPT3ChatBot(commands.Cog):
         Not providing the model name will return the current model setting.
         """
         if model is None:
-            return await ctx.send(f"Current model setting: `{await self.config.model()}`")
+            return await ctx.send(
+                f"Current model setting: `{await self.config.model()}`"
+            )
         if model.lower() not in ["ada", "babbage", "curie", "davinci"]:
             await ctx.send_help()
             return await ctx.send("Not a valid model.")

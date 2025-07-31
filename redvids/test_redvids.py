@@ -1,8 +1,11 @@
 import pytest
 
-from redvids.redvids import RedVidsError, download_reddit_video, check_video_result, video_path_to_discord_file
-
-import tempfile
+from redvids.redvids import (
+    RedVidsError,
+    download_reddit_video,
+    check_video_result,
+    video_path_to_discord_file,
+)
 
 
 @pytest.fixture
@@ -12,7 +15,9 @@ def REDDITURL():
 
 @pytest.mark.asyncio
 async def test_download_reddit_video(request, REDDITURL, tmp_path):
-    video = await download_reddit_video(REDDITURL, max_size=(1 << 12), path=tmp_path.name)
+    video = await download_reddit_video(
+        REDDITURL, max_size=(1 << 12), path=tmp_path.name
+    )
     assert video is not None
 
 
@@ -31,10 +36,9 @@ def test_check_video_result(tmp_path):
 
 
 def test_video_path_to_discord_file(tmp_path):
-    with tempfile.TemporaryFile(dir=tmp_path) as tempdir:
-        video = tmp_path / "video.mp4"
-        video.touch()
-        path = video.as_posix()
-        file = video_path_to_discord_file(path)
-        assert file.fp.name == path
-        assert file.filename == "video.mp4"
+    video = tmp_path / "video.mp4"
+    video.touch()
+    path = video.as_posix()
+    file = video_path_to_discord_file(path)
+    assert file.fp.name == path
+    assert file.filename == "video.mp4"

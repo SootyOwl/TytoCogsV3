@@ -11,7 +11,11 @@ from anthropic import AsyncAnthropic as AsyncLLM
 from anthropic.types.text_block import TextBlock
 from anthropic.types.content_block import ContentBlock
 
-from yt_transcript_fetcher import NoTranscriptError, VideoNotFoundError, YouTubeTranscriptFetcher
+from yt_transcript_fetcher import (
+    NoTranscriptError,
+    VideoNotFoundError,
+    YouTubeTranscriptFetcher,
+)
 from collections import OrderedDict
 
 MAX_CACHE_SIZE = 100
@@ -42,11 +46,15 @@ class TLDWatch(commands.Cog):
 
         # context menu names must be between 1-32 characters
         self.youtube_summary_context_menu = app_commands.ContextMenu(
-            callback=self.summarize_msg_callback, name="Summarize YouTube (Public)", extras={"is_private": False}
+            callback=self.summarize_msg_callback,
+            name="Summarize YouTube (Public)",
+            extras={"is_private": False},
         )
         # private mode is only visible to the user who created the context menu using ephemeral=True
         self.youtube_summary_context_menu_private = app_commands.ContextMenu(
-            callback=self.summarize_msg_callback, name="Summarize YouTube (Private)", extras={"is_private": True}
+            callback=self.summarize_msg_callback,
+            name="Summarize YouTube (Private)",
+            extras={"is_private": True},
         )
         self.bot.tree.add_command(self.youtube_summary_context_menu)
         self.bot.tree.add_command(self.youtube_summary_context_menu_private)
@@ -65,10 +73,12 @@ class TLDWatch(commands.Cog):
     async def cog_unload(self) -> None:
         """Called when the cog is unloaded"""
         self.bot.tree.remove_command(
-            self.youtube_summary_context_menu.name, type=self.youtube_summary_context_menu.type
+            self.youtube_summary_context_menu.name,
+            type=self.youtube_summary_context_menu.type,
         )
         self.bot.tree.remove_command(
-            self.youtube_summary_context_menu_private.name, type=self.youtube_summary_context_menu_private.type
+            self.youtube_summary_context_menu_private.name,
+            type=self.youtube_summary_context_menu_private.type,
         )
 
     @commands.group()
@@ -91,7 +101,9 @@ class TLDWatch(commands.Cog):
             except (discord.errors.Forbidden, discord.errors.NotFound):
                 pass
 
-            await ctx.send("Please use this command in DM to keep your API key private.")
+            await ctx.send(
+                "Please use this command in DM to keep your API key private."
+            )
             return
         await self.config.api_key.set(api_key)
         await self.initialize()
@@ -106,7 +118,9 @@ class TLDWatch(commands.Cog):
 
     @commands.is_owner()
     @tldwset.command(name="proxy")
-    async def set_proxy(self, ctx: commands.Context, https_proxy: Optional[str] = None) -> None:
+    async def set_proxy(
+        self, ctx: commands.Context, https_proxy: Optional[str] = None
+    ) -> None:
         """Set the https proxy (admin only). Can be used to bypass YT IP restrictions."""
         if https_proxy is None:
             await self.config.https_proxy.clear()
@@ -123,7 +137,9 @@ class TLDWatch(commands.Cog):
 
     @commands.is_owner()
     @languages.command(name="add")
-    async def add_language(self, ctx: commands.Context, language: Optional[str] = None) -> None:
+    async def add_language(
+        self, ctx: commands.Context, language: Optional[str] = None
+    ) -> None:
         """Add a language to the list of languages for the transcript API"""
 
         async with self.config.languages() as langs:
@@ -138,12 +154,15 @@ class TLDWatch(commands.Cog):
                 return
 
             class AddLanguageModal(discord.ui.Modal, title="Add Language"):
-                language = discord.ui.TextInput(label="Language", placeholder="e.g. en-US", required=True)
+                language = discord.ui.TextInput(
+                    label="Language", placeholder="e.g. en-US", required=True
+                )
 
                 async def on_submit(self, interaction: discord.Interaction) -> None:
                     langs.append(self.language.value)
                     await interaction.response.edit_message(
-                        content=f"Language '{self.language.value}' added successfully.", view=None
+                        content=f"Language '{self.language.value}' added successfully.",
+                        view=None,
                     )
 
             class MyView(discord.ui.View):
@@ -155,7 +174,9 @@ class TLDWatch(commands.Cog):
 
     @commands.is_owner()
     @languages.command(name="remove")
-    async def remove_languages(self, ctx: commands.Context, number: Optional[int] = None) -> None:
+    async def remove_languages(
+        self, ctx: commands.Context, number: Optional[int] = None
+    ) -> None:
         """Remove a language from the list of languages for the transcript API by its number."""
         languages = await self.config.languages()
         if not languages:
@@ -181,7 +202,9 @@ class TLDWatch(commands.Cog):
 
         view = discord.ui.View(timeout=60)
         for i, lang in enumerate(languages):
-            button = discord.ui.Button(label=lang, style=ButtonStyle.red, custom_id=str(i))
+            button = discord.ui.Button(
+                label=lang, style=ButtonStyle.red, custom_id=str(i)
+            )
             button.callback = remove_callback
             view.add_item(button)
 
@@ -197,7 +220,10 @@ class TLDWatch(commands.Cog):
             return
         # create a discord embed to display the languages
         embed = discord.Embed(
-            title="Languages", description="\n".join(f"[{i+1}] {lang}" for i, lang in enumerate(languages))
+            title="Languages",
+            description="\n".join(
+                f"[{i + 1}] {lang}" for i, lang in enumerate(languages)
+            ),
         )
         embed.set_footer(
             text="Use `tldwset languages remove <number>` to remove a language, or `tldwset languages add <language>` to add a language."
@@ -235,7 +261,9 @@ class TLDWatch(commands.Cog):
             the new order will be ['en-GB', 'en-US', 'en']
         """
         if not await self.config.languages():
-            await ctx.reply(f"No languages set. Add a language first using `{ctx.clean_prefix}tldwset languages add`.")
+            await ctx.reply(
+                f"No languages set. Add a language first using `{ctx.clean_prefix}tldwset languages add`."
+            )
             return
 
         # create a discord view to manage the languages
@@ -243,11 +271,15 @@ class TLDWatch(commands.Cog):
             # create a discord view to manage the languages
             view = discord.ui.View(timeout=60)
             for i, lang in enumerate(await self.config.languages()):
-                button = discord.ui.Button(label=lang, style=ButtonStyle.blurple, custom_id=str(i))
+                button = discord.ui.Button(
+                    label=lang, style=ButtonStyle.blurple, custom_id=str(i)
+                )
                 button.callback = reorder_callback
                 view.add_item(button)
 
-            done_button = discord.ui.Button(label="Done", style=ButtonStyle.green, row=4)
+            done_button = discord.ui.Button(
+                label="Done", style=ButtonStyle.green, row=4
+            )
             done_button.callback = done
             view.add_item(done_button)
 
@@ -266,7 +298,9 @@ class TLDWatch(commands.Cog):
             # get the language index from the button id
             lang_index = int(interaction.data.get("custom_id"))
             async with self.config.languages() as langs:
-                moved_lang = langs[lang_index]  # Save the language before modifying the list
+                moved_lang = langs[
+                    lang_index
+                ]  # Save the language before modifying the list
                 langs.insert(0, langs.pop(lang_index))
             # update the view with the new order
             view = await make_view()
@@ -277,7 +311,9 @@ class TLDWatch(commands.Cog):
             )
 
         view = await make_view()
-        view.message = await ctx.reply("Select a language to move to the top:", view=view)
+        view.message = await ctx.reply(
+            "Select a language to move to the top:", view=view
+        )
 
     @commands.hybrid_command(name="tldw")
     async def summarize(self, ctx: commands.Context, video_url: str) -> None:
@@ -295,7 +331,9 @@ class TLDWatch(commands.Cog):
 
         await ctx.reply(f"{summary}")
 
-    async def summarize_msg_callback(self, inter: discord.Interaction, message: discord.Message) -> None:
+    async def summarize_msg_callback(
+        self, inter: discord.Interaction, message: discord.Message
+    ) -> None:
         """Summarize a YouTube video using Claude"""
         is_private = inter.extras.get("is_private", False)
         await inter.response.defer(thinking=True, ephemeral=is_private)
@@ -337,7 +375,11 @@ class TLDWatch(commands.Cog):
             return self._summary_cache[video_id]
 
         # get the transcript of the video using the video id
-        transcript = await get_transcript(self.yt_transcript_fetcher, video_id, languages=await self.config.languages())
+        transcript = await get_transcript(
+            self.yt_transcript_fetcher,
+            video_id,
+            languages=await self.config.languages(),
+        )
 
         # summarize the transcript using Claude
         summary = await self.generate_summary(transcript)
@@ -374,7 +416,10 @@ def cleanup_summary(summary: List[ContentBlock]) -> str:
         raise ValueError("Failed to generate a summary, no content found.")
     # ensure it's a text block and not a tool use block
     if not isinstance(summary[0], TextBlock):
-        raise ValueError("Failed to generate a summary, expected a text block but got %s", type(summary[0]))
+        raise ValueError(
+            "Failed to generate a summary, expected a text block but got %s",
+            type(summary[0]),
+        )
 
     # get the actual text from the response content
     output = summary[0].text
@@ -390,22 +435,30 @@ def cleanup_summary(summary: List[ContentBlock]) -> str:
 
 
 async def get_transcript(
-    transcript_fetcher: YouTubeTranscriptFetcher, video_id: str, languages: list[str] = ["en-US", "en-GB", "en"]
+    transcript_fetcher: YouTubeTranscriptFetcher,
+    video_id: str,
+    languages: list[str] = ["en-US", "en-GB", "en"],
 ) -> str:
     """Get the transcript of a YouTube video."""
     # get the transcript of the video using the video id
     try:
         available_languages = transcript_fetcher.list_languages(video_id=video_id)
         # find the first language in the list of languages that is available for the video
-        language = next((lang for lang in languages if lang in available_languages), None)
+        language = next(
+            (lang for lang in languages if lang in available_languages), None
+        )
         if not language:
             raise ValueError(
                 f"No available transcript for video {video_id} in languages {languages}.\nAvailable languages: {[lang.code for lang in available_languages]}"
             )
         # fetch the transcript in the specified language
-        transcript = transcript_fetcher.get_transcript(video_id=video_id, language=language)
+        transcript = transcript_fetcher.get_transcript(
+            video_id=video_id, language=language
+        )
     except NoTranscriptError as e:
-        raise ValueError(f"No transcript available for video {video_id} in language {language}.") from e
+        raise ValueError(
+            f"No transcript available for video {video_id} in language {language}."
+        ) from e
     except VideoNotFoundError as e:
         raise ValueError(
             f"Couldn't find transcript for video {video_id}. Please check the video ID exists and is accessible."
@@ -421,14 +474,18 @@ def get_video_id(video_url: str) -> str:
     """Extract the YouTube video ID from the URL"""
     # extract the YT video ID from the URL using regex
     # there may be gubbins after the video ID, so we need to be careful
-    video_id = re.search(r"(?<=v=)[\w-]+|(?<=youtu\.be/)[\w-]+|(?<=shorts/)[\w-]+", video_url)
+    video_id = re.search(
+        r"(?<=v=)[\w-]+|(?<=youtu\.be/)[\w-]+|(?<=shorts/)[\w-]+", video_url
+    )
     if video_id:
         return video_id.group(0)
     else:
         raise ValueError("Invalid YouTube video URL")
 
 
-async def get_llm_response(llm_client: AsyncLLM, text: str, system_prompt: str) -> List[ContentBlock]:
+async def get_llm_response(
+    llm_client: AsyncLLM, text: str, system_prompt: str
+) -> List[ContentBlock]:
     response = await llm_client.messages.create(
         model="claude-3-5-sonnet-latest",
         max_tokens=2048,

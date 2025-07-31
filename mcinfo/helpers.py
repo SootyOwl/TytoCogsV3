@@ -41,7 +41,9 @@ async def format_channel_desc(address, status: JavaStatusResponse | None) -> str
     """Format the server status for channel description."""
     # if status is None, return a message indicating the server is offline
     if status is None:
-        description = ("Server info for {address}:\n\n" "Online: No").format(address=address)
+        description = ("Server info for {address}:\n\nOnline: No").format(
+            address=address
+        )
         return description
 
     # format the server status
@@ -57,7 +59,9 @@ async def format_channel_desc(address, status: JavaStatusResponse | None) -> str
         "online_count": status.players.online,
         "max_count": status.players.max,
         "online_players": (
-            ", ".join(player.name for player in status.players.sample) if status.players.sample else "None"
+            ", ".join(player.name for player in status.players.sample)
+            if status.players.sample
+            else "None"
         ),
         "version": status.version.name,
     }
@@ -67,7 +71,9 @@ async def format_channel_desc(address, status: JavaStatusResponse | None) -> str
     return description
 
 
-async def format_message_embed(statuses: dict[str, JavaStatusResponse | None]) -> discord.Embed:
+async def format_message_embed(
+    statuses: dict[str, JavaStatusResponse | None],
+) -> discord.Embed:
     """Format the server status for a message embed."""
     # create an embed object
     embed = discord.Embed(title="Minecraft Server Status", color=discord.Color.green())
@@ -78,7 +84,9 @@ async def format_message_embed(statuses: dict[str, JavaStatusResponse | None]) -
             embed.add_field(name=address, value="Offline", inline=False)
         else:
             online_players = (
-                ", ".join(player.name for player in status.players.sample) if status.players.sample else "None"
+                ", ".join(player.name for player in status.players.sample)
+                if status.players.sample
+                else "None"
             )
             embed.add_field(
                 name=address,

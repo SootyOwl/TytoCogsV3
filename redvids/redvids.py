@@ -1,11 +1,8 @@
 """Use `redvid` to embed Reddit videos in Discord messages."""
 
+# create an enum for the error codes
+import enum
 import logging
-from typing import Optional
-
-logger = logging.getLogger("redvids")
-logger.setLevel(logging.DEBUG)
-
 import tempfile
 
 import discord
@@ -13,8 +10,8 @@ from redbot.core import commands, data_manager
 from redbot.core.bot import Red
 from redvid import Downloader
 
-# create an enum for the error codes
-import enum
+logger = logging.getLogger("redvids")
+logger.setLevel(logging.DEBUG)
 
 
 class RedVidsError(enum.IntEnum):
@@ -49,25 +46,35 @@ class RedVids(commands.Cog):
             with tempfile.TemporaryDirectory(dir=self.data_path) as tempdir:
                 try:
                     video = await download_reddit_video(url, self.max_size, tempdir)
-                except Exception as e:
+                except Exception:
                     logger.exception("Failed to download video.")
-                    return await ctx.reply("Failed to download the video.", ephemeral=True)
+                    return await ctx.reply(
+                        "Failed to download the video.", ephemeral=True
+                    )
 
                 if isinstance(video, RedVidsError):
                     if video == RedVidsError.SIZE_EXCEEDS_MAXIMUM:
-                        return await ctx.reply("The video is too large.", ephemeral=True)
+                        return await ctx.reply(
+                            "The video is too large.", ephemeral=True
+                        )
                     elif video == RedVidsError.DURATION_EXCEEDS_MAXIMUM:
                         return await ctx.reply("The video is too long.", ephemeral=True)
                     elif video == RedVidsError.FILE_EXISTS:
-                        return await ctx.reply("The video already exists.", ephemeral=True)
+                        return await ctx.reply(
+                            "The video already exists.", ephemeral=True
+                        )
                 if not video:
-                    return await ctx.reply("Failed to download the video.", ephemeral=True)
+                    return await ctx.reply(
+                        "Failed to download the video.", ephemeral=True
+                    )
 
                 await ctx.reply(file=video_path_to_discord_file(video))
         logger.debug("Sent video file.")
 
 
-async def download_reddit_video(url: str, max_size: int = 7 * (1 << 20), path: str = ".") -> RedVidsError | str:
+async def download_reddit_video(
+    url: str, max_size: int = 7 * (1 << 20), path: str = "."
+) -> RedVidsError | str:
     """Download a Reddit video."""
     downloader = Downloader(url, max_s=max_size, path=path, auto_max=True)
     downloader.check()
@@ -95,6 +102,8 @@ def check_url(url: str) -> bool:
         parsed_url = urlparse(url)
         hostname = parsed_url.hostname
         # Allow "reddit.com" and subdomains like "www.reddit.com"
-        return hostname == "reddit.com" or (hostname and hostname.endswith(".reddit.com"))
+        return hostname == "reddit.com" or (
+            hostname and hostname.endswith(".reddit.com")
+        )
     except Exception:
         return False

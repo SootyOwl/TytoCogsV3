@@ -4,7 +4,7 @@ import io
 import requests
 from discord import File
 from html2image import Html2Image
-from redbot.core import Config, commands, data_manager
+from redbot.core import commands, data_manager
 from redbot.core.bot import Red
 from wand.image import Image
 
@@ -31,18 +31,24 @@ class X2Image(commands.Cog):
         )
 
     @commands.hybrid_command(name="x2image", aliases=["xti"])
-    async def convert(self, ctx: commands.Context, link: str, dark: bool = True, spoiler: bool = False):
+    async def convert(
+        self, ctx: commands.Context, link: str, dark: bool = True, spoiler: bool = False
+    ):
         """Convert an X.com link to an image using html2image.
 
         `link`: The X.com link to convert.
         `dark`: Whether to use the dark theme for the tweet.
         `spoiler`: Whether to send the image as a spoiler.
         """
-        await ctx.defer()  # defer the response to avoid the 3 second timeout for the interaction
+        await (
+            ctx.defer()
+        )  # defer the response to avoid the 3 second timeout for the interaction
         await self.convert_link(ctx, link, dark, spoiler)
 
-    async def convert_link(self, ctx: commands.Context, link: str, dark: bool, spoiler: bool):
-        if not "x.com" in link and not "twitter.com" in link:
+    async def convert_link(
+        self, ctx: commands.Context, link: str, dark: bool, spoiler: bool
+    ):
+        if "x.com" not in link and "twitter.com" not in link:
             return await ctx.reply("That's not an X.com link.", ephemeral=True)
 
         try:
@@ -62,7 +68,9 @@ class X2Image(commands.Cog):
             image_file = io.BytesIO(image)
             content = f"[Original Tweet]({link})"
             await ctx.reply(
-                content=content, file=File(image_file, filename="tweet.png", spoiler=spoiler), suppress_embeds=True
+                content=content,
+                file=File(image_file, filename="tweet.png", spoiler=spoiler),
+                suppress_embeds=True,
             )
             # close the file once we're done with it
             image_file.close()
@@ -76,7 +84,7 @@ class X2Image(commands.Cog):
         `link`: The X.com link to convert.
         `spoiler`: Whether to send the link as a spoiler.
         """
-        if not "x.com" in link:
+        if "x.com" not in link:
             return await ctx.reply("That's not an X.com link.", ephemeral=True)
         # replace x.com link with fixupx.com link
         link = link.replace("x.com", "fixupx.com")

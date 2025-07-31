@@ -4,7 +4,6 @@ import sys
 
 import aiohttp
 import pytest
-import requests
 
 from ispyfj.ispyfj import IspyFJ, VideoNotFoundError
 
@@ -98,9 +97,17 @@ META_TAG_HTML = """
     "html_content, expected_url, extraction_method",
     [
         (VIDEO_TAG_HTML, "https://example.com/video.mp4", "_extract_from_video_tag"),
-        (DATA_ATTR_HTML, "https://example.com/cached-video.mp4", "_extract_from_anchor"),
+        (
+            DATA_ATTR_HTML,
+            "https://example.com/cached-video.mp4",
+            "_extract_from_anchor",
+        ),
         (JSON_LD_HTML, "https://example.com/jsonld-video.mp4", "_extract_from_json_ld"),
-        (SCRIPT_VARS_HTML, "https://example.com/script-video.mp4", "_extract_from_scripts"),
+        (
+            SCRIPT_VARS_HTML,
+            "https://example.com/script-video.mp4",
+            "_extract_from_scripts",
+        ),
         (META_TAG_HTML, "https://example.com/meta-video.mp4", "_extract_from_meta"),
     ],
 )
@@ -204,11 +211,17 @@ async def test_get_video_url(name, input_url, expected_url, cog):
 async def test_get_video_url_login_required(funnyjunk_credentials, cog, mocker):
     """Test the get_video_url method with login required."""
     url = "https://funnyjunk.com/White+people+things/jcveTwp/"
-    expected = "https://anime.funnyjunk.com/hdgifs/White+people+things_5635e1_12450679.mp4"
+    expected = (
+        "https://anime.funnyjunk.com/hdgifs/White+people+things_5635e1_12450679.mp4"
+    )
 
     # login to the site and wait for the session to be established
-    cog.config.username = mocker.AsyncMock(return_value=funnyjunk_credentials["username"])
-    cog.config.password = mocker.AsyncMock(return_value=funnyjunk_credentials["password"])
+    cog.config.username = mocker.AsyncMock(
+        return_value=funnyjunk_credentials["username"]
+    )
+    cog.config.password = mocker.AsyncMock(
+        return_value=funnyjunk_credentials["password"]
+    )
     await cog.cog_load()
 
     # assert the session's cookies are set

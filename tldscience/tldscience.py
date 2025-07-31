@@ -22,7 +22,9 @@ class TLDScience(commands.Cog):
         # Default settings
         default_global = {
             "api_key": None,
-            "system_prompt": ("You are an expert science communicator on social media."),
+            "system_prompt": (
+                "You are an expert science communicator on social media."
+            ),
             "model": "claude-3-5-sonnet-latest",
         }
 
@@ -58,7 +60,9 @@ class TLDScience(commands.Cog):
             except (discord.errors.Forbidden, discord.errors.NotFound):
                 pass
 
-            await ctx.send("Please use this command in DM to keep your API key private.")
+            await ctx.send(
+                "Please use this command in DM to keep your API key private."
+            )
             return
 
         await self.config.api_key.set(api_key)
@@ -98,7 +102,9 @@ class TLDScience(commands.Cog):
     #     await ctx.send("Model has been updated successfully!")
 
     @tldscience.command(name="summarize")
-    async def summarize(self, ctx: commands.Context, *, url: Optional[str] = None) -> None:
+    async def summarize(
+        self, ctx: commands.Context, *, url: Optional[str] = None
+    ) -> None:
         """Summarize provided text or attached file using Claude"""
         if not await self.bot.is_owner(ctx.author):
             # Check if the command is used in the proper channel
@@ -120,7 +126,9 @@ class TLDScience(commands.Cog):
             # if not a pdf, return an error
             # # get headers
             headers = httpx.head(url).headers
-            content_type = headers.get("content-type", headers.get("Content-Type", "")).lower()
+            content_type = headers.get(
+                "content-type", headers.get("Content-Type", "")
+            ).lower()
             if "application/pdf" not in content_type:
                 return await ctx.send(
                     "Failed to retrieve PDF. Please provide a valid PDF link or upload a PDF file instead."
@@ -129,8 +137,10 @@ class TLDScience(commands.Cog):
 
         # try to get the pdf data from the url
         try:
-            pdf_data = base64.standard_b64encode(httpx.get(pdf_url).content).decode("utf-8")
-        except Exception as e:
+            pdf_data = base64.standard_b64encode(httpx.get(pdf_url).content).decode(
+                "utf-8"
+            )
+        except Exception:
             return await ctx.send("Something went wrong getting the PDF.")
 
         # Check if we have text to process
@@ -169,7 +179,11 @@ class TLDScience(commands.Cog):
                     "content": [
                         {
                             "type": "document",
-                            "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_data},
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": pdf_data,
+                            },
                             "cache_control": {"type": "ephemeral"},
                         },
                         {
@@ -178,7 +192,10 @@ class TLDScience(commands.Cog):
                         },
                     ],
                 },
-                {"role": "assistant", "content": [{"type": "text", "text": "<article_analysis>"}]},
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "<article_analysis>"}],
+                },
             ],
         )
 

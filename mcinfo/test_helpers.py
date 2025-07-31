@@ -2,8 +2,17 @@
 
 import copy
 import pytest
-from mcinfo.helpers import fetch_server_status, fetch_servers, format_channel_desc, format_message_embed
-from mcstatus.status_response import JavaStatusResponse, RawJavaResponse, JavaStatusPlayer
+from mcinfo.helpers import (
+    fetch_server_status,
+    fetch_servers,
+    format_channel_desc,
+    format_message_embed,
+)
+from mcstatus.status_response import (
+    JavaStatusResponse,
+    RawJavaResponse,
+    JavaStatusPlayer,
+)
 
 
 @pytest.mark.asyncio
@@ -18,13 +27,13 @@ async def test_get_status_returns_status_response():
 @pytest.mark.asyncio
 async def test_get_status_bad_address():
     with pytest.raises(ConnectionError):
-        resp = await fetch_server_status(address="notvalid:25565")
+        await fetch_server_status(address="notvalid:25565")
 
 
 @pytest.mark.asyncio
 async def test_get_status_not_online():
     with pytest.raises(ConnectionError):
-        resp = await fetch_server_status(address="www.google.com:25565")
+        await fetch_server_status(address="www.google.com:25565")
 
 
 @pytest.mark.asyncio
@@ -62,7 +71,12 @@ def server_status():
                 "players": {
                     "max": 20,
                     "online": 1,
-                    "sample": [{"id": "b2dd52a0-8284-4c23-8deb-ed980904959a", "name": "Player1"}],
+                    "sample": [
+                        {
+                            "id": "b2dd52a0-8284-4c23-8deb-ed980904959a",
+                            "name": "Player1",
+                        }
+                    ],
                 },
             }
         )
@@ -104,7 +118,9 @@ async def test_format_channel_desc_multiple_players(server_status: JavaStatusRes
     Version: Paper 1.21.1
     ```
     """
-    server_status.players.sample.append(JavaStatusPlayer(name="Player2", id="b2dd52a0-8284-4c23-8deb-ed980904959b"))  # type: ignore
+    server_status.players.sample.append(
+        JavaStatusPlayer(name="Player2", id="b2dd52a0-8284-4c23-8deb-ed980904959b")
+    )  # type: ignore
     server_status.players.online += 1
     desc = await format_channel_desc(address="mc.tyto.cc:25565", status=server_status)
     assert desc == (
@@ -131,7 +147,10 @@ async def test_format_message_embed(server_status: JavaStatusResponse):
     assert len(embed.fields) == 1
     assert embed.fields[0].name == "mc.tyto.cc:25565"
     assert embed.fields[0].value == (
-        "Online: Yes\n" "Online count: 1/20\n" "Online players: Player1\n" "Version: Paper 1.21.1"
+        "Online: Yes\n"
+        "Online count: 1/20\n"
+        "Online players: Player1\n"
+        "Version: Paper 1.21.1"
     )
 
 
@@ -139,16 +158,26 @@ async def test_format_message_embed(server_status: JavaStatusResponse):
 async def test_format_message_embed_multiple_servers(server_status: JavaStatusResponse):
     """Test formatting of message embed for multiple server statuses."""
     server_status_2 = copy.deepcopy(server_status)
-    server_status_2.players.sample.append(JavaStatusPlayer(name="Player2", id="b2dd52a0-8284-4c23-8deb-ed980904959b"))
+    server_status_2.players.sample.append(
+        JavaStatusPlayer(name="Player2", id="b2dd52a0-8284-4c23-8deb-ed980904959b")
+    )
     server_status_2.players.online += 1
-    embed = await format_message_embed({"mc.tyto.cc:25565": server_status, "mc.hypixel.net": server_status_2})
+    embed = await format_message_embed(
+        {"mc.tyto.cc:25565": server_status, "mc.hypixel.net": server_status_2}
+    )
     assert embed.title == "Minecraft Server Status"
     assert len(embed.fields) == 2
     assert embed.fields[0].name == "mc.tyto.cc:25565"
     assert embed.fields[0].value == (
-        "Online: Yes\n" "Online count: 1/20\n" "Online players: Player1\n" "Version: Paper 1.21.1"
+        "Online: Yes\n"
+        "Online count: 1/20\n"
+        "Online players: Player1\n"
+        "Version: Paper 1.21.1"
     )
     assert embed.fields[1].name == "mc.hypixel.net"
     assert embed.fields[1].value == (
-        "Online: Yes\n" "Online count: 2/20\n" "Online players: Player1, Player2\n" "Version: Paper 1.21.1"
+        "Online: Yes\n"
+        "Online count: 2/20\n"
+        "Online players: Player1, Player2\n"
+        "Version: Paper 1.21.1"
     )

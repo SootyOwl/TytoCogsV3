@@ -25,9 +25,13 @@ from redbot.core import Config, commands
 from redbot.core.bot import Red
 from redbot.core.utils import bounded_gather
 from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
-from redbot.core.config import Group
 import logging
-from mcinfo.helpers import fetch_servers, format_channel_desc, format_message_embed, JavaStatusResponse
+from mcinfo.helpers import (
+    fetch_servers,
+    format_channel_desc,
+    format_message_embed,
+    JavaStatusResponse,
+)
 
 
 class Mode(StrEnum):
@@ -61,7 +65,9 @@ class McInfo(commands.Cog):
 
     def __init__(self, bot: Red):
         self.bot = bot
-        self.config = Config.get_conf(cog_instance=self, identifier=788963682, force_registration=True)
+        self.config = Config.get_conf(
+            cog_instance=self, identifier=788963682, force_registration=True
+        )
         # per-channel default settings
         self.config.register_channel(**self.default_channel)
         # global default settings
@@ -106,7 +112,9 @@ class McInfo(commands.Cog):
         channel = self.bot.get_channel(channel_id)
         if not channel or not isinstance(channel, discord.TextChannel):
             await self._remove_channel_from_config(channel_id)
-            raise BadChannelError(f"Channel {channel_id} not found or not a text channel.")
+            raise BadChannelError(
+                f"Channel {channel_id} not found or not a text channel."
+            )
 
         # get the mode and servers from the config
         mode = channel_config.get("mode")
@@ -130,17 +138,26 @@ class McInfo(commands.Cog):
             return description
         elif mode == Mode.MESSAGE:
             try:
-                return await self._handle_message(channel, channel_config, server_statuses)
+                return await self._handle_message(
+                    channel, channel_config, server_statuses
+                )
             except (MessageIdNotFound, discord.NotFound, discord.Forbidden) as e:
-                self.logger.error(f"Error updating message in channel {channel_id}: {e}")
+                self.logger.error(
+                    f"Error updating message in channel {channel_id}: {e}"
+                )
                 await self._remove_channel_from_config(channel_id)
                 raise e
             except discord.HTTPException as e:
-                self.logger.error(f"Error updating message in channel {channel_id}: {e}")
+                self.logger.error(
+                    f"Error updating message in channel {channel_id}: {e}"
+                )
                 raise e
 
     async def _handle_message(
-        self, channel: discord.TextChannel, channel_config: dict, server_statuses: dict[str, JavaStatusResponse | None]
+        self,
+        channel: discord.TextChannel,
+        channel_config: dict,
+        server_statuses: dict[str, JavaStatusResponse | None],
     ):
         """Handle the message update for the channel.
 
@@ -186,7 +203,12 @@ class McInfo(commands.Cog):
 
     @mcinfo.command(name="setmode")
     @commands.admin_or_can_manage_channel()
-    async def set_mode(self, ctx: commands.Context, mode: Mode, channel: Optional[discord.TextChannel] = None):
+    async def set_mode(
+        self,
+        ctx: commands.Context,
+        mode: Mode,
+        channel: Optional[discord.TextChannel] = None,
+    ):
         """Set the mode for the specified channel, or the current channel.
 
         Modes:
@@ -217,19 +239,25 @@ class McInfo(commands.Cog):
         # check if we have permissions to edit the channel description
         permissions = channel.permissions_for(ctx.guild.me)
         if not permissions.manage_channels:
-            await ctx.send("I do not have permission to edit the channel description, please check my permissions.")
+            await ctx.send(
+                "I do not have permission to edit the channel description, please check my permissions."
+            )
             return
         await ctx.send(
             "Channel description mode does not support multiple servers, will only use the first one in the list.\n"
             "Switch to `msg` mode to use multiple servers."
         )
-        await self._execute_channel_check(channel.id, await self.config.channel(channel).all())
+        await self._execute_channel_check(
+            channel.id, await self.config.channel(channel).all()
+        )
 
     async def _initialize_channel_message(self, ctx, channel):
         # check if we have permissions to send messages in the channel
         permissions = channel.permissions_for(ctx.guild.me)
         if not permissions.send_messages:
-            await ctx.send("I do not have permission to send messages in the channel, please check my permissions.")
+            await ctx.send(
+                "I do not have permission to send messages in the channel, please check my permissions."
+            )
             return
         message_id = await self.config.channel(channel).message_id()
         # if we don't have a message id, or the message doesn't exist, send a message to the channel for editing
@@ -244,16 +272,24 @@ class McInfo(commands.Cog):
                 pass
             # update the config with the message id
             await self.config.channel(channel).message_id.set(message.id)
-            await ctx.send(f"Message id is set to {message.id} for channel {channel.mention}.")
+            await ctx.send(
+                f"Message id is set to {message.id} for channel {channel.mention}."
+            )
             # run the checker to update the message for the channel
         else:
-            await ctx.send(f"Message id is set to {message_id} for channel {channel.mention}.")
-        await self._execute_channel_check(channel.id, await self.config.channel(channel).all())
+            await ctx.send(
+                f"Message id is set to {message_id} for channel {channel.mention}."
+            )
+        await self._execute_channel_check(
+            channel.id, await self.config.channel(channel).all()
+        )
 
     # manage servers for this channel via a menu
     @mcinfo.command(name="manageservers")
     @commands.admin_or_can_manage_channel()
-    async def manage_servers(self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None):
+    async def manage_servers(
+        self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None
+    ):
         """Manage servers for the specified channel, or the current channel.
 
         Use reactions to add or remove servers from the list.
@@ -278,7 +314,7 @@ class McInfo(commands.Cog):
             for server in servers:
                 # create an embed for each server
                 embed = discord.Embed(
-                    title=f"Manage servers",
+                    title="Manage servers",
                     color=discord.Color.blue(),
                     description=f"Managing servers for {channel.name}",
                 )
@@ -294,13 +330,17 @@ class McInfo(commands.Cog):
             page = min(page, len(pages) - 1)
             return await menu(ctx, pages, controls, message, page, timeout)
 
-        async def add_server_action(ctx, pages, controls, message, page, timeout, emoji):
+        async def add_server_action(
+            ctx, pages, controls, message, page, timeout, emoji
+        ):
             """Action to add a new server to the list."""
             # get the server address from the user
             await ctx.send("Please enter the server address:")
             try:
                 response = await self.bot.wait_for(
-                    "message", timeout=60.0, check=lambda m: m.author == ctx.author and m.channel == ctx.channel
+                    "message",
+                    timeout=60.0,
+                    check=lambda m: m.author == ctx.author and m.channel == ctx.channel,
                 )
             except asyncio.TimeoutError:
                 await ctx.send("Timed out waiting for server address.")
@@ -316,15 +356,21 @@ class McInfo(commands.Cog):
                     servers.append(response.content)
                     await ctx.send(f"Added server {response.content} to the list.")
                 else:
-                    await ctx.send(f"Server {response.content} already exists in the list.")
+                    await ctx.send(
+                        f"Server {response.content} already exists in the list."
+                    )
 
             # update the menu with the new server list
             return await generate_page_menu(ctx, controls, message, page, timeout)
 
-        async def remove_server_action(ctx, pages, controls, message, page: int, timeout: float, emoji):
+        async def remove_server_action(
+            ctx, pages, controls, message, page: int, timeout: float, emoji
+        ):
             """Action to remove current server from the list."""
             # current page's server will be removed, check with user first
-            await ctx.send(f"Are you sure you want to remove {pages[page].fields[0].value} from the list? (yes/no)")
+            await ctx.send(
+                f"Are you sure you want to remove {pages[page].fields[0].value} from the list? (yes/no)"
+            )
             try:
                 response = await self.bot.wait_for(
                     "message",
@@ -366,7 +412,9 @@ class McInfo(commands.Cog):
         )
 
         # trigger the checker to update the channel description or message
-        await self._execute_channel_check(channel.id, await self.config.channel(channel).all())
+        await self._execute_channel_check(
+            channel.id, await self.config.channel(channel).all()
+        )
 
     @mcinfo.command(name="setinterval")
     @commands.is_owner()

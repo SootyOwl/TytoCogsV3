@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from tldw import tldw
@@ -16,7 +14,10 @@ from yt_transcript_fetcher import YouTubeTranscriptFetcher
         ("https://www.youtube.com/watch?v=12345&list=12345", "12345"),
         ("https://youtu.be/bD6PSBtQwww?si=zhDJtoJUxpzzQlic", "bD6PSBtQwww"),
         ("https://www.youtube.com/watch?v=12345&feature=youtu.be&list=12345", "12345"),
-        ("https://www.youtube.com/watch?v=12345&feature=youtu.be&list=12345&index=1", "12345"),
+        (
+            "https://www.youtube.com/watch?v=12345&feature=youtu.be&list=12345&index=1",
+            "12345",
+        ),
         ("Check out this video: https://www.youtube.com/watch?v=12345", "12345"),
         ("https://youtube.com/shorts/_4Bon7eYvOQ?si=aOrNjcgpLHGGXOry", "_4Bon7eYvOQ"),
     ],
@@ -51,7 +52,10 @@ def ytt_api():
     [
         ("75WFTHpOw8Y", "hello it is Christmas time"),  # bjork talking about tv
         # ("j04IAbWCszg", "in short this equation derived and published by"), # en-GB only, Matt Parker talking about tariffs
-        ("NcZxaFfxloo", "JON STEWART: Is that the\nresult of their $5 million planning fund"),  # en-US only
+        (
+            "NcZxaFfxloo",
+            "JON STEWART: Is that the\nresult of their $5 million planning fund",
+        ),  # en-US only
     ],
 )
 @pytest.mark.asyncio
@@ -137,7 +141,9 @@ async def test_get_llm_response(mocker):
     mocker.patch("tldw.tldw.AsyncLLM", return_value=mock_client)
     # Test the get_llm_response function
     response = await tldw.get_llm_response(
-        llm_client=mock_client, text="Test prompt", system_prompt=("You are a YouTube video note taker and summarizer.")
+        llm_client=mock_client,
+        text="Test prompt",
+        system_prompt=("You are a YouTube video note taker and summarizer."),
     )
     assert response[0].text == "Test response"
     assert isinstance(response[0], TextBlock)
@@ -192,7 +198,9 @@ async def test_get_llm_response_without_mocker(llm_client):
     response = await tldw.get_llm_response(
         llm_client=llm_client,
         text="Test prompt",
-        system_prompt=("You are a YouTube video note taker and summarizer, under test. Respond *only* with 'Test response'."),  # type: ignore
+        system_prompt=(
+            "You are a YouTube video note taker and summarizer, under test. Respond *only* with 'Test response'."
+        ),  # type: ignore
     )
     assert isinstance(response[0], TextBlock)
     assert response[0].text == "\nTest response\n```"
