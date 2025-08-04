@@ -5,7 +5,8 @@
     "conventionalCommits.scopes": [
         "mcinfo",
         "ispyfj",
-        "redvids"
+        "redvids",
+        "letta"
     ],
     "python.analysis.typeCheckingMode": "basic"
 }

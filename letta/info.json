@@ -1,0 +1,29 @@
+{
+    "$schema": "https://raw.githubusercontent.com/Cog-Creators/Red-DiscordBot/V3/develop/schema/red_cog.schema.json",
+    "author": [
+        "Tyto"
+    ],
+    "description": "A cog to run an autonomous Letta agent that can interact with users in a Discord server.",
+    "short": "Letta Agent",
+    "install_msg": "Thanks for installing the Letta cog! This cog requires a server with a Letta agent running.",
+    "end_user_data_statement": "",
+    "min_bot_version": "3.5.0",
+    "max_bot_version": "0.0.0",
+    "min_python_version": [
+        3,
+        11,
+        0
+    ],
+    "requirements": [
+        "letta-client>=0.1.0"
+    ],
+    "tags": [
+        "letta",
+        "agent",
+        "autonomous",
+        "ai",
+        "discord",
+        "chatbot"
+    ],
+    "type": "COG"
+}
