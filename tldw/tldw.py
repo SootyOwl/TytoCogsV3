@@ -455,7 +455,7 @@ class TLDWatch(commands.Cog):
                 await ctx.send(f"An error occurred: {e}")
                 raise  # so we can get traceback in the bot
 
-        await ctx.reply(f"{summary}")
+        await ctx.reply(embed=summary)
 
     async def summarize_msg_callback(
         self, inter: discord.Interaction, message: discord.Message
@@ -468,7 +468,7 @@ class TLDWatch(commands.Cog):
         except Exception as e:
             await inter.edit_original_response(content=str(e))
             raise  # so we can get traceback in the bot
-        await inter.edit_original_response(content=summary)
+        await inter.edit_original_response(embed=summary)
 
     async def _process_video_message(self, message: discord.Message) -> str:
         """Shared processing of a message to generate a YouTube video summary."""
@@ -555,18 +555,39 @@ class TLDWatch(commands.Cog):
             raise ValueError(f"Error generating summary: {e}") from e
 
 
-def cleanup_summary(summary: str) -> str:
+def cleanup_summary(summary: str):
     """The summary should have a closing ```"""
     if not summary or not summary.strip():
         raise ValueError("Failed to generate a summary, no content found.")
     # remove any leading or trailing whitespace
-    return (
+    return markdown_to_embed(
         summary.split("```")[
             0
         ]  # the closing ``` indicates the end of the summary, only keep everything before it
         .strip()  # remove leading/trailing whitespace
         .strip("\n")
     )
+
+
+# convert the markdown summary to a discord embed
+def markdown_to_embed(markdown: str) -> discord.Embed:
+    """Convert a markdown string to a Discord embed."""
+    if not markdown:
+        raise ValueError("Markdown content is empty or None.")
+    if markdown.startswith("# "):
+        title, content = markdown.split("\n", 1)
+        content = content.strip()  # remove leading/trailing whitespace
+        if not content:
+            raise ValueError("Markdown content is empty after title.")
+        # create an embed with the title and content
+        embed = discord.Embed(description=content, color=discord.Color.blue())
+        embed.title = title.strip(
+            "# "
+        ).strip()  # remove the leading "# " from the title
+    else:
+        embed = discord.Embed(description=markdown, color=discord.Color.blue())
+        embed.title = "Video Summary"
+    return embed
 
 
 async def get_transcript(
