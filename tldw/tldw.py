@@ -100,6 +100,7 @@ class TLDWatch(commands.Cog):
         try:
             app_info = await self.bot.application_info()
             if app_info.owner:
+                prefix = (await self.bot.get_valid_prefixes())[0]
                 embed = discord.Embed(
                     title="🔄 TLDW Cog Migration Notice",
                     description="The TLDW cog has been updated to use OpenRouter instead of Anthropic Claude.",
@@ -113,7 +114,7 @@ class TLDWatch(commands.Cog):
                         "2. Get an OpenRouter API key from https://openrouter.ai/settings/keys \n"
                         "3. Set it using: `{p}set api openrouter api_key,<your_openrouter_key>`\n"
                         "4. The cog now supports multiple LLM providers through OpenRouter"
-                    ).format(p=self.bot.command_prefix),
+                    ).format(p=prefix),
                     inline=False,
                 ).add_field(
                     name="ℹ️ What Changed",
@@ -133,11 +134,11 @@ class TLDWatch(commands.Cog):
                         "3. Set the model to `anthropic/claude-3.5-sonnet` or any [other Claude model](https://openrouter.ai/anthropic) you prefer, using the command:\n"
                         "\t`{p}tldwset model anthropic/claude-3.5-sonnet`.\n"
                         "4. Now you can use the TLDW cog with your existing Anthropic key on OpenRouter, which will route requests to Claude models and use existing credits."
-                    ).format(p=self.bot.command_prefix),
+                    ).format(p=prefix),
                     inline=False,
                 ).set_footer(
                     text="This message will only be shown once. If you need to see it again, use the command `{p}tldwset show_migration`.".format(
-                        p=self.bot.command_prefix
+                        p=prefix
                     )
                 )
                 try:
