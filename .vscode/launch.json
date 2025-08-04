@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Module",
+            "name": "Run Redbot",
             "type": "debugpy",
             "request": "launch",
             "module": "redbot",
