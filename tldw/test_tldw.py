@@ -85,26 +85,31 @@ def test_cleanup_summary(mocker):
     # Test case 1: Basic test
     summary = "This is a test summary.```"
     cleaned_summary = tldw.cleanup_summary(summary)
-    assert cleaned_summary == "This is a test summary."
+    assert cleaned_summary.description == "This is a test summary."
 
     # Test case 2: Summary with multiple ```
     summary = "This is a test summary.```More text```"
     cleaned_summary = tldw.cleanup_summary(summary)
-    assert cleaned_summary == "This is a test summary."
+    assert cleaned_summary.description == "This is a test summary."
 
     # Test case 3: Summary without ```
     summary = "This is a test summary."
     cleaned_summary = tldw.cleanup_summary(summary)
-    assert cleaned_summary == "This is a test summary."
+    assert cleaned_summary.description == "This is a test summary."
 
     # Test case 4: Empty summary
     with pytest.raises(ValueError):
         tldw.cleanup_summary("")
 
     # Test case 5: Summary with ``` at the beginning
-    summary = "```This is a test summary."
+    with pytest.raises(ValueError):
+        tldw.cleanup_summary("```This is a test summary.")
+
+    # Test case 6: Summary with markdown title
+    summary = "# Title\nThis is a test summary."
     cleaned_summary = tldw.cleanup_summary(summary)
-    assert cleaned_summary == ""
+    assert cleaned_summary.description == "This is a test summary."
+    assert cleaned_summary.title == "Title"
 
 
 # test cleanup_summary function with invalid input
