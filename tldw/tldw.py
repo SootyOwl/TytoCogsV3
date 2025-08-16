@@ -462,7 +462,7 @@ class TLDWatch(commands.Cog):
         self, inter: discord.Interaction, message: discord.Message
     ) -> None:
         """Summarize a YouTube video using OpenRouter from a message context menu."""
-        is_private = inter.extras.get("is_private", False)
+        is_private = inter.command.extras.get("is_private", False)
         await inter.response.defer(thinking=True, ephemeral=is_private)
         try:
             summary = await self._process_video_message(message)
