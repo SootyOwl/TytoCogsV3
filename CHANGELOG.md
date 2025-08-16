@@ -1,3 +1,28 @@
+## 0.4.0 (2025-08-16)
+
+### Feat
+
+- **tldw**: add migration notification for OpenRouter integration
+- **tldw**: migrate from Anthropic to OpenRouter for video summarization
+
+### Fix
+
+- **tldw**: update migration notification message for clarity and detail
+- **tldw**: correct access to is_private flag in interaction extras
+- **tldw**: send embed message after setting footer in language commands
+- **tldw**: update summary replies to use Discord embeds for better formatting and longer messages
+- **tldw**: fix the dynamic prefix grabbing from the migration notice
+- update minimum Python version for multiple cogs verified with vermin
+- **tldw**: update LLM client initialization with base URL
+- **tldw**: switch to aiohttp for asynchronous model fetching and improve error handling
+- **tldw**: close LLM client on cog unload to prevent resource leaks
+- **tldw**: specify type for bot parameter in setup function
+
+### Refactor
+
+- **tldw**: remove redundant error check and refactor empty summary handling
+- **tldw**: update API key handling and model selection for OpenRouter integration
+
 ## 0.3.0 (2025-07-22)
 
 ### Feat
