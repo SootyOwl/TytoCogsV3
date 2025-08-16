@@ -109,11 +109,11 @@ class TLDWatch(commands.Cog):
                 embed.add_field(
                     name="⚠️ Action Required",
                     value=(
-                        "You need to update your API key to use OpenRouter:\n\n"
+                        "You need to update your API key to use OpenRouter:\n"
                         "1. Sign up or log in to OpenRouter at https://openrouter.ai/\n"
                         "2. Get an OpenRouter API key from https://openrouter.ai/settings/keys \n"
-                        "3. Set it using: `{p}set api openrouter api_key,<your_openrouter_key>`\n"
-                        "4. The cog now supports multiple LLM providers through OpenRouter"
+                        "3. Set it using: `{p}set api openrouter api_key,<your_openrouter_key>` or the interface provided by `{p}tldwset apikey`.\n"
+                        "4. The cog now supports multiple LLM providers through OpenRouter\n"
                     ).format(p=prefix),
                     inline=False,
                 ).add_field(
@@ -122,22 +122,22 @@ class TLDWatch(commands.Cog):
                         "• Switched from Anthropic Claude API to OpenRouter\n"
                         "• Now supports multiple AI models\n"
                         "• Better reliability and model selection\n"
-                        "• Same functionality, better backend"
+                        "• Same functionality, better backend\n"
                     ),
                     inline=False,
                 ).add_field(  # using existing anthropic key on OpenRouter BYOK
-                    name="🔑 Using Existing Key",
+                    name="🔑 Using Your Existing Key",
                     value=(
                         "If you already have an Anthropic API key, you can use it on OpenRouter by following the instructions below:\n"
                         "1. Obtain and set your OpenRouter API key as described above.\n"
                         "2. Go to https://openrouter.ai/settings/integrations and add your Anthropic key in the list of providers.\n"
                         "3. Set the model to `anthropic/claude-3.5-sonnet` or any [other Claude model](https://openrouter.ai/anthropic) you prefer, using the command:\n"
                         "\t`{p}tldwset model anthropic/claude-3.5-sonnet`.\n"
-                        "4. Now you can use the TLDW cog with your existing Anthropic key on OpenRouter, which will route requests to Claude models and use existing credits."
+                        "4. Now you can use the TLDW cog with your existing Anthropic key on OpenRouter, which will route requests to Claude models and use existing credits.\n"
                     ).format(p=prefix),
                     inline=False,
                 ).set_footer(
-                    text="This message will only be shown once. If you need to see it again, use the command `{p}tldwset show_migration`.".format(
+                    text="This message will only be sent once. If you need to see it again, use the command `{p}tldwset show_migration`.".format(
                         p=prefix
                     )
                 )
