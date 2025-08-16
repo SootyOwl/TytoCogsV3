@@ -354,6 +354,7 @@ class TLDWatch(commands.Cog):
         embed.set_footer(
             text="Use `tldwset languages remove <number>` to remove a language, or `tldwset languages add <language>` to add a language."
         )
+        await ctx.send(embed=embed)
 
     @commands.is_owner()
     @languages.command(name="clear")
