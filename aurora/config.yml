@@ -1,5 +1,9 @@
 # Default Aurora configuration file
 # This file is used to configure the default agent created by the Aurora cog.
+letta:
+  base_url: "https://api.letta.ai/v1"
+  token: "INSERT_YOUR_LETTA_API_TOKEN_HERE"
+
 agent:
   name: "aurora"
   model: "openai/gpt-4o-mini"
@@ -10,6 +14,9 @@ agent:
   embedding: "openai/text-embedding-3-small"
   description: "A discord agent travelling across the sky."
   max_steps: 100
+  # Enable web search and code execution
+  web_search: true
+  run_code: true
 
   blocks:
     - label: "aurora-persona"
