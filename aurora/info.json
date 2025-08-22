@@ -5,7 +5,7 @@
     ],
     "description": "A cog to run an autonomous Letta agent that can interact with users in a Discord server.",
     "short": "Aurora - Letta Agent",
-    "install_msg": "Thanks for installing Aurora! This cog requires a server with a Letta agent running.",
+    "install_msg": "Thanks for installing Aurora! This cog requires a self-hosted Letta server or Letta Cloud. Follow the Letta documentation here: https://docs.letta.com/overview\n\nPlease set your letta token using `[p]set api letta token,<your_token>`.",
     "end_user_data_statement": "",
     "min_bot_version": "3.5.0",
     "max_bot_version": "0.0.0",

@@ -647,6 +647,15 @@ wheels = [
 ]
 
 [[package]]
+name = "httpx-sse"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/60/8f4281fa9bbf3c8034fd54c0e7412e66edbab6bc74c4996bd616f8d0406e/httpx-sse-0.4.0.tar.gz", hash = "sha256:1e81a3a3070ce322add1d3529ed42eb5f70817f45ed6ec915ab753f961139721", size = 12624, upload-time = "2023-12-22T08:01:21.083Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/9b/a181f281f65d776426002f330c31849b86b31fc9d848db62e16f03ff739f/httpx_sse-0.4.0-py3-none-any.whl", hash = "sha256:f329af6eae57eaa2bdfd962b42524764af68075ea87370a2de920af5341e318f", size = 7819, upload-time = "2023-12-22T08:01:19.89Z" },
+]
+
+[[package]]
 name = "identify"
 version = "2.6.12"
 source = { registry = "https://pypi.org/simple" }
@@ -727,6 +736,22 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/9b/1d/23c41765cc95c0e23ac492a88450d34bf0fd87a37218d1b97000bffe0f53/jiter-0.10.0-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:9ab7fd8738094139b6c1ab1822d6f2000ebe41515c537235fd45dabe13ec9324", size = 515234, upload-time = "2025-05-18T19:04:55.838Z" },
     { url = "https://files.pythonhosted.org/packages/9f/14/381d8b151132e79790579819c3775be32820569f23806769658535fe467f/jiter-0.10.0-cp39-cp39-win32.whl", hash = "sha256:5f51e048540dd27f204ff4a87f5d79294ea0aa3aa552aca34934588cf27023cf", size = 211436, upload-time = "2025-05-18T19:04:57.183Z" },
     { url = "https://files.pythonhosted.org/packages/59/66/f23ae51dea8ee8ce429027b60008ca895d0fa0704f0c7fe5f09014a6cffb/jiter-0.10.0-cp39-cp39-win_amd64.whl", hash = "sha256:1b28302349dc65703a9e4ead16f163b1c339efffbe1049c30a44b001a2a4fff9", size = 208777, upload-time = "2025-05-18T19:04:58.454Z" },
+]
+
+[[package]]
+name = "letta-client"
+version = "0.1.268"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "httpx-sse" },
+    { name = "pydantic" },
+    { name = "pydantic-core" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b5/22/d4b015f476de467d44d05270d17907a7a5e453f82a5084c70d47a5fb9843/letta_client-0.1.268.tar.gz", hash = "sha256:e205f1502c62f9a6fd8b0fd58071df26f8ad8dc39cde6e1a3e6e14518e4d492b", size = 179494, upload-time = "2025-08-17T00:50:29.957Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/92/cf/4daf73da138760b70bac08a040896195c2f70162576ef28ef96c8656945c/letta_client-0.1.268-py3-none-any.whl", hash = "sha256:7ceda455c9ea15ed7beab6bf770893185e6f0f1753d5013c6b56e9a845a60535", size = 457237, upload-time = "2025-08-17T00:50:28.466Z" },
 ]
 
 [[package]]
@@ -1583,6 +1608,7 @@ dependencies = [
     { name = "anthropic" },
     { name = "beautifulsoup4" },
     { name = "html2image" },
+    { name = "letta-client" },
     { name = "mcstatus" },
     { name = "openai" },
     { name = "pip" },
@@ -1609,6 +1635,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.51.0,<0.52" },
     { name = "beautifulsoup4", specifier = ">=4.12.3,<5" },
     { name = "html2image", specifier = ">=2.0.6,<3" },
+    { name = "letta-client", specifier = ">=0.1.268" },
     { name = "mcstatus", specifier = ">=11.1.1,<12" },
     { name = "openai", specifier = ">=1.78.1,<2" },
     { name = "pip", specifier = ">=25.1.1" },
