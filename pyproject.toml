@@ -3,7 +3,7 @@ name = "tytocogsv3"
 version = "0.4.0"
 description = "Cogs for Red-DiscordBot"
 authors = [{ name = "SootyOwl", email = "tyto@tyto.cc" }]
-requires-python = ">=3.9,<3.12"
+requires-python = ">=3.10,<3.12"
 readme = "README.md"
 dependencies = [
     "Red-DiscordBot>=3.5.20,<4",
@@ -17,6 +17,7 @@ dependencies = [
     "yt-transcript-fetcher>=1.1.1,<2",
     "pip>=25.1.1",
     "letta-client>=0.1.268",
+    "async-lru>=2.0.5",
 ]
 
 [dependency-groups]
