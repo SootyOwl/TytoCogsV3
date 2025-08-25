@@ -4,16 +4,32 @@ This cog integrates the Letta AI service to create an autonomous Discord agent
 that can respond to messages in channels and DMs.
 """
 
+import json
 import logging
-from typing import Optional
+from enum import Enum
+from typing import AsyncIterator, Optional
 
-from letta_client import AsyncLetta
-from redbot.core import Config, commands
+import discord
+from async_lru import alru_cache
+from letta_client import AsyncLetta, MessageCreate, TextContent
+from letta_client.agents.messages.types.letta_streaming_response import (
+    LettaStreamingResponse,
+)
+from redbot.core import Config, checks, commands
 from redbot.core.bot import Red
 
-from aurora.config import GlobalConfig, GuildConfig, ChannelConfig
+from aurora.config import ChannelConfig, GlobalConfig, GuildConfig
 
 log = logging.getLogger("red.tyto.aurora")
+
+
+class MessageType(Enum):
+    """Types of messages that Aurora can respond to."""
+
+    GENERIC = "generic"
+    MENTION = "mention"
+    REPLY = "reply"
+    DM = "dm"
 
 
 class Aurora(commands.Cog):
@@ -34,19 +50,305 @@ class Aurora(commands.Cog):
         default_channel: dict = ChannelConfig().to_dict()
         self.config.register_channel(**default_channel)
 
+        self.should_respond_to = alru_cache(ttl=10)(self.should_respond_to)
+
         # Letta client (will be initialized in setup)
         self.letta: Optional[AsyncLetta] = None
 
     async def cog_load(self):
         """Load the Letta client and start the background tasks."""
-        global_config = await self.config.all_guilds()
-        letta_base_url = global_config.get("letta_base_url", "https://api.letta.ai")
-
-        self.letta = AsyncLetta(base_url=letta_base_url)
-
+        await self.initialize_letta()
         # Start background tasks if needed
-        self.background_tasks.start()
+        # self.background_tasks.start()
+
+    async def initialize_letta(self):
+        """Configure Letta client based on global settings."""
+        letta_base_url = await self.config.letta_base_url()
+        letta_tokens = await self.bot.get_shared_api_tokens("letta")
+        if token := letta_tokens.get("token"):
+            self.letta = AsyncLetta(
+                base_url=letta_base_url,
+                token=token,
+            )
+            log.info("Letta client configured successfully.")
+            return self.letta
+        else:
+            log.warning("Letta API token not found. Aurora will not function.")
+            self.letta = None
+            return None
 
     async def cog_unload(self):
         """Stop the background tasks."""
-        self.background_tasks.stop()
+        # self.background_tasks.stop()
+
+    async def should_respond_to(
+        self,
+        author: discord.abc.User,
+        channel: discord.abc.MessageableChannel,
+        guild: Optional[discord.Guild],
+        mentions: list[discord.Member | discord.User],
+        reference: Optional[discord.MessageReference] = None,
+    ) -> tuple[bool, Optional[MessageType]]:
+        """Determine if the bot should respond to a given message."""
+        # Ignore messages from myself
+        if self.bot.user and author.id == self.bot.user.id:
+            log.debug("Ignoring message from myself.")
+            return False, None
+
+        if author.bot and not await self.config.respond_to_bots():
+            log.debug(
+                "Not responding to bot message in guild %s, channel %s",
+                guild.id if guild else "DM",
+                channel.id,
+            )
+            return False, None
+
+        # Check if it's a DM
+        if isinstance(channel, discord.DMChannel):
+            respond_to_dms = await self.config.respond_to_dms()
+            if respond_to_dms:
+                log.debug("Responding to DM from user %s", author.id)
+                return True, MessageType.DM
+            else:
+                log.debug("Not responding to DM from user %s", author.id)
+                return False, None
+
+        # If in a guild, check guild and channel configs
+        if guild:
+            guild_config = await self.config.guild_from_id(guild.id).all()
+            channel_config = await self.config.channel_from_id(channel.id).all()
+            # merge the config dictionaries, with channel config taking precedence
+            merged_config = {**guild_config, **channel_config}
+        else:
+            # Not sure how we got here, but just don't respond
+            log.debug("Message in unknown context, not responding.")
+            return False, None
+
+        # If not enabled in guild or channel, do not respond
+        if not merged_config.get("enabled", False):
+            log.debug(
+                "Aurora is not enabled in guild %s, channel %s", guild.id, channel.id
+            )
+            return False, None
+
+        if merged_config.get("respond_to_mentions", False) and (
+            self.bot.user in mentions or reference
+        ):
+            log.debug(
+                "Responding to mention or reply in guild %s, channel %s",
+                guild.id,
+                channel.id,
+            )
+            return True, MessageType.MENTION
+
+        # Catch-all generic non-mention message
+        if merged_config.get("respond_to_generic", False):
+            log.debug(
+                "Responding to generic message in guild %s, channel %s",
+                guild.id,
+                channel.id,
+            )
+            return True, MessageType.GENERIC
+
+        log.debug(
+            "No conditions met to respond in guild %s, channel %s",
+            guild.id,
+            channel.id,
+        )
+        return False, None
+
+    @commands.Cog.listener(name="on_message")
+    @checks.bot_has_permissions(send_messages=True)
+    async def handle_message(self, message: discord.Message):
+        """Handle incoming messages and respond if configured."""
+        # Ensure Letta client is configured
+        if not self.letta:
+            log.warning("Letta client is not configured. Cannot respond.")
+            return
+
+        # Ignore command messages
+        prefix = await self.bot.get_prefix(message)
+        if isinstance(prefix, list):
+            prefix = tuple(prefix)
+        if message.content.startswith(prefix):
+            log.debug("Ignoring command message.")
+            return
+
+        # Determine if we should respond
+        should_respond, message_type = await self.should_respond_to(
+            author=message.author,
+            channel=message.channel,
+            guild=message.guild,
+            mentions=message.mentions,
+            reference=message.reference,
+        )
+        if not should_respond or message_type is None:
+            return
+
+        msg_content = message.content
+        # If it's a reply, fetch the original message and check if it's to the bot
+        if message.reference and message.reference.message_id:
+            original_msg = await message.channel.fetch_message(
+                message.reference.message_id
+            )
+            # Check if the original message was from the bot
+            if self.bot.user and original_msg.author.id == self.bot.user.id:
+                # This is a reply to the bot, so we should respond
+                message_type = MessageType.REPLY
+                msg_content = '[Replying to previous message: "{}"] {}'.format(
+                    truncate_message(original_msg.content, 300), msg_content
+                )
+
+            else:
+                # This is a reply to someone else, but the bot is mentioned or it's a generic message
+                message_type = (
+                    MessageType.MENTION
+                    if self.bot.user in message.mentions
+                    else MessageType.GENERIC
+                )
+
+        message.content = msg_content
+
+        log.info(
+            "Preparing to respond to message in guild %s, channel %s",
+            message.guild.id if message.guild else "DM",
+            message.channel.id,
+        )
+        msg = await send_message_to_letta(
+            letta_client=self.letta,
+            agent_id=await self.get_agent_id_for_context(message.guild),
+            message=message,
+            context_type=message_type.value,
+        )
+        if msg:
+            await message.reply(msg)
+            log.info(
+                "Responded to message in guild %s, channel %s",
+                message.guild.id if message.guild else "DM",
+                message.channel.id,
+            )
+            log.debug("Response content: %s", msg)
+        else:
+            log.debug(
+                "No response generated for message in guild %s, channel %s",
+                message.guild.id if message.guild else "DM",
+                message.channel.id,
+            )
+
+    async def get_agent_id_for_context(
+        self, guild: Optional[discord.Guild]
+    ) -> Optional[str]:
+        """Get the Letta agent ID configured for the given guild or global default."""
+        if guild:
+            # see if there's a guild-specific agent ID
+            guild_agent_id = await self.config.guild_from_id(guild.id).agent_id()
+            if guild_agent_id:
+                return guild_agent_id
+        # fallback to global agent ID
+        return await self.config.agent_id()
+
+
+def truncate_message(message: str, max_length: int) -> str:
+    """Truncate a message to a maximum length, adding ellipsis if needed."""
+    if len(message) <= max_length:
+        return message
+    return message[: max_length - 3] + "..."
+
+
+async def send_message_to_letta(
+    letta_client: AsyncLetta,
+    agent_id: Optional[str],
+    message: discord.Message,
+    context_type: str,
+    max_steps: int = 50,
+) -> Optional[str]:
+    """Send a message to Letta and return the response."""
+    RECEIPT_STR = {
+        "generic": "[{sender} sent a message to the channel] {message}",
+        "mention": "[{sender} sent a message mentioning you] {message}",
+        "reply": "[{sender} replied to you] {message}",
+        "dm": "[{sender} sent you a direct message] {message}",
+    }
+    if not agent_id:
+        log.warning("No agent ID configured. Cannot send message to Letta.")
+        return None
+
+    sender_name_receipt = f"{message.author.display_name} (id={message.author.id})"
+    message_content = RECEIPT_STR.get(context_type, RECEIPT_STR["generic"]).format(
+        sender=sender_name_receipt, message=message.content
+    )
+    letta_message = [
+        MessageCreate(role="user", content=[TextContent(text=message_content)])
+    ]
+    async with message.channel.typing():
+        try:
+            log.debug(
+                "Sending message to Letta agent %s: %s",
+                agent_id,
+                json.dumps(letta_message),
+            )
+            response: AsyncIterator[LettaStreamingResponse] = (
+                letta_client.agents.messages.create_stream(
+                    agent_id=agent_id, messages=letta_message, max_steps=max_steps
+                )
+            )
+            agent_response = await process_stream(response, message)
+            return agent_response if agent_response else ""
+        except Exception as e:
+            log.error("Error communicating with Letta: %s", e)
+            return ""
+
+
+async def process_stream(
+    response: AsyncIterator[LettaStreamingResponse], message: discord.Message
+) -> Optional[str]:
+    """Process the streaming response from Letta and return the final message content."""
+    agent_response = ""
+
+    async def send_async_message(content: str): ...
+
+    try:
+        async for chunk in response:
+            # Handle different message types that might be returned
+            if not chunk.message_type:
+                log.error("Received chunk without message_type: %s", chunk)
+                continue
+
+            match chunk.message_type:
+                case "assistant_message":
+                    # Handle assistant message chunks
+                    if isinstance(chunk.content, list):
+                        for content in chunk.content:
+                            agent_response += content.text
+                    elif isinstance(chunk.content, str):
+                        agent_response += chunk.content
+                    break
+                case "stop_reason":
+                    # Handle stop reason chunks
+                    log.info("Letta stopped responding: %s", chunk.stop_reason)
+                case "reasoning_message":
+                    # Handle reasoning message chunks
+                    log.info("Letta reasoning: %s", chunk)
+                    # send async reasoning message to channel
+                    await send_async_message(f"**Reasoning**\n> {chunk.reasoning}")
+                case "tool_call_message":
+                    # Handle tool call message chunks
+                    log.info("Letta tool call: %s", chunk)
+                    # send async tool call message to channel
+                    await send_async_message(
+                        f"**Tool Call**\n> {chunk.tool_call.name} with args {chunk.tool_call.arguments}"
+                    )
+                case "tool_return_message":
+                    # Handle tool return message chunks
+                    log.info("Letta tool return: %s", chunk)
+                    # send async tool return message to channel
+                    await send_async_message(f"**Tool Return**\n> {chunk.tool_return}")
+                case "usage_statistics":
+                    # Handle usage statistics chunks
+                    log.info("Letta usage statistics: %s", chunk)
+                case _:
+                    log.warning("Unknown message type received: %s", chunk.message_type)
+    except Exception as e:
+        log.error("Error processing Letta stream: %s", e)
+        raise
+    return agent_response if agent_response else None
