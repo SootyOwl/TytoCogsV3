@@ -300,12 +300,27 @@ async def send_message_to_letta(
 
 
 async def process_stream(
-    response: AsyncIterator[LettaStreamingResponse], message: discord.Message
+    response: AsyncIterator[LettaStreamingResponse],
+    target: discord.Message | discord.TextChannel,
 ) -> Optional[str]:
     """Process the streaming response from Letta and return the final message content."""
     agent_response = ""
 
-    async def send_async_message(content: str): ...
+    async def send_async_message(content: str):
+        """Send a message asynchronously to the same channel as the original message."""
+        if content.strip() == "":
+            return
+        if isinstance(target, discord.Message):
+            t = target.channel
+        elif isinstance(target, discord.TextChannel):
+            t = target
+        else:
+            log.error("Invalid target for sending async message: %s", target)
+            return
+        try:
+            await t.send(content)
+        except Exception as e:
+            log.error("Failed to send async message: %s", e)
 
     try:
         async for chunk in response:
