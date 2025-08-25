@@ -71,10 +71,11 @@ async def upsert_agent(client: AsyncLetta, name: str, **kwargs) -> AgentState:
         name (str): Name of the agent.
     """
     agents = await client.agents.list(name=name)
-
+    kwargs_copy = kwargs.copy()
+    update = kwargs_copy.pop("update", False)
     if len(agents) == 0:
         # Create a new agent if it doesn't exist
-        return await client.agents.create(name=name, **kwargs)
+        return await client.agents.create(name=name, **kwargs_copy)
 
     elif len(agents) > 1:
         raise Exception(
@@ -83,9 +84,7 @@ async def upsert_agent(client: AsyncLetta, name: str, **kwargs) -> AgentState:
 
     # Update the existing agent with new content
     agent = agents[0]
-    if kwargs.get("update", False) and agent.id:
-        kwargs_copy = kwargs.copy()
-        kwargs_copy.pop("update")
+    if update and agent.id:
         return await client.agents.modify(agent.id, name=name, **kwargs_copy)
     else:
         # If not updating, just return the existing agent
