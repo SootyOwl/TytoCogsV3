@@ -3,3 +3,5 @@
 .proxies
 .env
 test_download_reddit_video0/
+aurora/agent_archive
+aurora/config.yml
