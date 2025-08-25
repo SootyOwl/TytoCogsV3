@@ -32,8 +32,12 @@ class GlobalConfig(BaseConfig):
 
     letta_base_url: str = "https://api.letta.ai"
     """Base URL for the Letta API."""
+    agent_id: Optional[str] = None
+    """Agent ID to use for all guilds and channels by default. Can be overridden per guild."""
     respond_to_dms: bool = True
     """Whether Aurora should respond to direct messages."""
+    respond_to_bots: bool = False
+    """Whether Aurora should respond to messages from other bots."""
     surface_errors: bool = False
     """Whether to surface errors in the chat. Set to True to show errors in the chat,
     or False to just log them instead."""
