@@ -6,17 +6,21 @@ letta:
 
 agent:
   name: "aurora"
-  model: "openai/gpt-4o-mini"
+  llm_config:
+    model: "openai-proxy/openai/gpt-4o-mini"
+    model_endpoint_type: "openai"
+    model_endpoint: "https://openrouter.ai/api/v1"
+    context_window: 30000
+  embedding_config:
+    embedding_model: "openai/text-embedding-3-small"
+    embedding_endpoint_type: "openai"
+    embedding_endpoint: "https://openrouter.ai/api/v1"
+    embedding_dim: 1536
   tags:
     - "agent"
     - "discord"
     - "aurora"
-  embedding: "openai/text-embedding-3-small"
   description: "A discord agent travelling across the sky."
-  max_steps: 100
-  # Enable web search and code execution
-  web_search: true
-  run_code: true
 
   blocks:
     - label: "aurora-persona"
@@ -30,3 +34,5 @@ agent:
     - label: "aurora-zeitgeist"
       value: "I don't currently know anything about what is happening right now."
       description: "A block to store your understanding of the current zeitgeist, e.g. current events, trends, etc."
+
+  update: true

@@ -1,13 +1,13 @@
 """Aurora Initialization module."""
 
-from datetime import datetime
 import json
 import logging
 import os
 import subprocess
+from datetime import datetime
 from typing import List
 
-from letta_client import AgentState, AsyncLetta
+from letta_client import AgentState, AsyncLetta, LettaEnvironment
 from letta_client.types.block import Block
 from yaml import safe_load
 
@@ -106,7 +106,7 @@ async def load_config_from_yaml(file_path: str) -> dict:
     return config
 
 
-def export_agent_state(client, agent, skip_git=False):
+async def export_agent_state(client: AsyncLetta, agent, skip_git=False):
     """Export agent state to agent_archive/ (timestamped) and agents/ (current)."""
     try:
         # Confirm export with user unless git is being skipped
@@ -128,16 +128,16 @@ def export_agent_state(client, agent, skip_git=False):
 
         # Export agent data
         logger.info(f"Exporting agent {agent.id}. This takes some time...")
-        agent_data = client.agents.export_file(agent_id=agent.id)
+        agent_data = await client.agents.export_file(agent_id=agent.id)
 
         # Save timestamped archive copy
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        archive_file = os.path.join("agent_archive", f"void_{timestamp}.af")
+        archive_file = os.path.join("agent_archive", f"aurora_{timestamp}.af")
         with open(archive_file, "w", encoding="utf-8") as f:
             json.dump(agent_data, f, indent=2, ensure_ascii=False)
 
         # Save current agent state
-        current_file = os.path.join("agents", "void.af")
+        current_file = os.path.join("agents", "aurora.af")
         with open(current_file, "w", encoding="utf-8") as f:
             json.dump(agent_data, f, indent=2, ensure_ascii=False)
 
@@ -159,11 +159,6 @@ def export_agent_state(client, agent, skip_git=False):
 
 async def create_letta_agent_instance(
     client: AsyncLetta,
-    base_url: str,
-    token: str,
-    web_search: bool,
-    run_code: bool,
-    project: str = "AuroraDiscord",
 ):
     """Initialize the aurora agent."""
     logger.info("Starting aurora agent initialisation...")
@@ -191,22 +186,22 @@ async def create_letta_agent_instance(
     agent: AgentState = await upsert_agent(
         client,
         name=config.get("agent", {}).get("name", "Aurora"),
-        blocks=[block.id for block in blocks],
+        block_ids=[block.id for block in blocks],
         tags=config.get("agent", {}).get("tags", []),
         description=config.get("agent", {}).get(
             "description", "An autonomous Discord agent powered by Letta."
         ),
-        base_url=base_url,
-        token=token,
-        web_search=web_search,
-        run_code=run_code,
-        project=project,
+        model=config.get("agent", {}).get("model", None),
+        llm_config=config.get("agent", {}).get("llm_config", None),
+        embedding=config.get("agent", {}).get("embedding", None),
+        embedding_config=config.get("agent", {}).get("embedding_config", None),
+        update=config.get("agent", {}).get("update", False),
     )
     logger.info(f"Agent '{agent.name}' created/updated successfully.")
 
     # export agent state
     logger.info("Exporting agent state...")
-    export_agent_state(client, agent, skip_git=config.get("skip_git", False))
+    await export_agent_state(client, agent, skip_git=config.get("skip_git", False))
 
     logger.info(f"Aurora agent initialisation complete - ID: {agent.id}")
     logger.info(f"Agent name: {agent.name}")
@@ -227,6 +222,9 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
+    # config.yml is next to this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(script_dir)
     # Load configuration from config.yml
     config = asyncio.run(load_config_from_yaml("config.yml"))
 
@@ -236,16 +234,13 @@ if __name__ == "__main__":
     if not token:
         raise ValueError("Letta API token is required in config.yml")
 
-    client = AsyncLetta(base_url=base_url, token=token)
+    client = AsyncLetta(
+        base_url=base_url, token=token, environment=LettaEnvironment.SELF_HOSTED
+    )
 
     # Create or update the aurora agent
     agent = asyncio.run(
         create_letta_agent_instance(
             client,
-            base_url=base_url,
-            token=token,
-            web_search=config.get("agent", {}).get("web_search", False),
-            run_code=config.get("agent", {}).get("run_code", False),
-            project="AuroraDiscord",
         )
     )
