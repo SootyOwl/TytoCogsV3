@@ -654,7 +654,8 @@ async def get_llm_response(
         extra_body={
             "models": other_models,
         },
-        max_tokens=2048,
+        # discord character limit is 4096, and tokens are roughly 2-4 chars each, so 1000 tokens should be safe
+        max_tokens=1000,
         temperature=0.0,
         n=1,
         stop=["```"],
