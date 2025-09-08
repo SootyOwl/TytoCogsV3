@@ -4,6 +4,7 @@ import logging
 import re
 import typing as t
 from collections import OrderedDict
+from datetime import datetime, timezone
 
 import aiohttp
 import discord
@@ -12,6 +13,7 @@ from openai import AsyncOpenAI as AsyncLLM
 from openai.types.chat import ChatCompletion
 from redbot.core import Config, app_commands, commands
 from redbot.core.bot import Red
+from redbot.core.utils.embed import randomize_color
 from redbot.core.utils.views import ConfirmView, SetApiView
 from yt_transcript_fetcher import (
     NoTranscriptError,
@@ -520,7 +522,28 @@ class TLDWatch(commands.Cog):
         )
         # cleanup the summary
         summary = cleanup_summary(summary)
+        if not summary or not summary.description:
+            raise ValueError("Failed to generate a summary.")
 
+        # define a footer containing the model used, and other info
+        footer = self.create_summary_footer(response, summary)
+        summary.set_footer(text=footer)
+        summary.timestamp = (
+            datetime.fromtimestamp(response.created, tz=timezone.utc)
+            if response.created
+            else discord.utils.utcnow()
+        )
+        # set the url of the embed to the video url
+        summary.url = f"https://youtu.be/{video_id}"
+
+        # randomize the color of the embed
+        summary = randomize_color(summary)
+        # set the author of the embed to "YouTube Video Summary" with the YouTube logo
+        summary.set_author(
+            name="YouTube Video Summary",
+            icon_url="https://www.youtube.com/s/desktop/6b1e1f2c/img/favicon_144.png",
+            url=f"https://youtu.be/{video_id}",
+        )
         # store the computed summary in the cache
         self._summary_cache[video_id] = summary
 
@@ -529,6 +552,23 @@ class TLDWatch(commands.Cog):
             self._summary_cache.popitem(last=False)
 
         return summary
+
+    def create_summary_footer(self, response, summary):
+        model = response.model if response and response.model else "unknown model"
+        usage_info = response.usage
+        footer = f"Model: {model}"
+        if usage_info:
+            prompt_tokens = usage_info.prompt_tokens if usage_info.prompt_tokens else 0
+            completion_tokens = (
+                usage_info.completion_tokens if usage_info.completion_tokens else 0
+            )
+            total_tokens = usage_info.total_tokens if usage_info.total_tokens else 0
+            footer += f" | Tokens: {total_tokens} (Prompt: {prompt_tokens}, Completion: {completion_tokens})"
+        # if the summary is too long, truncate it to fit in a discord embed
+        if len(summary.description) > 4096:
+            summary.description = summary.description[:4093] + "..."
+            footer += " | Summary truncated to fit in embed."
+        return footer
 
     async def generate_summary(self, text: str) -> ChatCompletion:
         """Generate a summary using OpenRouter."""
