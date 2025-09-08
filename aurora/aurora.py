@@ -119,8 +119,118 @@ class Aurora(commands.Cog):
         self.tasks.clear()
 
     async def cog_unload(self):
-        """Stop the background tasks."""
-        # self.background_tasks.stop()
+        """Stop the heartbeats."""
+        self.cancel_tasks()
+
+    async def _heartbeat(self, guild: discord.Guild, channel: discord.TextChannel):
+        """Periodic task to allow randomized events on a guild/channel basis."""
+        log.debug(
+            "Aurora heartbeat tick for guild %s, channel %s", guild.id, channel.id
+        )
+        # Get this task name
+        task_name = self._format_task_identifier(guild, channel)
+        if task_name not in self.tasks:
+            log.warning("Heartbeat task %s not found in tasks.", task_name)
+            return
+        # Check if Letta client is configured
+        if not self.letta:
+            log.warning("Letta client is not configured. Cannot send heartbeat.")
+            return
+        # Fetch guild and channel configs
+        guild_config = await self.config.guild_from_id(guild.id).all()
+        channel_config = await self.config.channel_from_id(channel.id).all()
+        # merge the config dictionaries, with channel config taking precedence
+        merged_config = {**guild_config, **channel_config}
+        if not merged_config.get("enabled", False):
+            log.debug(
+                "Aurora is not enabled in guild %s, channel %s. Stopping heartbeat.",
+                guild.id,
+                channel.id,
+            )
+            # Stop and remove the task
+            if task_name in self.tasks:
+                self.tasks[task_name].cancel()
+                del self.tasks[task_name]
+                log.info(
+                    "Stopped heartbeat for guild %s, channel %s", guild.id, channel.id
+                )
+            return
+        if not merged_config.get("enable_timer", False):
+            log.debug(
+                "Timer is not enabled in guild %s, channel %s. Stopping heartbeat.",
+                guild.id,
+                channel.id,
+            )
+            # Stop and remove the task
+            if task_name in self.tasks:
+                self.tasks[task_name].cancel()
+                del self.tasks[task_name]
+                log.info(
+                    "Stopped heartbeat for guild %s, channel %s", guild.id, channel.id
+                )
+            return
+
+        import random
+
+        # generate a new random interval between min and max
+        min_interval = merged_config.get("min_timer_interval_minutes", 5)
+        max_interval = merged_config.get("max_timer_interval_minutes", 15)
+        new_interval = random.randint(min_interval, max_interval)
+        self.tasks[task_name].change_interval(minutes=new_interval)
+        log.debug(
+            "Set new heartbeat interval to %d minutes for guild %s, channel %s",
+            new_interval,
+            guild.id,
+            channel.id,
+        )
+        # Determine if we should fire based on probability
+        firing_probability = merged_config.get("firing_probability", 0.1)
+        if random.random() > firing_probability:
+            log.debug(
+                "Heartbeat did not fire based on probability for guild %s, channel %s",
+                guild.id,
+                channel.id,
+            )
+            return
+
+        log.info(
+            "Heartbeat firing in guild %s, channel %s",
+            guild.id,
+            channel.id,
+        )
+        msg = await send_timer_message(
+            letta_client=self.letta,
+            agent_id=await self.get_agent_id_for_context(guild),
+            guild=guild,
+            channel=channel,
+        )
+
+        # send the final message if we got one
+        if msg:
+            try:
+                await channel.send(msg)
+                log.info(
+                    "Sent heartbeat message in guild %s, channel %s",
+                    guild.id,
+                    channel.id,
+                )
+                log.debug("Heartbeat message content: %s", msg)
+            except Exception as e:
+                log.error(
+                    "Failed to send heartbeat message in guild %s, channel %s: %s",
+                    guild.id,
+                    channel.id,
+                    e,
+                )
+        else:
+            log.debug(
+                "No heartbeat message generated for guild %s, channel %s",
+                guild.id,
+                channel.id,
+            )
+
+    def _format_task_identifier(self, guild, channel):
+        return f"heartbeat_{guild.id}_{channel.id}"
 
     async def should_respond_to(
         self,
