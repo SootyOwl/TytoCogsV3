@@ -1,3 +1,9 @@
+## 0.4.1 (2025-09-08)
+
+### Fix
+
+- **tldw**: adjust max_tokens for LLM response
+
 ## 0.4.0 (2025-08-16)
 
 ### Feat
