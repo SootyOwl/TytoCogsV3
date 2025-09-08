@@ -1,3 +1,9 @@
+## 0.4.2 (2025-09-08)
+
+### Fix
+
+- **tldw**: add extra headers to LLM response
+
 ## 0.4.1 (2025-09-08)
 
 ### Fix
