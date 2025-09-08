@@ -14,6 +14,8 @@ from openai.types.chat import ChatCompletion
 from redbot.core import Config, app_commands, commands
 from redbot.core.bot import Red
 from redbot.core.utils.embed import randomize_color
+from redbot.core.utils.menus import start_adding_reactions
+from redbot.core.utils.predicates import ReactionPredicate
 from redbot.core.utils.views import ConfirmView, SetApiView
 from yt_transcript_fetcher import (
     NoTranscriptError,
@@ -22,6 +24,8 @@ from yt_transcript_fetcher import (
 )
 
 MAX_CACHE_SIZE = 100
+
+log = logging.getLogger("red.cogs.tldw")
 
 
 class TLDWatch(commands.Cog):
@@ -45,6 +49,11 @@ class TLDWatch(commands.Cog):
             "migration_notified": False,  # Track if user has been notified about OpenRouter migration
         }
         self.config.register_global(**default_global)
+
+        default_guild = {
+            "reply_in_thread": True,  # Whether to reply in a new thread by default
+        }
+        self.config.register_guild(**default_guild)
 
         self.llm_client: t.Optional[AsyncLLM] = None
         self._summary_cache = OrderedDict()
@@ -148,7 +157,6 @@ class TLDWatch(commands.Cog):
                     await app_info.owner.send(embed=embed)
                 except discord.Forbidden:
                     # If we can't DM the owner, log it instead
-                    log = logging.getLogger("red.cogs.tldw")
                     log.info(
                         "Could not send migration notification to the bot owner. Please check their DM settings."
                     )
@@ -179,6 +187,35 @@ class TLDWatch(commands.Cog):
     async def tldwset(self, ctx: commands.Context) -> None:
         """Settings for the video summarizer"""
         pass
+
+    @commands.guild_only()
+    @commands.admin_or_permissions(manage_guild=True)
+    @tldwset.command(name="threaded")
+    async def set_reply_in_thread(
+        self,
+        ctx: commands.Context,
+    ) -> None:
+        """Set whether to reply in a new thread (admin only).
+
+        If no argument is provided, the current setting will be shown.
+        """
+        if not ctx.guild:
+            await ctx.send("This command can only be used in a guild.")
+            return
+        current_setting = await self.config.guild(ctx.guild).reply_in_thread()
+        msg = await ctx.reply(
+            f"Current setting is to {'reply in a new thread' if current_setting else 'not reply in a new thread'}.\n\n"
+            "Should I post summaries in a new thread under the video? (react with ✅ or ❌)"
+        )
+        start_adding_reactions(msg, ReactionPredicate.YES_OR_NO_EMOJIS)
+        pred = ReactionPredicate.yes_or_no(msg, ctx.author)
+        await ctx.bot.wait_for("reaction_add", check=pred)
+        if pred.result is True:
+            await self.config.guild(ctx.guild).reply_in_thread.set(True)
+            await ctx.send("Setting updated: will reply in a new thread.")
+        else:
+            await self.config.guild(ctx.guild).reply_in_thread.set(False)
+            await ctx.send("Setting updated: will not reply in a new thread.")
 
     @tldwset.command(name="model")
     async def set_model(
@@ -458,7 +495,13 @@ class TLDWatch(commands.Cog):
             except Exception as e:
                 await ctx.send(f"An error occurred: {e}")
                 raise  # so we can get traceback in the bot
-
+        if ctx.guild and await self.config.guild(ctx.guild).reply_in_thread():
+            # reply in a new thread under the message if possible
+            try:
+                await self.reply_in_thread(ctx, summary)
+                return
+            except Exception:
+                pass
         await ctx.reply(embed=summary)
 
     async def summarize_msg_callback(
@@ -472,7 +515,62 @@ class TLDWatch(commands.Cog):
         except Exception as e:
             await inter.edit_original_response(content=str(e))
             raise  # so we can get traceback in the bot
+        if (
+            not is_private
+            and inter.guild
+            and await self.config.guild(inter.guild).reply_in_thread()
+        ):
+            # reply in a new thread under the message if possible
+            try:
+                await self.reply_in_thread(inter, summary, message=message)
+                await inter.edit_original_response(
+                    content="Summary posted in a new thread."
+                )
+                return
+            except Exception:
+                log.exception("Failed to create thread for summary.")
         await inter.edit_original_response(embed=summary)
+
+    async def reply_in_thread(
+        self,
+        ctx: commands.Context | discord.Interaction,
+        embed: discord.Embed,
+        message: discord.Message | None = None,
+    ):
+        """Reply in a new thread under the message if possible."""
+        # if we're an interaction, we need to have a message to reply to
+        if isinstance(ctx, discord.Interaction) and not message:
+            raise ValueError("message must be provided when ctx is an Interaction")
+        # check we have permissions to create threads
+        if not isinstance(ctx, (commands.Context, discord.Interaction)):
+            raise ValueError("ctx must be a commands.Context or discord.Interaction")
+        if not ctx.guild or not ctx.channel:
+            raise ValueError("Threads can only be created in guilds.")
+        if (
+            not ctx.channel
+            or not ctx.channel.permissions_for(ctx.guild.me).create_public_threads
+        ):
+            raise ValueError(
+                "I don't have permission to create threads in this channel."
+            )
+
+        if not isinstance(ctx.channel, (discord.TextChannel)):
+            raise ValueError("Threads can only be created in text or forum channels.")
+
+        if not hasattr(ctx.channel, "create_thread"):
+            raise ValueError("This channel does not support threads.")
+
+        thread_name = "TL;DW for {title}".format(
+            title=embed.title if embed.title else "YouTube Video"
+        )
+        thread = await ctx.channel.create_thread(
+            name=thread_name,
+            type=discord.ChannelType.public_thread,
+            reason="TLDW summary thread",
+            message=ctx.message if isinstance(ctx, commands.Context) else message,
+            auto_archive_duration=60,
+        )
+        await thread.send(embed=embed)
 
     async def _process_video_message(self, message: discord.Message) -> discord.Embed:
         """Shared processing of a message to generate a YouTube video summary."""
