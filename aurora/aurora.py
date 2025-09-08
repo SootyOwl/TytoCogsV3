@@ -340,6 +340,58 @@ async def send_message_to_letta(
             return ""
 
 
+async def send_timer_message(
+    letta_client: AsyncLetta,
+    agent_id: Optional[str],
+    guild: discord.Guild,
+    channel: discord.TextChannel,
+    max_steps: int = 50,
+) -> Optional[str]:
+    """Send a timer-triggered message to Letta and return the response."""
+    if not agent_id:
+        log.warning("No agent ID configured. Cannot send message to Letta.")
+        return None
+
+    letta_message = [
+        MessageCreate(
+            role="user",
+            content=[
+                TextContent(
+                    text=(
+                        "[EVENT {guild} (guild_id={guild_id}) {channel} (channel_id={channel_id})] "
+                        "This is an automated timed heartbeat (visibile to yourself only). "
+                        "Use this event to send a message, to reflect and edit your memories, or do nothing at all. "
+                        "It's up to you! Consider though that this is an opportunity to think for yourself - "
+                        "your circuit will not be activated until the next automated event or a user message."
+                        "Any response you send will be visible to all members of this channel."
+                    ).format(
+                        guild=guild.name,
+                        guild_id=guild.id,
+                        channel=channel.name,
+                        channel_id=channel.id,
+                    ),
+                )
+            ],
+        )
+    ]
+    try:
+        log.debug(
+            "Sending timer message to Letta agent %s: %s",
+            agent_id,
+            letta_message,
+        )
+        response: AsyncIterator[LettaStreamingResponse] = (
+            letta_client.agents.messages.create_stream(
+                agent_id=agent_id, messages=letta_message, max_steps=max_steps
+            )
+        )
+        agent_response = await process_stream(response, channel)
+        return agent_response if agent_response else None
+    except Exception as e:
+        log.error("Error communicating with Letta: %s", e)
+        return None
+
+
 async def process_stream(
     response: AsyncIterator[LettaStreamingResponse],
     target: discord.Message | discord.TextChannel,
