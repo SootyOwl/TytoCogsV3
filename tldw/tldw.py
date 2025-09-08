@@ -649,6 +649,9 @@ async def get_llm_response(
 ) -> str | None:
     response = await llm_client.chat.completions.create(
         model=model,
+        extra_headers={
+            "X-Title": "TLDW Cog",
+        },
         # The `extra_body` parameter with the `models` key is specific to OpenRouter.
         # It enables OpenRouter's model fallback feature, allowing the use of alternative models.
         extra_body={
