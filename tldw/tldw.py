@@ -9,6 +9,7 @@ import aiohttp
 import discord
 from discord import ButtonStyle
 from openai import AsyncOpenAI as AsyncLLM
+from openai.types.chat import ChatCompletion
 from redbot.core import Config, app_commands, commands
 from redbot.core.bot import Red
 from redbot.core.utils.views import ConfirmView, SetApiView
@@ -471,7 +472,7 @@ class TLDWatch(commands.Cog):
             raise  # so we can get traceback in the bot
         await inter.edit_original_response(embed=summary)
 
-    async def _process_video_message(self, message: discord.Message) -> str:
+    async def _process_video_message(self, message: discord.Message) -> discord.Embed:
         """Shared processing of a message to generate a YouTube video summary."""
         if not self.llm_client:
             raise ValueError("API key is not set. Please set the API key first.")
@@ -491,7 +492,7 @@ class TLDWatch(commands.Cog):
 
         return summary
 
-    async def handlesummarize(self, video_url: str) -> str:
+    async def handlesummarize(self, video_url: str) -> discord.Embed:
         """Handle the process of summarizing a YouTube video"""
         # get the video id from the video url using regex
         video_id = get_video_id(video_url)
@@ -508,10 +509,15 @@ class TLDWatch(commands.Cog):
             languages=await self.config.languages(),
         )
 
-        # summarize the transcript using Claude
-        summary = await self.generate_summary(transcript)
-        if not summary:
+        # summarize the transcript using the LLM
+        response = await self.generate_summary(transcript)
+        if not response or not response.choices or not response.choices[0].message:
             raise ValueError("Failed to generate a summary.")
+        summary = (
+            response.choices[0].message.content
+            if response.choices[0].message.content
+            else ""
+        )
         # cleanup the summary
         summary = cleanup_summary(summary)
 
@@ -524,7 +530,7 @@ class TLDWatch(commands.Cog):
 
         return summary
 
-    async def generate_summary(self, text: str) -> str | None:
+    async def generate_summary(self, text: str) -> ChatCompletion:
         """Generate a summary using OpenRouter."""
         if not self.llm_client:
             raise ValueError("API key is not set. Please set the API key first.")
@@ -646,10 +652,11 @@ async def get_llm_response(
     system_prompt: str,
     model: str = "openrouter/auto",
     other_models: list[str] = [],
-) -> str | None:
+) -> ChatCompletion:
     response = await llm_client.chat.completions.create(
         model=model,
         extra_headers={
+            "HTTP-Referer": "https://github.com/SootyOwl/TytoCogsV3",
             "X-Title": "TLDW Cog",
         },
         # The `extra_body` parameter with the `models` key is specific to OpenRouter.
@@ -679,4 +686,4 @@ async def get_llm_response(
             },
         ],
     )
-    return response.choices[0].message.content
+    return response
