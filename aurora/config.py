@@ -1,5 +1,5 @@
 from abc import ABC
-from dataclasses import asdict, dataclass, field, fields, make_dataclass
+from dataclasses import asdict, dataclass, fields, make_dataclass
 from typing import Any, Optional
 from urllib.parse import ParseResult, urljoin, urlparse
 
@@ -70,8 +70,6 @@ class GuildConfig(BaseConfig):
 
     enabled: bool = False
     """Whether Aurora is enabled in this guild."""
-    channels: list[int] = field(default_factory=list)
-    """List of channel IDs where Aurora is enabled."""
     agent_id: Optional[str] = None
     """The ID of the Letta agent to use in this guild."""
     respond_to_generic: bool = False
@@ -80,7 +78,7 @@ class GuildConfig(BaseConfig):
     """Whether to respond to mentions."""
     respond_to_replies: bool = True
     """Whether to respond to replies."""
-    enable_timer: bool = True
+    enable_timer: bool = False
     """Whether to enable the timer feature (will randomly trigger an agent input/event)."""
     min_timer_interval_minutes: int = 5
     """Minimum interval in minutes between autonomous messages."""
@@ -92,9 +90,7 @@ class GuildConfig(BaseConfig):
 
 # Create a dynamic dataclass for ChannelConfig that inherits from GuildConfig to allow channel-specific overrides
 channel_config_fields = [
-    (f.name, f.type, f)
-    for f in fields(GuildConfig)
-    if f.name not in ["agent_id", "channels"]
+    (f.name, f.type, f) for f in fields(GuildConfig) if f.name not in ["agent_id"]
 ]
 ChannelConfig = make_dataclass(
     "ChannelConfig",
