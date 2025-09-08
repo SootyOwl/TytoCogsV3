@@ -4,13 +4,14 @@ This cog integrates the Letta AI service to create an autonomous Discord agent
 that can respond to messages in channels and DMs.
 """
 
-import json
 import logging
 from enum import Enum
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Optional, Tuple
 
 import discord
+import discord.abc
 from async_lru import alru_cache
+from discord.ext import tasks
 from letta_client import AsyncLetta, MessageCreate, TextContent
 from letta_client.agents.messages.types.letta_streaming_response import (
     LettaStreamingResponse,
@@ -54,12 +55,12 @@ class Aurora(commands.Cog):
 
         # Letta client (will be initialized in setup)
         self.letta: Optional[AsyncLetta] = None
+        self.tasks: dict[str, tasks.Loop] = {}
 
     async def cog_load(self):
-        """Load the Letta client and start the background tasks."""
+        """Load the Letta client and start the heartbeats."""
         await self.initialize_letta()
-        # Start background tasks if needed
-        # self.background_tasks.start()
+        await self.initialize_tasks()
 
     async def initialize_letta(self):
         """Configure Letta client based on global settings."""
@@ -77,6 +78,46 @@ class Aurora(commands.Cog):
             self.letta = None
             return None
 
+    async def initialize_tasks(self):
+        """Initialize and start periodic tasks based on configuration."""
+        # Start heartbeats for all guilds and channels where enabled
+        for guild in self.bot.guilds:
+            guild_config = await self.config.guild_from_id(guild.id).all()
+            if guild_config.get("enabled", False) and guild_config.get(
+                "enable_timer", False
+            ):
+                for channel in guild.text_channels:
+                    channel_id = channel.id
+                    channel_config = await self.config.channel_from_id(channel_id).all()
+                    if not channel_config.get(
+                        "enabled", False
+                    ) or not channel_config.get("enable_timer", False):
+                        continue
+                    task_name = self._format_task_identifier(guild, channel)
+                    if task_name in self.tasks:
+                        continue  # Task already exists
+                    heartbeat_task = tasks.loop(
+                        minutes=5,
+                        name=task_name,
+                        reconnect=True,
+                    )(self._heartbeat)
+                    self.tasks[task_name] = heartbeat_task
+                    heartbeat_task.start(guild, channel)
+                    log.info(
+                        "Started heartbeat for guild %s, channel %s",
+                        guild.id,
+                        channel.id,
+                    )
+        return
+
+    def cancel_tasks(self):
+        """Cancel all running tasks."""
+        for task_name, task in self.tasks.items():
+            if task.is_running():
+                task.cancel()
+                log.info("Cancelled task %s", task_name)
+        self.tasks.clear()
+
     async def cog_unload(self):
         """Stop the background tasks."""
         # self.background_tasks.stop()
@@ -84,9 +125,9 @@ class Aurora(commands.Cog):
     async def should_respond_to(
         self,
         author: discord.abc.User,
-        channel: discord.abc.MessageableChannel,
+        channel: discord.abc.GuildChannel | discord.DMChannel,
         guild: Optional[discord.Guild],
-        mentions: list[discord.Member | discord.User],
+        mentions: Tuple[discord.Member | discord.User, ...],
         reference: Optional[discord.MessageReference] = None,
     ) -> tuple[bool, Optional[MessageType]]:
         """Determine if the bot should respond to a given message."""
@@ -179,7 +220,7 @@ class Aurora(commands.Cog):
             author=message.author,
             channel=message.channel,
             guild=message.guild,
-            mentions=message.mentions,
+            mentions=tuple(message.mentions),
             reference=message.reference,
         )
         if not should_respond or message_type is None:
@@ -285,7 +326,7 @@ async def send_message_to_letta(
             log.debug(
                 "Sending message to Letta agent %s: %s",
                 agent_id,
-                json.dumps(letta_message),
+                letta_message,
             )
             response: AsyncIterator[LettaStreamingResponse] = (
                 letta_client.agents.messages.create_stream(
