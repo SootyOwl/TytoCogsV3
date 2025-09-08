@@ -1,6 +1,6 @@
 [project]
 name = "tytocogsv3"
-version = "0.4.2"
+version = "0.5.0"
 description = "Cogs for Red-DiscordBot"
 authors = [{ name = "SootyOwl", email = "tyto@tyto.cc" }]
 requires-python = ">=3.9,<3.12"

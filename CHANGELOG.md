@@ -1,3 +1,14 @@
+## 0.5.0 (2025-09-08)
+
+### Feat
+
+- **tldw**: add threaded reply setting for summaries
+- **tldw**: enhance summary generation with detailed footer
+
+### Fix
+
+- **tldw**: update return types for video summary methods
+
 ## 0.4.2 (2025-09-08)
 
 ### Fix
