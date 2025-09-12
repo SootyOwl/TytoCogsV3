@@ -776,7 +776,8 @@ def get_video_id(video_url: str) -> str:
     # extract the YT video ID from the URL using regex
     # there may be gubbins after the video ID, so we need to be careful
     video_id = re.search(
-        r"(?<=v=)[\w-]+|(?<=youtu\.be/)[\w-]+|(?<=shorts/)[\w-]+", video_url
+        r"(?<=v=)[\w-]+|(?<=youtu\.be/)[\w-]+|(?<=shorts/)[\w-]+|(?<=live/)[\w-]+",
+        video_url,
     )
     if video_id:
         return video_id.group(0)

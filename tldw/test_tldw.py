@@ -21,6 +21,7 @@ from yt_transcript_fetcher import YouTubeTranscriptFetcher
         ),
         ("Check out this video: https://www.youtube.com/watch?v=12345", "12345"),
         ("https://youtube.com/shorts/_4Bon7eYvOQ?si=aOrNjcgpLHGGXOry", "_4Bon7eYvOQ"),
+        ("https://www.youtube.com/live/tWIEv_aksvo?si=cU0bdFlc5141ym_1", "tWIEv_aksvo"),
     ],
 )
 def test_get_video_id(video_url, expected):
