@@ -1,3 +1,9 @@
+## 0.6.0 (2025-09-12)
+
+### Feat
+
+- **tldw**: support YouTube live video URL extraction
+
 ## 0.5.0 (2025-09-08)
 
 ### Feat
