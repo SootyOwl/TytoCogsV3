@@ -134,13 +134,13 @@ async def test_get_llm_response(mocker: MockerFixture):
     # Mock the Anthropic LLM Client (tldw.AsyncLLM) in the tldw module
     mocker.patch("tldw.tldw.AsyncLLM", return_value=mock_client)
     # Test the get_llm_response function
-    response = await tldw.get_llm_response(
+    response: tldw.ChatCompletion = await tldw.get_llm_response(
         llm_client=mock_client,
         text="Test prompt",
         system_prompt=("You are a YouTube video note taker and summarizer."),
     )
-    assert response == "Test response"
-    assert isinstance(response, str)
+    assert response.choices[0].message.content == "Test response"
+    assert isinstance(response, tldw.ChatCompletion)
     assert mock_client.chat.completions.create.called
 
 
@@ -168,5 +168,5 @@ async def test_get_llm_response_without_mocker(llm_client):
             "You are a YouTube video note taker and summarizer, under test. Respond *only* with 'Test response'."
         ),  # type: ignore
     )
-    assert isinstance(response, str)
-    assert response == "Test response"
+    assert isinstance(response, tldw.ChatCompletion)
+    assert response.choices[0].message.content == "Test response"
