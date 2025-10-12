@@ -1,5 +1,5 @@
 /.pytest_cache/
-*/__pycache__/
+**/__pycache__/*
 .proxies
 .env
 test_download_reddit_video0/
