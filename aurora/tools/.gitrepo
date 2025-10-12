@@ -6,7 +6,7 @@
 [subrepo]
 	remote = git@github.com:SootyOwl/aurora-tools.git
 	branch = main
-	commit = 90c18b856183fd511c4426b5cff2fc1b8ac07c88
-	parent = 8c307e56b1b4a348fb8b6e0184cf917a9b8e8bd6
+	commit = 04e2cc804e5e4b013c160c06af5ead9b889069f3
+	parent = 3cf48152b9efc64b9eac56a8d60b154d00ebd154
 	method = rebase
 	cmdver = 0.4.9
