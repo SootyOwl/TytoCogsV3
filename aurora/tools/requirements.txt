@@ -1,0 +1,2 @@
+discord.py==2.6.4
+letta-client>=0.1.268
