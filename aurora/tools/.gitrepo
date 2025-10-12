@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/ingydotnet/git-subrepo#readme
+;
+[subrepo]
+	remote = git@github.com:SootyOwl/aurora-tools.git
+	branch = main
+	commit = f4ed69a8668cc9e5548478b964889ec81a503063
+	parent = 8c307e56b1b4a348fb8b6e0184cf917a9b8e8bd6
+	method = merge
+	cmdver = 0.4.9
