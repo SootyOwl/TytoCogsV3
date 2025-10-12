@@ -32,4 +32,4 @@ ci:
   autofix_commit_msg: 'ci(pre-commit.ci): auto fixes from pre-commit.com hooks\n\nfor more information, see https://pre-commit.ci'
   autoupdate_commit_msg: 'ci(pre-commit.ci): pre-commit autoupdate'
 
-exclude: aurora/tools/.*
+exclude: 'aurora/tools/.*'
