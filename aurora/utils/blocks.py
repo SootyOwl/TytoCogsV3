@@ -36,7 +36,9 @@ async def attach_blocks(
                         continue
                 else:
                     # Create new block
-                    block = await letta.blocks.create(label=label, value="", limit=5000)
+                    block = await letta.blocks.create(
+                        label=label, value="", limit=10000
+                    )
                     log.info(f"Created new block '{label}' with ID '{block.id}'.")
 
                 # Attach block to agent
