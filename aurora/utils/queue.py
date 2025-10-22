@@ -42,7 +42,7 @@ class MessageQueue:
             f"rate_limit={rate_limit_seconds}s"
         )
 
-    async def enqueue(self, event: dict) -> bool:
+    async def enqueue(self, event: dict, allow_duplicate: bool = False) -> bool:
         """Add event to queue.
 
         Args:
@@ -53,16 +53,21 @@ class MessageQueue:
         """
         message_id = event.get("message_id")
 
-        # Check for duplicate
-        if message_id and message_id in self.processed_message_ids:
+        # Check for duplicate (unless caller explicitly allows re-queueing the same message)
+        if (
+            message_id
+            and message_id in self.processed_message_ids
+            and not allow_duplicate
+        ):
             log.debug(f"Skipping duplicate message {message_id}")
             return True  # Return True to indicate it was handled (even if skipped)
 
         try:
+            # Use put_nowait to avoid awaiting while holding caller context
             self.queue.put_nowait(event)
 
-            # Track this message ID
-            if message_id:
+            # Track this message ID (only when first enqueuing, not for allowed re-queues)
+            if message_id and not allow_duplicate:
                 self.processed_message_ids.add(message_id)
 
                 # Prevent unbounded growth of processed_message_ids set

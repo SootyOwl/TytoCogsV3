@@ -1218,11 +1218,13 @@ class Aurora(commands.Cog):
 
             # Rate limiting check
             if not self.queue.can_process(channel_id):
-                # Re-queue event for later
-                await self.queue.enqueue(event)
+                # Re-queue event for later, allow duplicate enqueue so we don't
+                # skip messages that were already tracked as processed.
+                await self.queue.enqueue(event, allow_duplicate=True)
                 await asyncio.sleep(0.5)
                 return
 
+            # Mark that we're processing so the queue can short-circuit other attempts
             self.queue.is_processing = True
             # Get message and check if channel still exists
             message: discord.Message = event["message"]
@@ -1257,8 +1259,12 @@ class Aurora(commands.Cog):
 
         except Exception as e:
             log.exception(f"Error processing message from queue: {e}")
+            # Ensure we clear processing flag even on errors
         finally:
-            self.queue.is_processing = False
+            # If queue exists, clear the processing flag. Guard in case queue was
+            # None or replaced during shutdown.
+            if self.queue:
+                self.queue.is_processing = False
 
     async def send_to_agent(self, agent_id: str, prompt: str):
         """Send enriched prompt to Letta agent and monitor execution.
