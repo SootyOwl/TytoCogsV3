@@ -1318,7 +1318,8 @@ class Aurora(commands.Cog):
                 agent_id=agent_id,
                 messages=[MessageCreate(role="user", content=prompt)],
                 stream_tokens=False,  # Get complete chunks, not token-by-token
-                max_steps=50,  # Prevent infinite loops
+                max_steps=15,  # Prevent infinite loops
+                enable_thinking="True",  # Letta internal reasoning
             )
 
             # Monitor agent execution for logging/debugging
