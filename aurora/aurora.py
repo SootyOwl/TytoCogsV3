@@ -1199,7 +1199,7 @@ class Aurora(commands.Cog):
 
     # region: Message Processor
 
-    @tasks.loop(seconds=1)
+    @tasks.loop(seconds=5)
     async def process_message_queue(self):
         """Worker that processes messages from the queue."""
         if not self.letta or not self.queue or self.queue.is_empty():
@@ -1319,8 +1319,7 @@ class Aurora(commands.Cog):
                 agent_id=agent_id,
                 messages=[MessageCreate(role="user", content=prompt)],
                 stream_tokens=False,  # Get complete chunks, not token-by-token
-                max_steps=15,  # Prevent infinite loops
-                enable_thinking="True",  # Letta internal reasoning
+                max_steps=20,  # Prevent infinite loops
             )
 
             # Monitor agent execution for logging/debugging
