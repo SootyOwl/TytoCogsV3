@@ -5,9 +5,9 @@ that can respond to messages in channels and DMs.
 """
 
 import asyncio
-from datetime import date
 import json
 import logging
+from datetime import date
 from typing import Coroutine, Optional
 
 import discord
@@ -16,11 +16,11 @@ from letta_client import AsyncLetta, MessageCreate
 from redbot.core import Config, commands
 from redbot.core.bot import Red
 
+from .utils.blocks import attach_blocks, detach_blocks
 from .utils.context import build_event_context
+from .utils.errors import CircuitBreaker, ErrorStats, RetryConfig, retry_with_backoff
 from .utils.prompts import build_prompt
 from .utils.queue import MessageQueue
-from .utils.blocks import attach_blocks, detach_blocks
-from .utils.errors import CircuitBreaker, RetryConfig, retry_with_backoff, ErrorStats
 
 log = logging.getLogger("red.tyto.aurora")
 
@@ -1250,9 +1250,9 @@ class Aurora(commands.Cog):
             if enable_typing:
                 async with message.channel.typing():
                     # Send to Letta agent and monitor execution
-                    await self.send_to_agent(agent_id, event["prompt"])
+                    await self.send_to_agent(agent_id, event["prompt"], guild_id)
             else:
-                await self.send_to_agent(agent_id, event["prompt"])
+                await self.send_to_agent(agent_id, event["prompt"], guild_id)
 
             # Update last processed timestamp
             self.queue.mark_processed(channel_id)
@@ -1266,20 +1266,40 @@ class Aurora(commands.Cog):
             if self.queue:
                 self.queue.is_processing = False
 
-    async def send_to_agent(self, agent_id: str, prompt: str):
+    async def send_to_agent(
+        self, agent_id: str, prompt: str, guild_id: int | None = None
+    ):
         """Send enriched prompt to Letta agent and monitor execution.
 
         The agent will use discord_send() MCP tool to respond directly.
         Includes retry logic and circuit breaker protection.
         """
         try:
+            agent_timeout = 60
+            if guild_id:
+                guild = self.bot.get_guild(guild_id)
+                if guild:
+                    try:
+                        guild_config = await self.config.guild(guild).all()
+                        agent_timeout = guild_config.get("agent_timeout", 60)
+                    except Exception as e:
+                        log.error(f"Error fetching guild config for {guild_id}: {e}")
+
+            # Wrapper to apply asyncio timeout around the actual agent call
+            async def _execute_with_timeout(aid: str, prm: str, timeout: float):
+                await asyncio.wait_for(
+                    self._execute_agent_call(aid, prm),
+                    timeout=timeout,
+                )
+
             # Execute with retry and circuit breaker
             await retry_with_backoff(
-                self._execute_agent_call,
+                _execute_with_timeout,
                 self.retry_config,
                 self.circuit_breaker,
                 agent_id,
                 prompt,
+                agent_timeout,
             )
             # Record success for stats
             self.error_stats.record_success()
