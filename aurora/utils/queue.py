@@ -31,6 +31,7 @@ class MessageQueue:
                                from the same channel (default: 2.0)
         """
         self.queue: asyncio.Queue = asyncio.Queue(maxsize=max_size)
+        self.is_processing: bool = False
         self.last_processed: dict[int, datetime] = defaultdict(lambda: datetime.min)
         self.rate_limit_seconds: float = rate_limit_seconds
         self.processed_message_ids: set[int] = set()
@@ -96,6 +97,8 @@ class MessageQueue:
         Returns:
             True if channel can be processed, False if rate limited
         """
+        if self.is_processing:
+            return False
         last = self.last_processed[channel_id]
         elapsed = (datetime.now() - last).total_seconds()
         can_process = elapsed >= self.rate_limit_seconds
@@ -112,6 +115,7 @@ class MessageQueue:
         Args:
             channel_id: Discord channel ID to mark
         """
+        self.is_processing = False
         self.last_processed[channel_id] = datetime.now()
         log.debug(f"Marked channel {channel_id} as processed")
 

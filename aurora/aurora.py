@@ -1208,13 +1208,6 @@ class Aurora(commands.Cog):
             event = await self.queue.dequeue()
             channel_id = event["channel_id"]
 
-            # Rate limiting check
-            if not self.queue.can_process(channel_id):
-                # Re-queue event for later
-                await self.queue.enqueue(event)
-                await asyncio.sleep(0.5)
-                return
-
             agent_id = event.get("agent_id")
             if not agent_id:
                 log.warning(
@@ -1222,6 +1215,14 @@ class Aurora(commands.Cog):
                 )
                 return
 
+            # Rate limiting check
+            if not self.queue.can_process(channel_id):
+                # Re-queue event for later
+                await self.queue.enqueue(event)
+                await asyncio.sleep(0.5)
+                return
+
+            self.queue.is_processing = True
             # Get message and check if channel still exists
             message: discord.Message = event["message"]
             try:
@@ -1255,6 +1256,8 @@ class Aurora(commands.Cog):
 
         except Exception as e:
             log.exception(f"Error processing message from queue: {e}")
+        finally:
+            self.queue.is_processing = False
 
     async def send_to_agent(self, agent_id: str, prompt: str):
         """Send enriched prompt to Letta agent and monitor execution.
