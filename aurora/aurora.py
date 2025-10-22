@@ -225,7 +225,7 @@ class Aurora(commands.Cog):
             # Send the synthesis prompt to the agent
             message_stream = self.letta.agents.messages.create_stream(
                 agent_id=agent_id,
-                messages=[MessageCreate(role="system", content=heatbeat_prompt)],
+                messages=[MessageCreate(role="user", content=heatbeat_prompt)],
                 stream_tokens=False,
                 max_steps=20,
                 enable_thinking="True",
