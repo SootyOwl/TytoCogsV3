@@ -228,6 +228,7 @@ class Aurora(commands.Cog):
                 messages=[MessageCreate(role="system", content=heatbeat_prompt)],
                 stream_tokens=False,
                 max_steps=20,
+                enable_thinking="True",
             )
 
             # Process the streamed response
