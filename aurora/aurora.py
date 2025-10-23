@@ -7,7 +7,7 @@ that can respond to messages in channels and DMs.
 import asyncio
 import json
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Coroutine, Optional
 
 import discord
@@ -48,6 +48,7 @@ class Aurora(commands.Cog):
             "agent_id": None,
             "enabled": False,
             "synthesis_interval": 3600,
+            "last_synthesis": None,
             # Event system settings
             "reply_thread_depth": 5,
             "enable_typing_indicator": True,
@@ -109,10 +110,10 @@ class Aurora(commands.Cog):
             for guild_id, guild_config in all_guilds.items():
                 if guild_config.get("enabled") and guild_config.get("agent_id"):
                     synthesis_interval = guild_config.get("synthesis_interval", 3600)
-                    self._get_or_create_task(
+                    self._setup_or_restart_task(
                         self.synthesis,
                         guild_id,
-                        synthesis_interval,  # type: ignore
+                        synthesis_interval,
                     )
             return self.letta
         else:
@@ -125,12 +126,11 @@ class Aurora(commands.Cog):
         self._cancel_tasks()
 
         # Stop message processor
-        if self.process_message_queue.is_running():
-            self.process_message_queue.cancel()
-            log.info("Message processor stopped")
+        self.process_message_queue.stop()
+        log.info("Message processor stopped")
 
     # region: Tasks
-    def _get_or_create_task(
+    def _setup_or_restart_task(
         self, coro: Coroutine, guild_id: int, interval_secs: int = 3600
     ) -> tasks.Loop:
         """Get or create a task for the given guild."""
@@ -147,9 +147,8 @@ class Aurora(commands.Cog):
         task_name = f"{coro.__name__}_{guild_id}"
         if task_name in self.tasks:
             task = self.tasks[task_name]
-            if task.is_running():
-                task.cancel()
-                log.info("Cancelled task %s for guild %d", task_name, guild_id)
+            task.cancel()
+            log.info("Cancelled task %s for guild %d", task_name, guild_id)
             del self.tasks[task_name]
 
     def _cancel_tasks(self):
@@ -158,6 +157,8 @@ class Aurora(commands.Cog):
             if task.is_running():
                 task.cancel()
                 log.info("Cancelled task %s", task_name)
+            else:
+                log.info("Task %s was not running, no cancellation needed", task_name)
         self.tasks.clear()
         log.info("All tasks cancelled.")
 
@@ -210,6 +211,25 @@ class Aurora(commands.Cog):
                 self._remove_task(self.synthesis, guild_id)  # type: ignore
                 return
 
+            last_synthesis: float | None = guild_config.get("last_synthesis")
+            if last_synthesis:
+                log.debug(
+                    "Last synthesis for guild %d was at %s", guild_id, last_synthesis
+                )
+                # check if enough time has passed since last synthesis
+                time_since_last = (
+                    datetime.now(timezone.utc)
+                    - datetime.fromtimestamp(last_synthesis, timezone.utc)
+                ).total_seconds()
+                if time_since_last < guild_config.get("synthesis_interval", 3600):
+                    log.info(
+                        "Not enough time has passed since last synthesis for guild %d",
+                        guild_id,
+                    )
+                    self._remove_task(self.synthesis, guild_id)  # type: ignore
+                    return
+            log.info("Starting synthesis for guild %d", guild_id)
+
             # attach necessary blocks
             block_names = [
                 f"aurora_daily_{today.strftime('%Y_%m_%d')}",
@@ -257,6 +277,10 @@ class Aurora(commands.Cog):
                     case None:
                         if str(chunk) == "done":
                             log.debug("synthesis done for guild %d", guild_id)
+                            # update last synthesis time
+                            await self.config.guild(guild).last_synthesis.set(
+                                datetime.now(timezone.utc).timestamp()
+                            )
                             break
                     case _:
                         log.debug(
@@ -735,7 +759,7 @@ class Aurora(commands.Cog):
         # Agent settings
         agent_id = guild_config.get("agent_id")
         agent_status = (
-            f"✅ Enabled\nAgent ID: `{agent_id}`"
+            f"✅ Enabled\nAgent ID: `{agent_id}`\nSynthesis Interval: {guild_config.get('synthesis_interval', 3600)}s"
             if guild_config.get("enabled") and agent_id
             else "❌ Disabled"
         )
@@ -813,12 +837,12 @@ class Aurora(commands.Cog):
         )
         log.info(f"Agent {agent_id} enabled for guild {ctx.guild.id} by {ctx.author}")
 
-        # Start synthesis task if Letta is initialized
+        # Start synthesis tasks if Letta is initialized
         if self.letta:
             guild_config = await self.config.guild(ctx.guild).all()
             if guild_config.get("enabled") and guild_config.get("agent_id"):
                 synthesis_interval = guild_config.get("synthesis_interval", 3600)
-                self._get_or_create_task(
+                self._setup_or_restart_task(
                     self.synthesis, ctx.guild.id, synthesis_interval
                 )
 
@@ -868,12 +892,11 @@ class Aurora(commands.Cog):
         guild_config = await self.config.guild(ctx.guild).all()
         if guild_config.get("enabled") and self.letta:
             # get the existing task
-            task = self._get_or_create_task(self.synthesis, ctx.guild.id, seconds)
-            if task.is_running():
-                task.change_interval(seconds=seconds)
-                log.info(
-                    f"Synthesis task interval updated to {seconds}s for guild {ctx.guild.id}"
-                )
+            task = self._setup_or_restart_task(self.synthesis, ctx.guild.id, seconds)
+            task.change_interval(seconds=seconds)
+            log.info(
+                f"Synthesis task interval updated to {seconds}s for guild {ctx.guild.id}"
+            )
 
         await ctx.send(f"✅ Synthesis interval set to {seconds} seconds.")
         log.info(
@@ -905,7 +928,7 @@ class Aurora(commands.Cog):
         guild_config = await self.config.guild(ctx.guild).all()
         if guild_config.get("enabled") and self.letta:
             self._remove_task(self.synthesis, ctx.guild.id)
-            self._get_or_create_task(
+            self._setup_or_restart_task(
                 self.synthesis,
                 ctx.guild.id,
                 guild_config.get("synthesis_interval", 3600),
