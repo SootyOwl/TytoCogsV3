@@ -763,8 +763,8 @@ class Aurora(commands.Cog):
         agent_status = (
             (
                 f"✅ Enabled\nAgent ID: `{agent_id}`\n"
-                f"Synthesis Interval: {guild_config.get('synthesis_interval', 3600)}s"
-                f"Next Synthesis: {self._get_or_create_task(self.synthesis, guild.id).next_iteration.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+                f"Synthesis Interval: `{guild_config.get('synthesis_interval', 3600)}s`\n"
+                f"Next Synthesis: `{self._get_or_create_task(self.synthesis, guild.id).next_iteration.strftime('%Y-%m-%d %H:%M:%S UTC')}`"
             )
             if guild_config.get("enabled") and agent_id
             else "❌ Disabled"
