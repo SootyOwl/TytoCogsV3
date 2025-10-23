@@ -7,6 +7,7 @@ that can respond to messages in channels and DMs.
 import asyncio
 import json
 import logging
+import time
 from datetime import date, datetime, timezone
 from typing import Coroutine, Optional
 
@@ -215,14 +216,16 @@ class Aurora(commands.Cog):
 
             last_synthesis: float | None = guild_config.get("last_synthesis")
             if last_synthesis:
-                log.debug(
+                log.info(
                     "Last synthesis for guild %d was at %s", guild_id, last_synthesis
                 )
                 # check if enough time has passed since last synthesis
-                time_since_last = (
-                    datetime.now(timezone.utc)
-                    - datetime.fromtimestamp(last_synthesis, timezone.utc)
-                ).total_seconds()
+                time_since_last = time.time() - last_synthesis
+                log.info(
+                    "Time since last synthesis for guild %d: %d seconds",
+                    guild_id,
+                    time_since_last,
+                )
                 if time_since_last < guild_config.get("synthesis_interval", 3600):
                     log.info(
                         "Not enough time has passed since last synthesis for guild %d",
@@ -764,6 +767,7 @@ class Aurora(commands.Cog):
             (
                 f"✅ Enabled\nAgent ID: `{agent_id}`\n"
                 f"Synthesis Interval: `{guild_config.get('synthesis_interval', 3600)}s`\n"
+                f"Last Synthesis: `{datetime.fromtimestamp(guild_config.get('last_synthesis', 0), tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC') if guild_config.get('last_synthesis') else 'Never'}`\n"
                 f"Next Synthesis: `{self._get_or_create_task(self.synthesis, guild.id).next_iteration.strftime('%Y-%m-%d %H:%M:%S UTC')}`"
             )
             if guild_config.get("enabled") and agent_id
