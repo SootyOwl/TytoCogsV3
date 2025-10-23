@@ -110,7 +110,7 @@ class Aurora(commands.Cog):
             for guild_id, guild_config in all_guilds.items():
                 if guild_config.get("enabled") and guild_config.get("agent_id"):
                     synthesis_interval = guild_config.get("synthesis_interval", 3600)
-                    self._setup_or_restart_task(
+                    self._get_or_create_task(
                         self.synthesis,
                         guild_id,
                         synthesis_interval,
@@ -130,7 +130,7 @@ class Aurora(commands.Cog):
         log.info("Message processor stopped")
 
     # region: Tasks
-    def _setup_or_restart_task(
+    def _get_or_create_task(
         self, coro: Coroutine, guild_id: int, interval_secs: int = 3600
     ) -> tasks.Loop:
         """Get or create a task for the given guild."""
@@ -840,7 +840,7 @@ class Aurora(commands.Cog):
             guild_config = await self.config.guild(ctx.guild).all()
             if guild_config.get("enabled") and guild_config.get("agent_id"):
                 synthesis_interval = guild_config.get("synthesis_interval", 3600)
-                self._setup_or_restart_task(
+                self._get_or_create_task(
                     self.synthesis, ctx.guild.id, synthesis_interval
                 )
 
@@ -890,7 +890,7 @@ class Aurora(commands.Cog):
         guild_config = await self.config.guild(ctx.guild).all()
         if guild_config.get("enabled") and self.letta:
             # get the existing task
-            task = self._setup_or_restart_task(self.synthesis, ctx.guild.id, seconds)
+            task = self._get_or_create_task(self.synthesis, ctx.guild.id, seconds)
             task.change_interval(seconds=seconds)
             log.info(
                 f"Synthesis task interval updated to {seconds}s for guild {ctx.guild.id}"
@@ -926,7 +926,7 @@ class Aurora(commands.Cog):
         guild_config = await self.config.guild(ctx.guild).all()
         if guild_config.get("enabled") and self.letta:
             self._remove_task(self.synthesis, ctx.guild.id)
-            self._setup_or_restart_task(
+            self._get_or_create_task(
                 self.synthesis,
                 ctx.guild.id,
                 guild_config.get("synthesis_interval", 3600),
