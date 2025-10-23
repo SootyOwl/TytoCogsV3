@@ -224,7 +224,7 @@ class Aurora(commands.Cog):
                         "Not enough time has passed since last synthesis for guild %d",
                         guild_id,
                     )
-                    self._remove_task(self.synthesis, guild_id)  # type: ignore
+                    # Skip this synthesis run
                     return
             log.info("Starting synthesis for guild %d", guild_id)
 
