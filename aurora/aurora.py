@@ -1348,7 +1348,7 @@ class Aurora(commands.Cog):
                 messages=[MessageCreate(role="user", content=prompt)],
                 stream_tokens=False,  # Get complete chunks, not token-by-token
                 enable_thinking="true",
-                max_steps=20,  # Prevent infinite loops
+                max_steps=50,
             )
             await self._process_agent_stream(stream)
 
@@ -1400,7 +1400,6 @@ class Aurora(commands.Cog):
                         )
                     else:
                         log.info("Agent did not use any tools during execution")
-
                 case "usage_statistics":
                     log.info(
                         f"Agent usage - Prompt tokens: {chunk.prompt_tokens}, "
