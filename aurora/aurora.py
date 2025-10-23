@@ -256,7 +256,7 @@ class Aurora(commands.Cog):
                 agent_id=agent_id,
                 messages=[MessageCreate(role="user", content=heatbeat_prompt)],
                 stream_tokens=False,
-                max_steps=20,
+                max_steps=100,  # increased to allow more processing steps during synthesis
                 enable_thinking="True",
             )
             await self._process_agent_stream(message_stream)
