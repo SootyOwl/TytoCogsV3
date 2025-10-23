@@ -238,8 +238,24 @@ class Aurora(commands.Cog):
                         "Not enough time has passed since last synthesis for guild %d",
                         guild_id,
                     )
-                    # Skip this synthesis run
-                    return
+                    # queue the next synthesis after the remaining time
+                    task = self._get_or_create_task(
+                        self.synthesis,
+                        guild_id,
+                    )
+                    # calculate the next time the task should run
+                    next_run_at = datetime.fromtimestamp(
+                        last_synthesis + guild_config.get("synthesis_interval", 3600),
+                        tz=timezone.utc,
+                    )
+                    if task._handle:
+                        try:
+                            task._handle.recalculate(next_run_at)
+                        except Exception as reschedule_err:
+                            log.error(
+                                f"Failed to reschedule synthesis task for guild {guild_id}: {reschedule_err}"
+                            )
+                    return  # skip this synthesis run
             log.info("Starting synthesis for guild %d", guild_id)
 
             # attach necessary blocks
