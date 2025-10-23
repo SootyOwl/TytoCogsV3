@@ -9,11 +9,14 @@ import json
 import logging
 import time
 from datetime import date, datetime, timezone
-from typing import Coroutine, Optional
+from typing import AsyncIterator, Coroutine, Optional
 
 import discord
 from discord.ext import tasks
 from letta_client import AsyncLetta, MessageCreate
+from letta_client.agents.messages.types.letta_streaming_response import (
+    LettaStreamingResponse,
+)
 from redbot.core import Config, commands
 from redbot.core.bot import Red
 
@@ -167,6 +170,7 @@ class Aurora(commands.Cog):
         today = date.today()
         heatbeat_dict = {
             "type": "synthesis_and_exploration",
+            "guild_id": guild_id,
             "description": "Dedicated time for autonomous reflection, learning, and experimentation. Use this time to:",
             "activities": [
                 "Review and consolidate recent interactions into memory blocks",
@@ -255,44 +259,9 @@ class Aurora(commands.Cog):
                 max_steps=20,
                 enable_thinking="True",
             )
-
-            # Process the streamed response
-            async for chunk in message_stream:
-                match chunk.message_type:
-                    case "reasoning_message":
-                        log.debug(
-                            "synthesis reasoning chunk received for guild %d:", guild_id
-                        )
-                        for line in chunk.reasoning.splitlines():
-                            log.debug(f"\t{line}")
-                    case "tool_call_message":
-                        log.debug(
-                            "synthesis tool call chunk received for guild %d:", guild_id
-                        )
-                        log.debug("\tTool: %s", chunk.tool_call.name)
-                        log.debug("\tInput: %s", chunk.tool_call.arguments)
-                    case "tool_return_message":
-                        if chunk.status == "success":
-                            log.debug("Success", f"Tool result: {chunk.name}")
-                            self.error_stats.record_success()
-                        else:
-                            log.warning("Tool error: %s", chunk.name, chunk.stderr)
-                            # capture error for circuit breaker and stats
-                            self.error_stats.record_error(ToolCallError(chunk.stderr))
-                    case None:
-                        if str(chunk) == "done":
-                            log.debug("synthesis done for guild %d", guild_id)
-                            # update last synthesis time
-                            await self.config.guild(guild).last_synthesis.set(
-                                datetime.now(timezone.utc).timestamp()
-                            )
-                            break
-                    case _:
-                        log.debug(
-                            "synthesis unknown chunk type %s for guild %d",
-                            chunk.message_type,
-                            guild_id,
-                        )
+            await self._process_agent_stream(message_stream)
+            # Update last synthesis time
+            await self.config.guild(guild).last_synthesis.set(time.time())
         except Exception as e:
             log.exception(
                 "Exception during synthesis for guild %d: %s", guild_id, str(e)
@@ -1378,47 +1347,10 @@ class Aurora(commands.Cog):
                 agent_id=agent_id,
                 messages=[MessageCreate(role="user", content=prompt)],
                 stream_tokens=False,  # Get complete chunks, not token-by-token
+                enable_thinking="true",
                 max_steps=20,  # Prevent infinite loops
             )
-
-            # Monitor agent execution for logging/debugging
-            tool_calls = []
-            async for chunk in stream:
-                match chunk.message_type:
-                    case "reasoning_message":
-                        # Log internal reasoning for debugging
-                        if chunk.reasoning:
-                            log.debug(f"Agent reasoning: {chunk.reasoning}")
-
-                    case "tool_call_message":
-                        # Track tool usage
-                        if chunk.tool_call and chunk.tool_call.name:
-                            tool_calls.append(chunk.tool_call.name)
-                            log.info(f"Agent calling tool: {chunk.tool_call.name}")
-
-                    case "tool_return_message":
-                        # Log tool results
-                        if chunk.status == "success":
-                            log.debug(f"Tool {chunk.name} succeeded")
-                        else:
-                            log.warning(f"Tool {chunk.name} failed: {chunk.stderr}")
-
-                    case "assistant_message":
-                        # Agent may have internal thoughts not sent to Discord
-                        if chunk.content:
-                            log.debug(
-                                f"Agent internal message: {chunk.content[:100]}..."
-                            )
-
-                    case None:
-                        if str(chunk) == "done":
-                            log.info(
-                                f"Agent execution completed. Tools used: {', '.join(set(tool_calls))}"
-                            )
-                            break
-
-                    case _:
-                        log.debug(f"Received chunk type: {chunk.message_type}")
+            await self._process_agent_stream(stream)
 
         except asyncio.TimeoutError as e:
             log.error(f"Timeout waiting for agent {agent_id} response")
@@ -1431,4 +1363,52 @@ class Aurora(commands.Cog):
             log.error(f"Error in agent execution: {type(e).__name__}: {str(e)}")
             raise
 
-    # endregion
+    async def _process_agent_stream(
+        self, stream: AsyncIterator[LettaStreamingResponse]
+    ):
+        tool_calls = []
+        async for chunk in stream:
+            match chunk.message_type:
+                case "reasoning_message":
+                    # Log internal reasoning for debugging
+                    if chunk.reasoning:
+                        log.debug(f"Agent reasoning: {chunk.reasoning}")
+
+                case "tool_call_message":
+                    # Track tool usage
+                    if chunk.tool_call and chunk.tool_call.name:
+                        tool_calls.append(chunk.tool_call.name)
+                        log.info(f"Agent calling tool: {chunk.tool_call.name}")
+
+                case "tool_return_message":
+                    # Log tool results
+                    if chunk.status == "success":
+                        log.debug(f"Tool {chunk.name} succeeded")
+                    else:
+                        log.warning(f"Tool {chunk.name} failed: {chunk.stderr}")
+
+                case "assistant_message":
+                    # Agent may have internal thoughts not sent to Discord
+                    if chunk.content:
+                        log.debug(f"Agent internal message: {chunk.content[:100]}...")
+
+                case "stop_reason":
+                    log.info(f"Agent execution stopped: {chunk.stop_reason}")
+                    if tool_calls:
+                        log.info(
+                            f"Agent used tools during execution: {', '.join(tool_calls)}"
+                        )
+                    else:
+                        log.info("Agent did not use any tools during execution")
+
+                case "usage_statistics":
+                    log.info(
+                        f"Agent usage - Prompt tokens: {chunk.prompt_tokens}, "
+                        f"Completion tokens: {chunk.completion_tokens}, "
+                        f"Total tokens: {chunk.total_tokens}"
+                    )
+                case _:
+                    log.debug(f"Received chunk type: {chunk.message_type}")
+
+
+# endregion
