@@ -221,43 +221,7 @@ class Aurora(commands.Cog):
                 self._remove_task(self.synthesis, guild_id)  # type: ignore
                 return
 
-            last_synthesis: float | None = guild_config.get("last_synthesis")
-            if last_synthesis:
-                log.info(
-                    "Last synthesis for guild %d was at %s", guild_id, last_synthesis
-                )
-                # check if enough time has passed since last synthesis
-                time_since_last = time.time() - last_synthesis
-                log.info(
-                    "Time since last synthesis for guild %d: %d seconds",
-                    guild_id,
-                    time_since_last,
-                )
-                if time_since_last < guild_config.get("synthesis_interval", 3600):
-                    log.info(
-                        "Not enough time has passed since last synthesis for guild %d",
-                        guild_id,
-                    )
-                    # queue the next synthesis after the remaining time
-                    task = self._get_or_create_task(
-                        self.synthesis,
-                        guild_id,
-                    )
-                    # calculate the next time the task should run
-                    next_run_at = datetime.fromtimestamp(
-                        last_synthesis + guild_config.get("synthesis_interval", 3600),
-                        tz=timezone.utc,
-                    )
-                    if task._handle:
-                        try:
-                            task._handle.recalculate(next_run_at)
-                        except Exception as reschedule_err:
-                            log.error(
-                                f"Failed to reschedule synthesis task for guild {guild_id}: {reschedule_err}"
-                            )
-                    return  # skip this synthesis run
             log.info("Starting synthesis for guild %d", guild_id)
-
             # attach necessary blocks
             block_names = [
                 f"aurora_daily_{today.strftime('%Y_%m_%d')}",
@@ -294,6 +258,53 @@ class Aurora(commands.Cog):
                         "Failed to detach blocks for guild %d after synthesis.",
                         guild_id,
                     )
+
+    @synthesis.before_loop
+    async def before_synthesis(self):
+        """Prepare for synthesis by checking timing constraints.
+
+        Loop.before_loop callbacks cannot accept the loop arguments, so infer
+        the guild_id by finding which Loop object in self.tasks has the current
+        asyncio Task as its underlying task."""
+        current = asyncio.current_task()
+        guild_id = None
+        for name, loop in self.tasks.items():
+            if getattr(loop, "_task", None) is current:
+                # extract guild_id from task name
+                try:
+                    guild_id = int(name.split("_")[-1])
+                except (ValueError, IndexError):
+                    continue
+                break
+        if guild_id is None:
+            log.error("Could not determine guild_id for synthesis before_loop.")
+            return False
+
+        await self.bot.wait_until_ready()
+        # Check if synthesis is enabled and timing is correct
+        guild = self.bot.get_guild(guild_id)
+        if not guild:
+            log.warning("Guild %d not found. Cannot run synthesis.", guild_id)
+            self._remove_task(self.synthesis, guild_id)  # type: ignore
+            return False
+
+        guild_config = await self.config.guild(guild).all()
+        last_synthesis = guild_config.get("last_synthesis")
+        synthesis_interval: int = guild_config.get("synthesis_interval", 3600)
+
+        if last_synthesis:
+            time_since_last = time.time() - last_synthesis
+            if time_since_last < synthesis_interval:
+                wait_time: float = synthesis_interval - time_since_last
+                log.info(
+                    "Not enough time since last synthesis for guild %d. "
+                    "Waiting %.1f seconds.",
+                    guild_id,
+                    wait_time,
+                )
+                # wait until next interval
+                await asyncio.sleep(wait_time)
+        return True
 
     # endregion
 
