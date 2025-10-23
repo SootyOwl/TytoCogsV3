@@ -120,6 +120,7 @@ class Aurora(commands.Cog):
                         self.synthesis,
                         guild_id,
                         synthesis_interval,
+                        before_coro=self.before_synthesis,
                     )
             return self.letta
         else:
@@ -136,13 +137,27 @@ class Aurora(commands.Cog):
         log.info("Message processor stopped")
 
     # region: Tasks
+    def _get_task(self, coro, guild_id: int) -> Optional[tasks.Loop]:
+        """Get the task for the given guild, if it exists."""
+        task_name = f"{coro.__name__}_{guild_id}"
+        return self.tasks.get(task_name)
+
     def _get_or_create_task(
-        self, coro, guild_id: int, interval_secs: int = 3600
+        self,
+        coro,
+        guild_id: int,
+        interval_secs: int = 3600,
+        before_coro=None,
+        after_coro=None,
     ) -> tasks.Loop:
         """Get or create a task for the given guild."""
         task_name = f"{coro.__name__}_{guild_id}"
         if task_name not in self.tasks:
             task = tasks.loop(seconds=interval_secs)(coro)  # type: ignore
+            if before_coro:
+                task.before_loop(before_coro)  # type: ignore
+            if after_coro:
+                task.after_loop(after_coro)  # type: ignore
             self.tasks[task_name] = task
             task.start(guild_id=guild_id)
             log.info("Started task %s for guild %d", task_name, guild_id)
@@ -259,7 +274,6 @@ class Aurora(commands.Cog):
                         guild_id,
                     )
 
-    @synthesis.before_loop
     async def before_synthesis(self):
         """Prepare for synthesis by checking timing constraints.
 
@@ -776,13 +790,16 @@ class Aurora(commands.Cog):
 
         # Agent settings
         agent_id = guild_config.get("agent_id")
-        synthesis_task = self._get_or_create_task(self.synthesis, guild.id)
+        synthesis_task = self._get_task(self.synthesis, guild.id)
+        if not synthesis_task:
+            synthesis_task = None
+            log.info("No synthesis task found for guild %d", guild.id)
         agent_status = (
             (
                 f"✅ Enabled\nAgent ID: `{agent_id}`\n"
                 f"Synthesis Interval: `every {humanize_timedelta(seconds=guild_config.get('synthesis_interval', 3600))}`\n"
                 f"Last Synthesis: {format_dt(datetime.fromtimestamp(guild_config.get('last_synthesis', 0), tz=timezone.utc), 'F') if guild_config.get('last_synthesis', 0) > 0 else 'Never'}\n"
-                f"Next Synthesis: {format_dt(synthesis_task.next_iteration, 'F') if synthesis_task.next_iteration else 'N/A'}"
+                f"Next Synthesis: {format_dt(synthesis_task.next_iteration, 'F') if synthesis_task and synthesis_task.next_iteration else 'N/A'}"
             )
             if guild_config.get("enabled") and agent_id
             else "❌ Disabled"
@@ -867,7 +884,10 @@ class Aurora(commands.Cog):
             if guild_config.get("enabled") and guild_config.get("agent_id"):
                 synthesis_interval = guild_config.get("synthesis_interval", 3600)
                 self._get_or_create_task(
-                    self.synthesis, ctx.guild.id, synthesis_interval
+                    self.synthesis,
+                    ctx.guild.id,
+                    synthesis_interval,
+                    before_coro=self.before_synthesis,
                 )
 
     @aurora.command(name="disable")
@@ -916,11 +936,12 @@ class Aurora(commands.Cog):
         guild_config = await self.config.guild(ctx.guild).all()
         if guild_config.get("enabled") and self.letta:
             # get the existing task
-            task = self._get_or_create_task(self.synthesis, ctx.guild.id, seconds)
-            task.change_interval(seconds=seconds)
-            log.info(
-                f"Synthesis task interval updated to {seconds}s for guild {ctx.guild.id}"
-            )
+            task = self._get_task(self.synthesis, ctx.guild.id)
+            if task:
+                task.change_interval(seconds=seconds)
+                log.info(
+                    f"Synthesis task interval updated to {seconds}s for guild {ctx.guild.id}"
+                )
 
         await ctx.send(f"✅ Synthesis interval set to {seconds} seconds.")
         log.info(
@@ -951,12 +972,11 @@ class Aurora(commands.Cog):
         # Restart synthesis task if agent is enabled
         guild_config = await self.config.guild(ctx.guild).all()
         if guild_config.get("enabled") and self.letta:
-            self._remove_task(self.synthesis, ctx.guild.id)
-            self._get_or_create_task(
-                self.synthesis,
-                ctx.guild.id,
-                guild_config.get("synthesis_interval", 3600),
-            )
+            # get the existing task
+            task = self._get_task(self.synthesis, ctx.guild.id)
+            if task:
+                task.restart()
+                log.info(f"Synthesis task restarted for guild {ctx.guild.id}")
 
         await ctx.send(
             f"✅ Agent ID updated for {ctx.guild.name}!\n"
