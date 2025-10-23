@@ -201,6 +201,7 @@ class Aurora(commands.Cog):
             return
 
         agent_id = None
+        attached = False
         try:
             guild = self.bot.get_guild(guild_id)
             if not guild:
