@@ -9,7 +9,7 @@ import json
 import logging
 import time
 from datetime import date, datetime, timezone
-from typing import AsyncIterator, Coroutine, Optional
+from typing import AsyncIterator, Optional
 
 import discord
 from discord.ext import tasks
@@ -137,7 +137,7 @@ class Aurora(commands.Cog):
 
     # region: Tasks
     def _get_or_create_task(
-        self, coro: Coroutine, guild_id: int, interval_secs: int = 3600
+        self, coro, guild_id: int, interval_secs: int = 3600
     ) -> tasks.Loop:
         """Get or create a task for the given guild."""
         task_name = f"{coro.__name__}_{guild_id}"
@@ -148,7 +148,7 @@ class Aurora(commands.Cog):
             log.info("Started task %s for guild %d", task_name, guild_id)
         return self.tasks[task_name]
 
-    def _remove_task(self, coro: Coroutine, guild_id: int):
+    def _remove_task(self, coro, guild_id: int):
         """Remove and cancel the task for the given guild."""
         task_name = f"{coro.__name__}_{guild_id}"
         if task_name in self.tasks:
@@ -607,7 +607,9 @@ class Aurora(commands.Cog):
         if not 1 <= depth <= 10:
             await ctx.send("❌ Reply depth must be between 1 and 10.")
             return
-
+        if not ctx.guild:
+            await ctx.send("❌ This command can only be used in a guild.")
+            return
         await self.config.guild(ctx.guild).reply_thread_depth.set(depth)  # type: ignore
         await ctx.send(f"✅ Reply thread depth set to {depth} messages.")
         log.info(f"Reply depth set to {depth} by {ctx.author} in guild {ctx.guild.id}")
@@ -619,6 +621,9 @@ class Aurora(commands.Cog):
         Parameters:
         - enabled: True to enable, False to disable
         """
+        if not ctx.guild:
+            await ctx.send("❌ This command can only be used in a guild.")
+            return
         await self.config.guild(ctx.guild).enable_typing_indicator.set(enabled)
         status = "enabled" if enabled else "disabled"
         await ctx.send(f"✅ Typing indicator {status}.")
@@ -634,7 +639,9 @@ class Aurora(commands.Cog):
         if not 0.5 <= seconds <= 10:
             await ctx.send("❌ Rate limit must be between 0.5 and 10 seconds.")
             return
-
+        if not ctx.guild:
+            await ctx.send("❌ This command can only be used in a guild.")
+            return
         await self.config.guild(ctx.guild).rate_limit_seconds.set(seconds)
 
         # Update queue rate limit if initialized
@@ -656,7 +663,9 @@ class Aurora(commands.Cog):
         if not 10 <= size <= 200:
             await ctx.send("❌ Queue size must be between 10 and 200.")
             return
-
+        if not ctx.guild:
+            await ctx.send("❌ This command can only be used in a guild.")
+            return
         await self.config.guild(ctx.guild).max_queue_size.set(size)
         await ctx.send(
             f"✅ Maximum queue size set to {size}.\n"
@@ -674,7 +683,9 @@ class Aurora(commands.Cog):
         if not 10 <= seconds <= 300:
             await ctx.send("❌ Timeout must be between 10 and 300 seconds.")
             return
-
+        if not ctx.guild:
+            await ctx.send("❌ This command can only be used in a guild.")
+            return
         await self.config.guild(ctx.guild).agent_timeout.set(seconds)
         await ctx.send(f"✅ Agent timeout set to {seconds} seconds.")
         log.info(
@@ -688,6 +699,9 @@ class Aurora(commands.Cog):
         Parameters:
         - enabled: True to enable, False to disable
         """
+        if not ctx.guild:
+            await ctx.send("❌ This command can only be used in a guild.")
+            return
         await self.config.guild(ctx.guild).mcp_guidance_enabled.set(enabled)
         status = "enabled" if enabled else "disabled"
         await ctx.send(
@@ -1026,6 +1040,10 @@ class Aurora(commands.Cog):
             )
             return
 
+        if not ctx.guild:
+            await ctx.send("❌ This command must be used in a guild.")
+            return
+
         try:
             guild_config = await self.config.guild(ctx.guild).all()
             max_reply_depth = guild_config.get("reply_thread_depth", 5)
@@ -1053,25 +1071,25 @@ class Aurora(commands.Cog):
             )
 
             # Metadata
-            metadata = context.get("metadata", {})
+            metadata = context[0]
             embed.add_field(
                 name="Author",
-                value=f"{metadata.get('author', {}).get('display_name', 'Unknown')} (ID: {metadata.get('author', {}).get('id', 'Unknown')})",
+                value=f"{metadata.author.display_name} (ID: {metadata.author.id})",
                 inline=True,
             )
             embed.add_field(
                 name="Channel",
-                value=f"#{metadata.get('channel', {}).get('name', 'Unknown')}",
+                value=f"#{metadata.channel.name}",
                 inline=True,
             )
             embed.add_field(
                 name="Timestamp",
-                value=metadata.get("timestamp", "Unknown"),
+                value=metadata.timestamp,
                 inline=True,
             )
 
             # Reply chain
-            reply_chain = context.get("reply_chain", [])
+            reply_chain = context[1]
             embed.add_field(
                 name="Reply Chain",
                 value=f"{len(reply_chain)} parent message(s)"
@@ -1126,6 +1144,7 @@ class Aurora(commands.Cog):
                 self.bot.user in message.mentions
                 or message.reference
                 and message.reference.resolved
+                and isinstance(message.reference.resolved, discord.Message)
                 and message.reference.resolved.author == self.bot.user
             )
             if not is_dm
