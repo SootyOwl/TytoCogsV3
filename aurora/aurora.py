@@ -13,12 +13,14 @@ from typing import AsyncIterator, Coroutine, Optional
 
 import discord
 from discord.ext import tasks
+from discord.utils import format_dt
 from letta_client import AsyncLetta, MessageCreate
 from letta_client.agents.messages.types.letta_streaming_response import (
     LettaStreamingResponse,
 )
 from redbot.core import Config, commands
 from redbot.core.bot import Red
+from redbot.core.utils.chat_formatting import humanize_timedelta
 
 from .utils.blocks import attach_blocks, detach_blocks
 from .utils.context import build_event_context
@@ -733,12 +735,13 @@ class Aurora(commands.Cog):
 
         # Agent settings
         agent_id = guild_config.get("agent_id")
+        synthesis_task = self._get_or_create_task(self.synthesis, guild.id)
         agent_status = (
             (
                 f"✅ Enabled\nAgent ID: `{agent_id}`\n"
-                f"Synthesis Interval: `{guild_config.get('synthesis_interval', 3600)}s`\n"
-                f"Last Synthesis: `{datetime.fromtimestamp(guild_config.get('last_synthesis', 0), tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC') if guild_config.get('last_synthesis') else 'Never'}`\n"
-                f"Next Synthesis: `{self._get_or_create_task(self.synthesis, guild.id).next_iteration.strftime('%Y-%m-%d %H:%M:%S UTC')}`"
+                f"Synthesis Interval: `every {humanize_timedelta(seconds=guild_config.get('synthesis_interval', 3600))}`\n"
+                f"Last Synthesis: `{format_dt(datetime.fromtimestamp(guild_config.get('last_synthesis', 0), tz=timezone.utc), 'F') if guild_config.get('last_synthesis', 0) > 0 else 'Never'}`\n"
+                f"Next Synthesis: `{format_dt(synthesis_task.next_iteration, 'F') if synthesis_task.next_iteration else 'N/A'}`"
             )
             if guild_config.get("enabled") and agent_id
             else "❌ Disabled"
