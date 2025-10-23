@@ -154,11 +154,9 @@ class Aurora(commands.Cog):
     def _cancel_tasks(self):
         """Cancel all running tasks."""
         for task_name, task in self.tasks.items():
-            if task.is_running():
-                task.cancel()
-                log.info("Cancelled task %s", task_name)
-            else:
-                log.info("Task %s was not running, no cancellation needed", task_name)
+            task.cancel()
+            log.info("Cancelled task %s", task_name)
+
         self.tasks.clear()
         log.info("All tasks cancelled.")
 
