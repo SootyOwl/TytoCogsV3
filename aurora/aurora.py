@@ -799,7 +799,7 @@ class Aurora(commands.Cog):
                 f"✅ Enabled\nAgent ID: `{agent_id}`\n"
                 f"Synthesis Interval: `every {humanize_timedelta(seconds=guild_config.get('synthesis_interval', 3600))}`\n"
                 f"Last Synthesis: {format_dt(datetime.fromtimestamp(guild_config.get('last_synthesis', 0), tz=timezone.utc), 'F') if guild_config.get('last_synthesis', 0) > 0 else 'Never'}\n"
-                f"Next Synthesis: {format_dt(synthesis_task.next_iteration, 'F') if synthesis_task and synthesis_task.next_iteration else 'N/A'}"
+                f"Next Synthesis: {format_dt(datetime.fromtimestamp(guild_config.get('last_synthesis', 0) + guild_config.get('synthesis_interval', 3600), tz=timezone.utc), 'F') if guild_config.get('last_synthesis', 0) > 0 else 'N/A'}"
             )
             if guild_config.get("enabled") and agent_id
             else "❌ Disabled"
