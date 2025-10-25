@@ -540,17 +540,18 @@ class Aurora(commands.Cog):
             channel_summary = summary["channels"][channel_id]["activity_summary"]
 
             # Update channel activity summary
+            author = message.author
             channel_summary["total_messages"] += 1
             channel_summary["active_users"][
-                f"{message.author.id} ({message.author.name})"
+                f"{author.id=} ({author.display_name=} | {author.global_name=})"
             ] += 1
             channel_summary["last_message_time"] = max(
                 channel_summary["last_message_time"] or 0,
                 message.created_at.timestamp(),
             )
             channel_summary["last_message_user"] = (
-                message.author.id,
-                message.author.name,
+                author.id,
+                author.name,
             )
 
         return summary
