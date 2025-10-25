@@ -308,6 +308,7 @@ class TestFormatReplyChain:
             author="Test User",
             author_id=111222,
             content="Hello world",
+            clean_content="Hello world",
             timestamp="2025-10-16T12:30:00",
             is_bot=False,
             has_attachments=False,
@@ -318,6 +319,7 @@ class TestFormatReplyChain:
             author="Another User",
             author_id=333444,
             content="Replying to you",
+            clean_content="Replying to you",
             timestamp="2025-10-16T12:32:00",
             is_bot=False,
             has_attachments=True,
@@ -339,15 +341,15 @@ class TestFormatReplyChain:
         result = format_reply_chain(single_chain)
 
         assert "Test User" in result
-        assert "[ID: 111222]" in result
+        assert "author_id: 111222" in result
         assert "Hello world" in result
-        assert "[MessageID: 123456]" in result
+        assert "message_id: 123456" in result
 
     def test_chain_with_attachments(self, chain):
         """Test formatting message with attachments."""
         result = format_reply_chain(chain)
 
-        assert "[Has attachments]" in result
+        assert "has_attachments: True" in result
 
 
 class TestFormatMetadataForPrompt:
@@ -428,7 +430,7 @@ class TestBuildEventContext:
 
         context = await build_event_context(mock_message, max_reply_depth=5)
 
-        assert "metadata" in context
-        assert "reply_chain" in context
-        assert context["metadata"].message_id == 555666777
-        assert len(context["reply_chain"]) == 1
+        assert isinstance(context[0], MessageMetadata)
+        assert isinstance(context[1], ReplyChain)
+        assert context[0].message_id == 555666777
+        assert len(context[1].messages) == 1

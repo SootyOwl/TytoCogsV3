@@ -1,8 +1,15 @@
 """Unit tests for Aurora prompt template system."""
 
+from aurora.utils.dataclasses import (
+    AuthorMetadata,
+    ChannelMetadata,
+    MessageMetadata,
+    MessageRecord,
+    ReplyChain,
+)
 from aurora.utils.prompts import (
-    build_mention_prompt,
     build_dm_prompt,
+    build_mention_prompt,
     build_prompt,
 )
 
@@ -109,27 +116,36 @@ class TestBuildDMPrompt:
 
     def test_basic_dm_prompt(self):
         """Test building a basic DM prompt."""
-        metadata = {
-            "message_id": "123456",
-            "timestamp": "2025-10-16T12:30:00",
-            "author": {
-                "id": "111222",
-                "display_name": "Test User",
-                "roles": [],
-            },
-            "channel": {
-                "id": "987654",
-                "name": "DM",
-            },
-            "guild": None,
-        }
+        metadata = MessageMetadata(
+            **{
+                "message_id": "123456",
+                "timestamp": "2025-10-16T12:30:00",
+                "author": AuthorMetadata(
+                    **{
+                        "id": 111222,
+                        "username": "testuser",
+                        "display_name": "Test User",
+                        "is_bot": False,
+                        "roles": [],
+                    }
+                ),
+                "channel": ChannelMetadata(
+                    **{
+                        "id": 987654,
+                        "name": "DM",
+                        "type": "DM",
+                    }
+                ),
+                "guild": None,
+            }
+        )
 
         content = "Hey bot, can you help me?"
 
         prompt = build_dm_prompt(
             message_content=content,
             metadata=metadata,
-            reply_chain=[],
+            reply_chain=ReplyChain(),
             include_mcp_guidance=True,
         )
 
@@ -142,41 +158,60 @@ class TestBuildDMPrompt:
 
     def test_dm_prompt_with_reply_chain(self):
         """Test DM prompt with reply chain."""
-        metadata = {
-            "message_id": "123456",
-            "timestamp": "2025-10-16T12:30:00",
-            "author": {
-                "id": "111222",
-                "display_name": "Alice",
-                "roles": [],
-            },
-            "channel": {
-                "id": "987654",
-                "name": "DM",
-            },
-            "guild": None,
-        }
+        metadata = MessageMetadata(
+            **{
+                "message_id": 123456,
+                "timestamp": "2025-10-16T12:30:00",
+                "author": AuthorMetadata(
+                    **{
+                        "id": 111222,
+                        "username": "alice",
+                        "display_name": "Alice",
+                        "is_bot": False,
+                        "roles": [],
+                    }
+                ),
+                "channel": ChannelMetadata(
+                    **{
+                        "id": 987654,
+                        "name": "DM",
+                        "type": "DM",
+                    }
+                ),
+                "guild": None,
+            }
+        )
 
-        reply_chain = [
-            {
-                "message_id": "111111",
-                "author": "Bot",
-                "content": "How can I help?",
-                "timestamp": "2025-10-16T12:25:00",
-                "is_bot": True,
-                "has_attachments": False,
-                "has_embeds": False,
-            },
-            {
-                "message_id": "222222",
-                "author": "Alice",
-                "content": "I need info about X",
-                "timestamp": "2025-10-16T12:28:00",
-                "is_bot": False,
-                "has_attachments": False,
-                "has_embeds": False,
-            },
-        ]
+        reply_chain = ReplyChain(
+            [
+                MessageRecord(
+                    **{
+                        "message_id": 111111,
+                        "author": "Bot",
+                        "author_id": 123456,
+                        "content": "How can I help?",
+                        "clean_content": "How can I help?",
+                        "timestamp": "2025-10-16T12:25:00",
+                        "is_bot": True,
+                        "has_attachments": False,
+                        "has_embeds": False,
+                    }
+                ),
+                MessageRecord(
+                    **{
+                        "message_id": 222222,
+                        "author": "Alice",
+                        "author_id": 111222,
+                        "content": "I need info about X",
+                        "clean_content": "I need info about X",
+                        "timestamp": "2025-10-16T12:28:00",
+                        "is_bot": False,
+                        "has_attachments": False,
+                        "has_embeds": False,
+                    }
+                ),
+            ]
+        )
         content = "Actually, can you explain Y instead?"
 
         prompt = build_dm_prompt(
