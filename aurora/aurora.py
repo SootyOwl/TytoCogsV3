@@ -413,7 +413,11 @@ class Aurora(commands.Cog):
                 messages=[
                     MessageCreate(
                         role="user",
-                        content=f"```json\n{json.dumps(activity_summary, indent=2)}\n```",
+                        content=(
+                            f"```json\n{json.dumps(activity_summary, indent=2)}\n```\n\n"
+                            "The above is a summary of recent server activity - channels and users which have new activity.\n"
+                            "You may choose to engage with active channels or users based on this information, if appropriate."
+                        ),
                     )
                 ],
                 stream_tokens=False,
