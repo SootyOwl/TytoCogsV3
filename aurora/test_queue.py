@@ -1,9 +1,46 @@
 """Unit tests for Aurora message queue system."""
 
-import pytest
 import asyncio
 
-from aurora.utils.queue import MessageQueue
+import pytest
+
+from aurora.utils.queue import Event, EventQueue, MessageQueue
+
+
+class TestEventQueue:
+    """Tests for EventQueue class."""
+
+    @pytest.mark.asyncio
+    async def test_event_queue_initialization(self):
+        """Test event queue initializes with correct defaults."""
+        queue = EventQueue(default_rate_limit=5.0)
+        stats = queue.get_stats()
+        assert stats == {}
+
+    @pytest.mark.asyncio
+    async def test_serialize_deserialize_event_queue(self, tmp_path):
+        """Test serialization and deserialization of the event queue."""
+        path = tmp_path / "test_event_queue.pkl"
+        queue = EventQueue(default_rate_limit=3.0)
+        event = {
+            "event_type": "test_event",
+            "channel_id": 123456,
+            "guild_id": 654321,
+            "details": "Some event details",
+        }
+        event = Event.from_dict(event)
+        await queue.enqueue(event)
+
+        with path.open("wb") as f:
+            queue.to_file(f.name)
+
+        loaded_queue = EventQueue.from_file(path)
+        stats = loaded_queue.get_stats()
+        assert stats["test_event"]["queue_size"] == 1
+        assert stats["test_event"]["rate_limit_seconds"] == 3.0
+
+        dequeued_event = await loaded_queue.dequeue("test_event")
+        assert dequeued_event == event
 
 
 class TestMessageQueue:
@@ -18,6 +55,31 @@ class TestMessageQueue:
         assert stats["queue_size"] == 0
         assert stats["max_size"] == 50
         assert stats["rate_limit_seconds"] == 2.0
+
+    @pytest.mark.asyncio
+    async def test_serialize_deserialize(self, tmp_path):
+        """Test serialization and deserialization of the queue."""
+        path = tmp_path / "test_queue.pkl"
+        queue = MessageQueue(max_size=20)
+        event = {
+            "message_id": "abc123",
+            "channel_id": 123456,
+            "guild_id": 654321,
+            "content": "Hello, World!",
+        }
+        await queue.enqueue(event)
+
+        with path.open("wb") as f:
+            queue.to_file(f.name)
+
+        loaded_queue = MessageQueue.from_file(path)
+        stats = loaded_queue.get_stats()
+        assert stats["queue_size"] == 1
+        assert stats["max_size"] == 20
+        assert stats["rate_limit_seconds"] == 2.0
+
+        dequeued_event = await loaded_queue.dequeue()
+        assert dequeued_event == event
 
     @pytest.mark.asyncio
     async def test_enqueue_single_event(self):

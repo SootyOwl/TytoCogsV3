@@ -7,10 +7,12 @@ This module provides:
 
 import asyncio
 import logging
+import pickle
 import uuid
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 
 log = logging.getLogger("red.tyto.aurora.queue")
 
@@ -39,7 +41,7 @@ class MessageQueue:
         self.rate_limit_seconds: float = rate_limit_seconds
         # needs to be ordered to remove oldest entries first
         self.processed_message_ids = OrderedDict()
-        self._max_processed_ids: int = 1000  # Prevent unbounded growth
+        self._max_processed_ids: int = 1000
 
         log.info(
             f"MessageQueue initialized: max_size={max_size}, "
@@ -176,6 +178,39 @@ class MessageQueue:
             "tracked_message_ids": len(self.processed_message_ids),
         }
 
+    def to_file(self, file_path: str | Path):
+        """Serialize the message queue to a file."""
+        with open(file_path, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def from_file(cls, file_path: str | Path) -> "MessageQueue":
+        """Deserialize the message queue from a file."""
+        if not Path(file_path).exists():
+            return cls()
+        with open(file_path, "rb") as f:
+            queue = pickle.load(f)
+        return queue
+
+    # ensure pickling works correctly
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # convert asyncio.Queue to a serializable form
+        state["max_size"] = state["queue"].maxsize
+        state["queue"] = list(state["queue"]._queue)
+        # the lambda in defaultdict is not picklable, so we need to handle it
+        state["last_processed"] = dict(state["last_processed"])
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # reconstruct asyncio.Queue from the list
+        q = asyncio.Queue(maxsize=state["max_size"])
+        for item in state["queue"]:
+            q.put_nowait(item)
+        self.queue = q
+        self.last_processed = defaultdict(lambda: datetime.min, state["last_processed"])
+
 
 @dataclass
 class Event:
@@ -223,6 +258,7 @@ class EventQueue:
                                of the same type (default: 5.0)
         """
         self.queues: dict[str, asyncio.Queue] = defaultdict(asyncio.Queue)
+        self.default_rate_limit = default_rate_limit
         self.rate_limits: dict[str, float] = defaultdict(lambda: default_rate_limit)
         self.last_processed: dict[str, datetime] = defaultdict(lambda: datetime.min)
         self.processed_event_ids = OrderedDict()
@@ -394,3 +430,46 @@ class EventQueue:
                 "last_processed": self.last_processed[event_type].isoformat(),
             }
         return stats
+
+    def to_file(self, file_path: str | Path):
+        """Serialize the event queues to a file."""
+        with open(file_path, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def from_file(cls, file_path: str | Path) -> "EventQueue":
+        """Deserialize the event queues from a file."""
+        if not Path(file_path).exists():
+            return cls()
+
+        with open(file_path, "rb") as f:
+            queue = pickle.load(f)
+        return queue
+
+    def __getstate__(self):
+        """Get state for pickling."""
+        state = self.__dict__.copy()
+        # Remove any non-picklable objects
+        state["queues"] = {k: list(v._queue) for k, v in self.queues.items()}
+        # convert defaultdicts to regular dicts
+        state["rate_limits"] = dict(state["rate_limits"])
+        state["last_processed"] = dict(state["last_processed"])
+        state["processed_event_ids"] = dict(state["processed_event_ids"])
+        return state
+
+    def __setstate__(self, state):
+        """Set state from pickling."""
+        self.__dict__.update(state)
+        # Reconstruct asyncio.Queues
+        self.queues = defaultdict(asyncio.Queue)
+        for k, v in state["queues"].items():
+            q = asyncio.Queue()
+            for item in v:
+                q.put_nowait(item)
+            self.queues[k] = q
+        # Reconstruct defaultdicts
+        self.rate_limits = defaultdict(
+            lambda: self.default_rate_limit, state["rate_limits"]
+        )
+        self.last_processed = defaultdict(lambda: datetime.min, state["last_processed"])
+        self.processed_event_ids = OrderedDict(state["processed_event_ids"])

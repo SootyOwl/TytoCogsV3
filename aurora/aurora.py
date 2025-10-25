@@ -22,6 +22,7 @@ from letta_client.agents.messages.types.letta_streaming_response import (
 )
 from redbot.core import Config, commands
 from redbot.core.bot import Red
+from redbot.core.data_manager import cog_data_path
 from redbot.core.utils.chat_formatting import humanize_timedelta
 
 from .utils.blocks import attach_blocks, detach_blocks
@@ -62,6 +63,9 @@ class Aurora(commands.Cog):
             "letta_base_url": "https://api.letta.ai/v1",
         }
         self.config.register_global(**default_global)
+
+        # get data path for serialization of queues (persisted across restarts)
+        self.data_path = cog_data_path(self)
 
         default_guild = {
             "agent_id": None,
@@ -107,11 +111,12 @@ class Aurora(commands.Cog):
         )
 
     async def cog_load(self):
-        """Load the Letta client and start the synthesiss."""
-        # Initialize message queue
-        self.queue = MessageQueue(max_size=50, rate_limit_seconds=2.0)
-        # Initialize activity queue
-        self.activity_queue = EventQueue(default_rate_limit=20.0)
+        """Load the Letta client and start the synthesis."""
+        # Load persisted queues if they exist
+        self.queue = MessageQueue.from_file(self.data_path / "message_queue.pkl")
+        self.activity_queue = EventQueue.from_file(
+            self.data_path / "activity_queue.pkl"
+        )
         # Start message processor worker
         self.process_message_queue.start()
         log.info("Message processor started")
@@ -164,6 +169,11 @@ class Aurora(commands.Cog):
         # Stop message processor
         self.process_message_queue.stop()
         log.info("Message processor stopped")
+        # Persist queues to disk
+        if self.queue:
+            self.queue.to_file(self.data_path / "message_queue.pkl")
+        if self.activity_queue:
+            self.activity_queue.to_file(self.data_path / "activity_queue.pkl")
 
     # region: Task Management
     def _get_task(self, coro, guild_id: int) -> Optional[tasks.Loop]:
