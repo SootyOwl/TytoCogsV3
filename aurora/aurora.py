@@ -1216,7 +1216,7 @@ class Aurora(commands.Cog):
             )
             return
 
-        await self.config.guild(ctx.guild).activity_interval.set(seconds)
+        await self.config.guild(ctx.guild).server_activity_interval.set(seconds)
 
         # Update activity task if running
         guild_config = await self.config.guild(ctx.guild).all()
