@@ -8,7 +8,9 @@ import asyncio
 import json
 import logging
 import time
+from collections import Counter
 from datetime import date, datetime, timezone
+from enum import Enum
 from typing import AsyncIterator, Optional
 
 import discord
@@ -26,7 +28,7 @@ from .utils.blocks import attach_blocks, detach_blocks
 from .utils.context import build_event_context
 from .utils.errors import CircuitBreaker, ErrorStats, RetryConfig, retry_with_backoff
 from .utils.prompts import build_prompt
-from .utils.queue import MessageQueue
+from .utils.queue import Event, EventQueue, MessageQueue
 
 log = logging.getLogger("red.tyto.aurora")
 
@@ -35,6 +37,17 @@ class ToolCallError(Exception):
     """Exception raised when a tool call fails."""
 
     pass
+
+
+class EventType(str, Enum):
+    """Types of events that can be processed."""
+
+    MESSAGE = "message"
+    SERVER_ACTIVITY = "server_activity_{guild_id}"
+
+    def format(self, **kwargs) -> str:
+        """Format the event type with the given keyword arguments."""
+        return self.value.format(**kwargs)
 
 
 class Aurora(commands.Cog):
@@ -55,6 +68,8 @@ class Aurora(commands.Cog):
             "enabled": False,
             "synthesis_interval": 3600,
             "last_synthesis": None,
+            "server_activity_interval": 1800,
+            "last_server_activity": None,  # timestamp of last activity tracking notification
             # Event system settings
             "reply_thread_depth": 5,
             "enable_typing_indicator": True,
@@ -74,6 +89,9 @@ class Aurora(commands.Cog):
         self.queue: Optional[MessageQueue] = None
         self._events_paused: bool = False
 
+        # Event queue for tracking channel activity
+        self.activity_queue: Optional[EventQueue] = None
+
         # Error handling components
         self.circuit_breaker = CircuitBreaker(
             failure_threshold=5,
@@ -92,6 +110,8 @@ class Aurora(commands.Cog):
         """Load the Letta client and start the synthesiss."""
         # Initialize message queue
         self.queue = MessageQueue(max_size=50, rate_limit_seconds=2.0)
+        # Initialize activity queue
+        self.activity_queue = EventQueue(default_rate_limit=20.0)
         # Start message processor worker
         self.process_message_queue.start()
         log.info("Message processor started")
@@ -111,7 +131,7 @@ class Aurora(commands.Cog):
             )
             log.info("Letta client configured successfully.")
 
-            # start synthesis tasks for all guilds with enabled agents
+            # start tasks for all guilds with enabled agents
             all_guilds: dict[int, dict] = await self.config.all_guilds()
             for guild_id, guild_config in all_guilds.items():
                 if guild_config.get("enabled") and guild_config.get("agent_id"):
@@ -121,6 +141,15 @@ class Aurora(commands.Cog):
                         guild_id,
                         synthesis_interval,
                         before_coro=self.before_synthesis,
+                    )
+                    activity_interval = guild_config.get(
+                        "server_activity_interval", 1800
+                    )
+                    self._get_or_create_task(
+                        self.track_server_activity,
+                        guild_id,
+                        activity_interval,
+                        before_coro=self.before_activity_tracking,
                     )
             return self.letta
         else:
@@ -181,6 +210,7 @@ class Aurora(commands.Cog):
         self.tasks.clear()
         log.info("All tasks cancelled.")
 
+    # region: Synthesis Task
     async def synthesis(self, guild_id: int):
         """A synthesis task to allow aurora to perform periodic actions."""
         log.debug("synthesis for guild %d", guild_id)
@@ -319,6 +349,195 @@ class Aurora(commands.Cog):
                 # wait until next interval
                 await asyncio.sleep(wait_time)
         return True
+
+    # endregion
+
+    # region: Server Activity Task
+    async def track_server_activity(self, guild_id: int):
+        """A task to track server activity and notify the agent periodically."""
+        log.debug("track_server_activity for guild %d", guild_id)
+        if not self.letta:
+            log.warning("Letta client not configured. Cannot track server activity.")
+            return
+        if not self.activity_queue:
+            log.warning("Activity queue not initialized. Cannot track activity.")
+            return
+
+        agent_id = None
+        try:
+            guild = self.bot.get_guild(guild_id)
+            if not guild:
+                log.warning(
+                    "Guild %d not found. Stopping channel activity task.", guild_id
+                )
+                self._remove_task(self.track_server_activity, guild_id)  # type: ignore
+                return
+
+            guild_config = await self.config.guild(guild).all()
+            agent_id = guild_config.get("agent_id")
+            if not agent_id:
+                log.warning(
+                    "Agent ID not configured for guild %d. Stopping channel activity task.",
+                    guild_id,
+                )
+                self._remove_task(self.track_server_activity, guild_id)  # type: ignore
+                return
+
+            log.info("Starting server activity tracking for guild %d", guild_id)
+            # Consume all the server_activity events in the queue for this guild
+            event_type = EventType.SERVER_ACTIVITY.format(guild_id=guild_id)
+            events: list[Event] = await self.activity_queue.consume_all(event_type)
+            if not events:
+                log.info("No server activity events to process for guild %d.", guild_id)
+                return
+            # Build activity summary
+            activity_summary: dict = await self.build_activity_summary(events)
+            log.info(
+                "Built activity summary for guild %d: %s", guild_id, activity_summary
+            )
+            # Send the activity summary to the agent
+            message_stream = self.letta.agents.messages.create_stream(
+                agent_id=agent_id,
+                messages=[
+                    MessageCreate(
+                        role="user",
+                        content=f"```json\n{json.dumps(activity_summary, indent=2)}\n```",
+                    )
+                ],
+                stream_tokens=False,
+                max_steps=50,
+                enable_thinking="True",
+            )
+            await self._process_agent_stream(message_stream)
+            # Update last activity tracking time
+            await self.config.guild(guild).last_server_activity.set(time.time())
+        except Exception as e:
+            log.exception(
+                "Exception during server activity tracking for guild %d: %s",
+                guild_id,
+                str(e),
+            )
+
+    async def before_activity_tracking(self):
+        """Prepare for activity tracking by checking timing constraints.
+
+        Loop.before_loop callbacks cannot accept the loop arguments, so infer
+        the guild_id by finding which Loop object in self.tasks has the current
+        asyncio Task as its underlying task."""
+        current = asyncio.current_task()
+        guild_id = None
+        for name, loop in self.tasks.items():
+            if getattr(loop, "_task", None) is current:
+                # extract guild_id from task name
+                try:
+                    guild_id = int(name.split("_")[-1])
+                except (ValueError, IndexError):
+                    continue
+                break
+        if guild_id is None:
+            log.error("Could not determine guild_id for activity tracking before_loop.")
+            return False
+
+        await self.bot.wait_until_ready()
+        # Check if activity tracking is enabled and timing is correct
+        guild = self.bot.get_guild(guild_id)
+        if not guild:
+            log.warning("Guild %d not found. Cannot track activity.", guild_id)
+            self._remove_task(self.track_server_activity, guild_id)  # type: ignore
+            return False
+
+        guild_config = await self.config.guild(guild).all()
+        last_activity = guild_config.get("last_server_activity")
+        activity_interval: int = guild_config.get("server_activity_interval", 1800)
+
+        if last_activity:
+            time_since_last = time.time() - last_activity
+            if time_since_last < activity_interval:
+                wait_time: float = activity_interval - time_since_last
+                log.info(
+                    "Not enough time since last activity tracking for guild %d. "
+                    "Waiting %.1f seconds.",
+                    guild_id,
+                    wait_time,
+                )
+                # wait until next interval
+                await asyncio.sleep(wait_time)
+        return True
+
+    async def build_activity_summary(self, events: list[Event]) -> dict:
+        """Build a summary of server activity from the list of events.
+
+        Don't need content, just who said stuff in which channel.
+        TODO: This is probably fairly inefficient if there are a lot of events but should
+        be fine for now.
+
+        Args:
+            events (list[Event]): The list of events to summarize.
+
+        Returns:
+            dict: The activity summary.
+        """
+        summary: dict = {
+            "type": "server_activity_summary",
+            "description": "Summary of recently active channels and users. Notifies about which channels have had activity and who has been active there.",
+            "channels": {},
+        }
+        for event in events:
+            channel_id = event.data.get("channel_id")
+            message_id = event.data.get("message_id")
+            if not message_id or not channel_id:
+                continue
+            # check the message hasn't been deleted
+            try:
+                await self.bot.wait_until_ready()
+                channel = self.bot.get_channel(channel_id)
+                if not channel:
+                    continue
+                message = await channel.fetch_message(message_id)  # type: ignore
+            except discord.NotFound:
+                continue
+            except discord.DiscordException:
+                log.warning(
+                    "Could not fetch message %d to build activity summary.", message_id
+                )
+                continue
+            except Exception as e:
+                log.exception(
+                    "Exception fetching message %d for activity summary: %s",
+                    message_id,
+                    str(e),
+                )
+                continue
+
+            channel_id = message.channel.id
+            channel_name = getattr(message.channel, "name", "dm")
+            if channel_id not in summary["channels"]:
+                summary["channels"][channel_id] = {
+                    "channel_name": channel_name,
+                    "activity_summary": {
+                        "total_messages": 0,
+                        "active_users": Counter(),
+                        "last_message_time": None,
+                        "last_message_user": None,
+                    },
+                }
+            channel_summary = summary["channels"][channel_id]["activity_summary"]
+
+            # Update channel activity summary
+            channel_summary["total_messages"] += 1
+            channel_summary["active_users"][
+                f"{message.author.id} ({message.author.name})"
+            ] += 1
+            channel_summary["last_message_time"] = max(
+                channel_summary["last_message_time"] or 0,
+                message.created_at.timestamp(),
+            )
+            channel_summary["last_message_user"] = (
+                message.author.id,
+                message.author.name,
+            )
+
+        return summary
 
     # endregion
 
@@ -790,16 +1009,27 @@ class Aurora(commands.Cog):
 
         # Agent settings
         agent_id = guild_config.get("agent_id")
+        # synthesis task
         synthesis_task = self._get_task(self.synthesis, guild.id)
         if not synthesis_task:
             synthesis_task = None
             log.info("No synthesis task found for guild %d", guild.id)
+        # activity tracking task
+        activity_task = self._get_task(self.track_server_activity, guild.id)
+        if not activity_task:
+            activity_task = None
+            log.info("No activity tracking task found for guild %d", guild.id)
         agent_status = (
             (
                 f"✅ Enabled\nAgent ID: `{agent_id}`\n"
+                f"Synthesis Task: {'Running' if synthesis_task else 'Not Running'}\n"
                 f"Synthesis Interval: `every {humanize_timedelta(seconds=guild_config.get('synthesis_interval', 3600))}`\n"
                 f"Last Synthesis: {format_dt(datetime.fromtimestamp(guild_config.get('last_synthesis', 0), tz=timezone.utc), 'F') if guild_config.get('last_synthesis', 0) > 0 else 'Never'}\n"
-                f"Next Synthesis: {format_dt(datetime.fromtimestamp(guild_config.get('last_synthesis', 0) + guild_config.get('synthesis_interval', 3600), tz=timezone.utc), 'F') if guild_config.get('last_synthesis', 0) > 0 else 'N/A'}"
+                f"Next Synthesis: {format_dt(datetime.fromtimestamp(guild_config.get('last_synthesis', 0) + guild_config.get('synthesis_interval', 3600), tz=timezone.utc), 'F') if guild_config.get('last_synthesis', 0) > 0 else 'N/A'}\n"
+                f"Activity Tracking Task: {'Running' if activity_task else 'Not Running'}\n"
+                f"Activity Tracking Interval: `every {humanize_timedelta(seconds=guild_config.get('server_activity_interval', 3600))}`\n"
+                f"Last Activity Tracking: {format_dt(datetime.fromtimestamp(guild_config.get('last_server_activity', 0), tz=timezone.utc), 'F') if guild_config.get('last_server_activity', 0) > 0 else 'Never'}\n"
+                f"Next Activity Tracking: {format_dt(datetime.fromtimestamp(guild_config.get('last_server_activity', 0) + guild_config.get('server_activity_interval', 3600), tz=timezone.utc), 'F') if guild_config.get('last_server_activity', 0) > 0 else 'N/A'}"
             )
             if guild_config.get("enabled") and agent_id
             else "❌ Disabled"
@@ -889,6 +1119,13 @@ class Aurora(commands.Cog):
                     synthesis_interval,
                     before_coro=self.before_synthesis,
                 )
+                activity_interval = guild_config.get("server_activity_interval", 3600)
+                self._get_or_create_task(
+                    self.track_server_activity,
+                    ctx.guild.id,
+                    activity_interval,
+                    before_coro=self.before_activity_tracking,
+                )
 
     @aurora.command(name="disable")
     async def disable_agent(self, ctx: commands.Context):
@@ -906,6 +1143,8 @@ class Aurora(commands.Cog):
 
         # Stop synthesis task
         self._remove_task(self.synthesis, ctx.guild.id)
+        # Stop activity tracking task
+        self._remove_task(self.track_server_activity, ctx.guild.id)
 
         await ctx.send(
             f"✅ Aurora agent disabled for {ctx.guild.name}.\n"
@@ -913,8 +1152,8 @@ class Aurora(commands.Cog):
         )
         log.info(f"Agent disabled for guild {ctx.guild.id} by {ctx.author}")
 
-    @aurora.command(name="setinterval")
-    async def set_interval(self, ctx: commands.Context, seconds: int):
+    @aurora.command(name="setsynthesisinterval")
+    async def set_synthesis_interval(self, ctx: commands.Context, seconds: int):
         """Set synthesis interval in seconds.
 
         Parameters:
@@ -948,6 +1187,41 @@ class Aurora(commands.Cog):
             f"Synthesis interval set to {seconds}s by {ctx.author} in guild {ctx.guild.id}"
         )
 
+    @aurora.command(name="setactivityinterval")
+    async def set_activity_interval(self, ctx: commands.Context, seconds: int):
+        """Set activity tracking interval in seconds.
+
+        Parameters:
+        - seconds: Interval in seconds (600-86400)
+        """
+        if not ctx.guild:
+            await ctx.send("❌ This command must be used in a guild.")
+            return
+
+        if not 600 <= seconds <= 86400:
+            await ctx.send(
+                "❌ Interval must be between 600 and 86400 seconds (10s to 24h)."
+            )
+            return
+
+        await self.config.guild(ctx.guild).activity_interval.set(seconds)
+
+        # Update activity task if running
+        guild_config = await self.config.guild(ctx.guild).all()
+        if guild_config.get("enabled") and self.letta:
+            # get the existing task
+            task = self._get_task(self.track_server_activity, ctx.guild.id)
+            if task:
+                task.change_interval(seconds=seconds)
+                log.info(
+                    f"Activity tracking task interval updated to {seconds}s for guild {ctx.guild.id}"
+                )
+
+        await ctx.send(f"✅ Activity tracking interval set to {seconds} seconds.")
+        log.info(
+            f"Activity tracking interval set to {seconds}s by {ctx.author} in guild {ctx.guild.id}"
+        )
+
     @aurora.command(name="setagent")
     async def set_agent(self, ctx: commands.Context, agent_id: str):
         """Change the Letta agent ID for this guild.
@@ -969,14 +1243,23 @@ class Aurora(commands.Cog):
         old_agent_id = await self.config.guild(ctx.guild).agent_id()
         await self.config.guild(ctx.guild).agent_id.set(agent_id)
 
-        # Restart synthesis task if agent is enabled
+        # Restart tasks if agent is enabled
         guild_config = await self.config.guild(ctx.guild).all()
         if guild_config.get("enabled") and self.letta:
             # get the existing task
-            task = self._get_task(self.synthesis, ctx.guild.id)
-            if task:
-                task.restart()
+            synthesis_task = self._get_task(self.synthesis, ctx.guild.id)
+            if synthesis_task:
+                synthesis_task.restart()
                 log.info(f"Synthesis task restarted for guild {ctx.guild.id}")
+
+            activity_task = self._get_or_create_task(
+                self.track_server_activity,
+                ctx.guild.id,
+                before_coro=self.before_activity_tracking,
+            )
+            if activity_task:
+                activity_task.restart()
+                log.info(f"Activity tracking task restarted for guild {ctx.guild.id}")
 
         await ctx.send(
             f"✅ Agent ID updated for {ctx.guild.name}!\n"
@@ -1185,7 +1468,7 @@ class Aurora(commands.Cog):
             return
 
         # Determine event type
-        is_dm = isinstance(message.channel, discord.DMChannel)
+        is_dm = isinstance(message.channel, (discord.DMChannel, discord.GroupChannel))
         is_mention = (
             (
                 self.bot.user in message.mentions
@@ -1198,9 +1481,32 @@ class Aurora(commands.Cog):
             else False
         )
 
-        # Skip if not a DM and bot isn't mentioned
+        # If neither DM nor mention, track guild activity for periodic tasks
         if not is_dm and not is_mention:
+            if not self.activity_queue:
+                return
+
+            # Enqueue guild activity event
+            event = {
+                "event_type": EventType.SERVER_ACTIVITY.format(
+                    guild_id=message.guild.id if message.guild else "dm"
+                ),
+                "channel_id": message.channel.id,
+                "message_id": message.id,
+            }
+            await self.activity_queue.enqueue(event)
             return
+        # If DM responses are disabled, skip
+        if is_dm:
+            if message.guild:
+                # This should not happen, but guard anyway
+                return
+            # Check if DM responses are enabled globally or per guild
+            # For DMs, we could check a global config or per-user config if needed
+            # Here, we assume a global config for simplicity
+            dm_responses_enabled = await self.config.enable_dm_responses()
+            if not dm_responses_enabled:
+                return
 
         try:
             # Get guild config (or use defaults for DMs)
@@ -1270,7 +1576,6 @@ class Aurora(commands.Cog):
     # endregion
 
     # region: Message Processor
-
     @tasks.loop(seconds=5)
     async def process_message_queue(self):
         """Worker that processes messages from the queue."""
