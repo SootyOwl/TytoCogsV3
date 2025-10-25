@@ -67,9 +67,9 @@ class Aurora(commands.Cog):
             "agent_id": None,
             "enabled": False,
             "synthesis_interval": 3600,
-            "last_synthesis": None,
+            "last_synthesis": 0,
             "server_activity_interval": 1800,
-            "last_server_activity": None,  # timestamp of last activity tracking notification
+            "last_server_activity": 0,  # timestamp of last activity tracking notification
             # Event system settings
             "reply_thread_depth": 5,
             "enable_typing_indicator": True,
@@ -165,7 +165,7 @@ class Aurora(commands.Cog):
         self.process_message_queue.stop()
         log.info("Message processor stopped")
 
-    # region: Tasks
+    # region: Task Management
     def _get_task(self, coro, guild_id: int) -> Optional[tasks.Loop]:
         """Get the task for the given guild, if it exists."""
         task_name = f"{coro.__name__}_{guild_id}"
@@ -209,6 +209,8 @@ class Aurora(commands.Cog):
 
         self.tasks.clear()
         log.info("All tasks cancelled.")
+
+    # endregion
 
     # region: Synthesis Task
     async def synthesis(self, guild_id: int):
