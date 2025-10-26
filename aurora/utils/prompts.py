@@ -30,7 +30,7 @@ def build_mention_prompt(
     Returns:
         Formatted prompt string for the Letta agent
     """
-    author_name = metadata.author.display_name
+    author_name = f"{metadata.author.display_name} | {metadata.author.global_name}"
     author_id = metadata.author.id
     channel_id = metadata.channel.id
     guild_id = metadata.guild.id if metadata.guild else ""
