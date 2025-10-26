@@ -119,6 +119,7 @@ class AuthorMetadata:
     id: int
     username: str
     display_name: str
+    global_name: str
     is_bot: bool
     roles: list[str] = field(default_factory=list)
 
@@ -128,6 +129,7 @@ class AuthorMetadata:
             id=author_data.id,
             username=author_data.name,
             display_name=getattr(author_data, "display_name", author_data.name),
+            global_name=getattr(author_data, "global_name", author_data.name),
             is_bot=author_data.bot,
             roles=[role.name for role in author_data.roles if role.name != "@everyone"]
             if isinstance(author_data, Member)
@@ -136,8 +138,7 @@ class AuthorMetadata:
 
     def format(self) -> str:
         """Format author metadata into human-readable text."""
-        roles_str = ", ".join(self.roles) if self.roles else "No roles"
-        return f"- From: {self.display_name} (ID: {self.id}) [Roles: {roles_str}]"
+        return f"- From: {self.display_name}{' | ' + self.global_name if self.global_name != self.display_name else ''} (ID: {self.id})"
 
 
 @dataclass
