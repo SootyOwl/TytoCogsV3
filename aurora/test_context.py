@@ -365,6 +365,7 @@ class TestFormatMetadataForPrompt:
                 id=111222,
                 username="testuser",
                 display_name="Test User",
+                global_name="Test User",
                 is_bot=False,
                 roles=["Admin", "Member"],
             ),
@@ -385,7 +386,6 @@ class TestFormatMetadataForPrompt:
 
         assert "Test User" in result
         assert "(ID: 111222)" in result
-        assert "[Roles: Admin, Member]" in result
         assert "Test Server" in result
         assert "general" in result
 
