@@ -112,11 +112,16 @@ class Aurora(commands.Cog):
 
     async def cog_load(self):
         """Load the Letta client and start the synthesis."""
-        # Load persisted queues if they exist
-        self.queue = MessageQueue.from_file(self.data_path / "message_queue.pkl")
-        self.activity_queue = EventQueue.from_file(
-            self.data_path / "activity_queue.pkl"
-        )
+        try:
+            # Load persisted queues if they exist
+            self.queue = MessageQueue.from_file(self.data_path / "message_queue.pkl")
+            self.activity_queue = EventQueue.from_file(
+                self.data_path / "activity_queue.pkl"
+            )
+        except Exception as e:
+            log.error(f"Error loading queues: {e}, initializing new queues.")
+            self.queue = MessageQueue()
+            self.activity_queue = EventQueue()
         # Start message processor worker
         self.process_message_queue.start()
         log.info("Message processor started")
@@ -169,11 +174,14 @@ class Aurora(commands.Cog):
         # Stop message processor
         self.process_message_queue.stop()
         log.info("Message processor stopped")
-        # Persist queues to disk
-        if self.queue:
-            self.queue.to_file(self.data_path / "message_queue.pkl")
-        if self.activity_queue:
-            self.activity_queue.to_file(self.data_path / "activity_queue.pkl")
+        try:
+            # Persist queues to disk
+            if self.queue:
+                self.queue.to_file(self.data_path / "message_queue.pkl")
+            if self.activity_queue:
+                self.activity_queue.to_file(self.data_path / "activity_queue.pkl")
+        except Exception as e:
+            log.error(f"Error persisting queues: {e}")
 
     # region: Task Management
     def _get_task(self, coro, guild_id: int) -> Optional[tasks.Loop]:
