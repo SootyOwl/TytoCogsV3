@@ -1,8 +1,11 @@
 """Unit tests for Aurora prompt template system."""
 
+import pytest
+
 from aurora.utils.dataclasses import (
     AuthorMetadata,
     ChannelMetadata,
+    GuildMetadata,
     MessageMetadata,
     MessageRecord,
     ReplyChain,
@@ -14,35 +17,82 @@ from aurora.utils.prompts import (
 )
 
 
+@pytest.fixture
+def message_metadata():
+    """Fixture for common message metadata."""
+    return MessageMetadata(
+        **{
+            "message_id": 123456,
+            "timestamp": "2025-10-16T12:30:00",
+            "author": AuthorMetadata(
+                **{
+                    "id": 111222,
+                    "username": "testuser",
+                    "display_name": "Test User",
+                    "global_name": "Test User",
+                    "is_bot": False,
+                    "roles": [],
+                }
+            ),
+            "channel": ChannelMetadata(
+                **{
+                    "id": 987654,
+                    "name": "general",
+                    "type": "text",
+                }
+            ),
+            "guild": GuildMetadata(
+                **{
+                    "id": 555666,
+                    "name": "Test Server",
+                }
+            ),
+        }
+    )
+
+
+@pytest.fixture
+def reply_chain():
+    """Fixture for common reply chain."""
+    return ReplyChain(
+        messages=[
+            MessageRecord(
+                message_id=111111,
+                author="Alice",
+                author_id=222222,
+                content="What's the best Python linter?",
+                clean_content="What's the best Python linter?",
+                timestamp="2025-10-16T12:25:00",
+                is_bot=False,
+                has_attachments=False,
+                has_embeds=False,
+            ),
+            MessageRecord(
+                message_id=222222,
+                author="Bob",
+                author_id=333333,
+                content="I recommend Ruff",
+                clean_content="I recommend Ruff",
+                timestamp="2025-10-16T12:28:00",
+                is_bot=False,
+                has_attachments=False,
+                has_embeds=False,
+            ),
+        ]
+    )
+
+
 class TestBuildMentionPrompt:
     """Tests for build_mention_prompt function."""
 
-    def test_basic_mention_prompt(self):
+    def test_basic_mention_prompt(self, message_metadata):
         """Test building a basic mention prompt."""
-        metadata = {
-            "message_id": "123456",
-            "timestamp": "2025-10-16T12:30:00",
-            "author": {
-                "id": "111222",
-                "display_name": "Test User",
-                "roles": ["Member"],
-            },
-            "channel": {
-                "id": "987654",
-                "name": "general",
-            },
-            "guild": {
-                "id": "555666",
-                "name": "Test Server",
-            },
-        }
-
         content = "Hello @bot, how are you?"
 
         prompt = build_mention_prompt(
             message_content=content,
-            metadata=metadata,
-            reply_chain=[],
+            metadata=message_metadata,
+            reply_chain=ReplyChain(),
             include_mcp_guidance=True,
         )
 
@@ -54,51 +104,13 @@ class TestBuildMentionPrompt:
         assert "discord_read_messages" in prompt  # MCP tool guidance
         assert "discord_send" in prompt  # MCP tool guidance
 
-    def test_mention_prompt_with_reply_chain(self):
+    def test_mention_prompt_with_reply_chain(self, message_metadata, reply_chain):
         """Test mention prompt with reply chain context."""
-        metadata = {
-            "message_id": "123456",
-            "timestamp": "2025-10-16T12:30:00",
-            "author": {
-                "id": "111222",
-                "display_name": "Test User",
-                "roles": [],
-            },
-            "channel": {
-                "id": "987654",
-                "name": "tech-talk",
-            },
-            "guild": {
-                "id": "555666",
-                "name": "Dev Server",
-            },
-        }
-
-        reply_chain = [
-            {
-                "message_id": "111111",
-                "author": "Alice",
-                "content": "What's the best Python linter?",
-                "timestamp": "2025-10-16T12:25:00",
-                "is_bot": False,
-                "has_attachments": False,
-                "has_embeds": False,
-            },
-            {
-                "message_id": "222222",
-                "author": "Bob",
-                "content": "I recommend Ruff",
-                "timestamp": "2025-10-16T12:28:00",
-                "is_bot": False,
-                "has_attachments": False,
-                "has_embeds": False,
-            },
-        ]
         content = "@bot what do you think?"
 
         prompt = build_mention_prompt(
             message_content=content,
-            metadata=metadata,
+            metadata=message_metadata,
             reply_chain=reply_chain,
             include_mcp_guidance=True,
         )
@@ -125,6 +137,7 @@ class TestBuildDMPrompt:
                         "id": 111222,
                         "username": "testuser",
                         "display_name": "Test User",
+                        "global_name": "Test User",
                         "is_bot": False,
                         "roles": [],
                     }
@@ -167,6 +180,7 @@ class TestBuildDMPrompt:
                         "id": 111222,
                         "username": "alice",
                         "display_name": "Alice",
+                        "global_name": "Alice",
                         "is_bot": False,
                         "roles": [],
                     }
@@ -231,18 +245,9 @@ class TestBuildDMPrompt:
 class TestBuildPrompt:
     """Tests for build_prompt function."""
 
-    def test_build_mention_event_prompt(self):
+    def test_build_mention_event_prompt(self, message_metadata, reply_chain):
         """Test that build_prompt correctly routes mention events."""
-        context = {
-            "metadata": {
-                "message_id": "123456",
-                "timestamp": "2025-10-16T12:30:00",
-                "author": {"id": "111", "display_name": "User", "roles": []},
-                "channel": {"id": "987", "name": "general"},
-                "guild": {"id": "555", "name": "Server"},
-            },
-            "reply_chain": [],
-        }
+        context = (message_metadata, reply_chain)
 
         prompt = build_prompt("mention", "Test mention", context)
 
@@ -250,18 +255,9 @@ class TestBuildPrompt:
         assert "Test mention" in prompt
         assert "discord_read_messages" in prompt  # Server mentions get MCP guidance
 
-    def test_build_dm_event_prompt(self):
+    def test_build_dm_event_prompt(self, message_metadata, reply_chain):
         """Test that build_prompt correctly routes DM events."""
-        context = {
-            "metadata": {
-                "message_id": "123456",
-                "timestamp": "2025-10-16T12:30:00",
-                "author": {"id": "111", "display_name": "User", "roles": []},
-                "channel": {"id": "987", "name": "DM"},
-                "guild": None,
-            },
-            "reply_chain": [],
-        }
+        context = (message_metadata, reply_chain)
 
         prompt = build_prompt("dm", "Test DM", context)
 
@@ -269,42 +265,14 @@ class TestBuildPrompt:
         assert "Test DM" in prompt
         assert "direct message" in prompt.lower() or "DM" in prompt
 
-    def test_build_prompt_with_reply_chain(self):
+    def test_build_prompt_with_reply_chain(self, message_metadata, reply_chain):
         """Test build_prompt includes reply chain context."""
-        context = {
-            "metadata": {
-                "message_id": "123456",
-                "timestamp": "2025-10-16T12:30:00",
-                "author": {"id": "111", "display_name": "User", "roles": []},
-                "channel": {"id": "987", "name": "general"},
-                "guild": {"id": "555", "name": "Server"},
-            },
-            "reply_chain": [
-                {
-                    "message_id": "111111",
-                    "author": "Alice",
-                    "content": "First message",
-                    "timestamp": "2025-10-16T12:20:00",
-                    "is_bot": False,
-                    "has_attachments": False,
-                    "has_embeds": False,
-                },
-                {
-                    "message_id": "222222",
-                    "author": "Bob",
-                    "content": "Second message",
-                    "timestamp": "2025-10-16T12:25:00",
-                    "is_bot": False,
-                    "has_attachments": False,
-                    "has_embeds": False,
-                },
-            ],
-        }
+        context = (message_metadata, reply_chain)
 
-        prompt = build_prompt("mention", "Reply message", context)
+        prompt = build_prompt("mention", "Checking reply chain", context)
 
-        # Verify reply chain is formatted and included
+        # Should include reply chain context
         assert "Alice" in prompt
-        assert "First message" in prompt
+        assert "What's the best Python linter?" in prompt
         assert "Bob" in prompt
-        assert "Second message" in prompt
+        assert "I recommend Ruff" in prompt
