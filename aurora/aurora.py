@@ -16,7 +16,7 @@ from typing import AsyncIterator, Optional
 import discord
 from discord.ext import tasks
 from discord.utils import format_dt
-from letta_client import AsyncLetta, MessageCreate
+from letta_client import AsyncLetta, MessageCreate, ToolCall
 from letta_client.agents.messages.types.letta_streaming_response import (
     LettaStreamingResponse,
 )
@@ -1800,6 +1800,9 @@ class Aurora(commands.Cog):
                     if chunk.tool_call and chunk.tool_call.name:
                         tool_calls.append(chunk.tool_call.name)
                         log.info(f"Agent calling tool: {chunk.tool_call.name}")
+                    # handle the discord_set_presence tool call internally
+                    if chunk.tool_call.name == "discord_set_presence":
+                        await self._handle_discord_set_presence(chunk.tool_call)
 
                 case "tool_return_message":
                     # Log tool results
@@ -1829,6 +1832,52 @@ class Aurora(commands.Cog):
                     )
                 case _:
                     log.debug(f"Received chunk type: {chunk.message_type}")
+
+    async def _handle_discord_set_presence(self, tool_call: ToolCall):
+        """Handle the discord_set_presence tool call from the agent.
+
+        This isn't working on the MCP server atm, so we implement it here.
+        """
+        try:
+            args = json.loads(tool_call.arguments)
+            status = args.get("status", "online")
+            activity_type = args.get("activity_type", None)
+            activity_name = args.get("activity_name", None)
+
+            # Map activity type if provided
+            if activity_type and activity_name:
+                activity_mapping = {
+                    "Playing": discord.ActivityType.playing,
+                    "Streaming": discord.ActivityType.streaming,
+                    "Listening": discord.ActivityType.listening,
+                    "Watching": discord.ActivityType.watching,
+                    "Competing": discord.ActivityType.competing,
+                    "Custom": discord.ActivityType.custom,
+                }
+                discord_activity_type = activity_mapping.get(
+                    activity_type.capitalize(), discord.ActivityType.playing
+                )
+                activity = discord.Activity(
+                    type=discord_activity_type,
+                    name=activity_name,
+                )
+            else:
+                activity = None
+            discord_status = getattr(
+                discord.Status, status.lower(), discord.Status.online
+            )
+
+            await self.bot.change_presence(
+                status=discord_status,
+                activity=activity,
+            )
+            log.info(
+                f"Set bot presence to status: {status}, activity: "
+                f"{activity_type} {activity_name}"
+            )
+
+        except Exception as e:
+            log.error(f"Error handling discord_set_presence tool call: {e}")
 
 
 # endregion
