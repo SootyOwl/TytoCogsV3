@@ -40,8 +40,13 @@ async def extract_reply_chain(
     Returns:
         List of message dictionaries in chronological order (oldest first)
     """
+
+    def next_reference(msg: discord.Message) -> discord.MessageReference | None:
+        """Helper to get the next message reference."""
+        return msg.reference if msg.reference and msg.reference.message_id else None
+
     chain = ReplyChain()
-    current = message.reference
+    current = next_reference(message)
     depth = 0
 
     while current and current.message_id and depth < max_depth:
@@ -53,7 +58,7 @@ async def extract_reply_chain(
             chain.insert(parent)
 
             # Move to next parent
-            current = parent.reference
+            current = next_reference(parent)
             depth += 1
 
         except discord.NotFound:

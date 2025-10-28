@@ -1593,8 +1593,8 @@ class Aurora(commands.Cog):
             context = await build_event_context(
                 message, max_reply_depth=max_reply_depth
             )
-            # if it's a thread reply to bot's thread starter, add that message to context
-            if is_new_thread_reply:
+            # if it's a thread reply to bot's thread starter, add that message to context if we're not over max depth
+            if is_new_thread_reply and len(context[1]) < max_reply_depth:
                 thread_starter_msg = await message.channel.parent.fetch_message(  # type: ignore
                     message.channel.id
                 )
