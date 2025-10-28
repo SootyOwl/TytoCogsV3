@@ -1541,7 +1541,19 @@ class Aurora(commands.Cog):
                 (await message.channel.parent.fetch_message(message.channel.id)).author
                 == self.bot.user
             )
-            and message.channel.message_count == 1  # only first message in thread
+            # this is the first message in the thread
+            # i.e., the thread starter message is the most recent message in the channel except for this one
+            # kinda hacky but it works
+            and (
+                len(
+                    [
+                        msg
+                        async for msg in message.channel.history(limit=2)
+                        if msg.type == discord.MessageType.thread_starter_message
+                    ]
+                )
+                == 1
+            )
         )
 
         # If neither DM nor mention, track guild activity for periodic tasks
