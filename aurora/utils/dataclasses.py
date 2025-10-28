@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 from discord import Member, Message, User
 
@@ -78,9 +78,16 @@ class MessageRecord:
 class ReplyChain:
     messages: list[MessageRecord] = field(default_factory=list)
 
-    def insert(self, message: Message):
+    @overload
+    def insert(self, message: Message) -> None: ...
+    @overload
+    def insert(self, message: MessageRecord) -> None: ...
+    def insert(self, message: Message | MessageRecord) -> None:
         # Insert at beginning for chronological order
-        self.messages.insert(0, MessageRecord.from_message(message))
+        if isinstance(message, MessageRecord):
+            self.messages.insert(0, message)
+        else:
+            self.messages.insert(0, MessageRecord.from_message(message))
 
     def to_list(self) -> list[dict]:
         return [vars(msg) for msg in self.messages]

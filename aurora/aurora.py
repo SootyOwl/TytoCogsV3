@@ -1601,6 +1601,15 @@ class Aurora(commands.Cog):
                     message.channel.id
                 )
                 context[1].insert(thread_starter_msg)
+                # if we're still under max depth, build context for the thread starter's reply chain as well and merge
+                if len(context[1]) < max_reply_depth:
+                    parent_context = await build_event_context(
+                        thread_starter_msg,
+                        max_reply_depth=max_reply_depth - len(context[1]),
+                    )
+                    # Merge parent reply chain
+                    for msg in parent_context[1]:
+                        context[1].insert(msg)
 
             # Build prompt
             event_type = "dm" if is_dm else "mention"
