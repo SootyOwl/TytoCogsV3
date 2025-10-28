@@ -1515,20 +1515,26 @@ class Aurora(commands.Cog):
 
         # Determine event type
         is_dm = isinstance(message.channel, (discord.DMChannel, discord.GroupChannel))
-        is_mention = (
-            (
-                self.bot.user in message.mentions
-                or message.reference
-                and message.reference.resolved
-                and isinstance(message.reference.resolved, discord.Message)
-                and message.reference.resolved.author == self.bot.user
+        is_mention = self.bot.user in message.mentions or (
+            message.reference
+            and message.reference.resolved
+            and isinstance(message.reference.resolved, discord.Message)
+            and message.reference.resolved.author == self.bot.user
+        )
+        is_new_thread_reply = (
+            message.type == discord.MessageType.thread_starter_message
+            and isinstance(message.channel, discord.Thread)
+            and message.channel.id
+            and message.channel.parent
+            and isinstance(message.channel.parent, discord.TextChannel)
+            and (
+                (await message.channel.parent.fetch_message(message.channel.id)).author
+                == self.bot.user
             )
-            if not is_dm
-            else False
         )
 
         # If neither DM nor mention, track guild activity for periodic tasks
-        if not is_dm and not is_mention:
+        if not is_dm and not is_mention and not is_new_thread_reply:
             if not self.activity_queue:
                 return
 
