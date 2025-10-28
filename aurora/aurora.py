@@ -119,6 +119,7 @@ class Aurora(commands.Cog):
             self.activity_queue = EventQueue.from_file(
                 self.data_path / "activity_queue.pkl"
             )
+            log.info("Loaded persisted queues from disk")
         except Exception as e:
             log.error(f"Error loading queues: {e}, initializing new queues.")
             self.queue = MessageQueue()
@@ -181,6 +182,7 @@ class Aurora(commands.Cog):
                 self.queue.to_file(self.data_path / "message_queue.pkl")
             if self.activity_queue:
                 self.activity_queue.to_file(self.data_path / "activity_queue.pkl")
+            log.info("Persisted queues to disk")
         except Exception as e:
             log.error(f"Error persisting queues: {e}")
 
