@@ -74,6 +74,7 @@ class Aurora(commands.Cog):
             "last_synthesis": 0,
             "server_activity_interval": 1800,
             "last_server_activity": 0,  # timestamp of last activity tracking notification
+            "activity_threshold": 1,
             # Event system settings
             "reply_thread_depth": 5,
             "enable_typing_indicator": True,
@@ -411,10 +412,17 @@ class Aurora(commands.Cog):
                 log.info("No server activity events to process for guild %d.", guild_id)
                 return
             # Build activity summary
-            activity_summary: dict = await self.build_activity_summary(events)
+            activity_summary: dict = await self.build_activity_summary(
+                events, threshold=guild_config.get("activity_threshold", 1)
+            )
             log.info(
                 "Built activity summary for guild %d: %s", guild_id, activity_summary
             )
+            if not activity_summary:
+                log.info(
+                    "No channels met the activity threshold for guild %d.", guild_id
+                )
+                return
             # Send the activity summary to the agent
             message_stream = self.letta.agents.messages.create_stream(
                 agent_id=agent_id,
@@ -488,7 +496,7 @@ class Aurora(commands.Cog):
                 await asyncio.sleep(wait_time)
         return True
 
-    async def build_activity_summary(self, events: list[Event]) -> dict:
+    async def build_activity_summary(self, events: list[Event], threshold: int) -> dict:
         """Build a summary of server activity from the list of events.
 
         Don't need content, just who said stuff in which channel.
@@ -497,6 +505,7 @@ class Aurora(commands.Cog):
 
         Args:
             events (list[Event]): The list of events to summarize.
+            threshold (int): Minimum number of messages in a channel to be included in the summary.
 
         Returns:
             dict: The activity summary.
@@ -561,7 +570,15 @@ class Aurora(commands.Cog):
                 author.id,
                 author.name,
             )
-
+        # Filter out channels below the threshold
+        summary["channels"] = {
+            channel_id: channel_data
+            for channel_id, channel_data in summary["channels"].items()
+            if channel_data["activity_summary"]["total_messages"] >= threshold
+        }
+        # If no channels meet the threshold, return an empty summary
+        if not summary["channels"]:
+            return {}
         return summary
 
     # endregion
@@ -1053,6 +1070,7 @@ class Aurora(commands.Cog):
                 f"Next Synthesis: {format_dt(datetime.fromtimestamp(guild_config.get('last_synthesis', 0) + guild_config.get('synthesis_interval', 3600), tz=timezone.utc), 'F') if guild_config.get('last_synthesis', 0) > 0 else 'N/A'}\n"
                 f"Activity Tracking Task: {'Running' if activity_task else 'Not Running'}\n"
                 f"Activity Tracking Interval: `every {humanize_timedelta(seconds=guild_config.get('server_activity_interval', 3600))}`\n"
+                f"Activity Threshold: {guild_config.get('activity_threshold', 1)} messages/channel\n"
                 f"Last Activity Tracking: {format_dt(datetime.fromtimestamp(guild_config.get('last_server_activity', 0), tz=timezone.utc), 'F') if guild_config.get('last_server_activity', 0) > 0 else 'Never'}\n"
                 f"Next Activity Tracking: {format_dt(datetime.fromtimestamp(guild_config.get('last_server_activity', 0) + guild_config.get('server_activity_interval', 3600), tz=timezone.utc), 'F') if guild_config.get('last_server_activity', 0) > 0 else 'N/A'}"
             )
@@ -1212,12 +1230,15 @@ class Aurora(commands.Cog):
             f"Synthesis interval set to {seconds}s by {ctx.author} in guild {ctx.guild.id}"
         )
 
-    @aurora.command(name="setactivityinterval")
-    async def set_activity_interval(self, ctx: commands.Context, seconds: int):
+    @aurora.command(name="setactivity")
+    async def set_activity(
+        self, ctx: commands.Context, seconds: int, threshold: int = 1
+    ):
         """Set activity tracking interval in seconds.
 
         Parameters:
         - seconds: Interval in seconds (600-86400)
+        - threshold: Message threshold for activity tracking (1-100)
         """
         if not ctx.guild:
             await ctx.send("❌ This command must be used in a guild.")
