@@ -1541,6 +1541,7 @@ class Aurora(commands.Cog):
                 (await message.channel.parent.fetch_message(message.channel.id)).author
                 == self.bot.user
             )
+            and message.channel.message_count == 1  # only first message in thread
         )
 
         # If neither DM nor mention, track guild activity for periodic tasks
