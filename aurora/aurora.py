@@ -1517,14 +1517,20 @@ class Aurora(commands.Cog):
 
         # Determine event type
         is_dm = isinstance(message.channel, (discord.DMChannel, discord.GroupChannel))
-        is_mention = self.bot.user in message.mentions or (
-            message.reference
-            and message.reference.resolved
-            and isinstance(message.reference.resolved, discord.Message)
-            and message.reference.resolved.author == self.bot.user
+        is_mention = (
+            self.bot.user in message.mentions
+            or (
+                message.reference
+                and message.reference.resolved
+                and isinstance(message.reference.resolved, discord.Message)
+                and message.reference.resolved.author == self.bot.user
+            )
+            if not is_dm
+            else False
         )
+        # Check for new thread replies to bot's thread starter message
         is_new_thread_reply = (
-            message.type == discord.MessageType.thread_starter_message
+            message.type == discord.MessageType.default
             and isinstance(message.channel, discord.Thread)
             and message.channel.id
             and message.channel.parent
@@ -1587,6 +1593,12 @@ class Aurora(commands.Cog):
             context = await build_event_context(
                 message, max_reply_depth=max_reply_depth
             )
+            # if it's a thread reply to bot's thread starter, add that message to context
+            if is_new_thread_reply:
+                thread_starter_msg = await message.channel.parent.fetch_message(  # type: ignore
+                    message.channel.id
+                )
+                context[1].insert(thread_starter_msg)
 
             # Build prompt
             event_type = "dm" if is_dm else "mention"
