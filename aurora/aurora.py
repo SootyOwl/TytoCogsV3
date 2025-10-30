@@ -572,7 +572,8 @@ class Aurora(commands.Cog):
             )
             channel_summary["last_message_user"] = (
                 author.id,
-                author.name,
+                author.display_name,
+                author.global_name,
             )
         # Filter out channels below the threshold
         summary["channels"] = {
