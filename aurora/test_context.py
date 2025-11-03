@@ -388,6 +388,9 @@ class TestFormatMetadataForPrompt:
         assert "(ID: 111222)" in result
         assert "Test Server" in result
         assert "general" in result
+        # Verify new features: current time and relative time
+        assert "Current Time:" in result
+        assert "Message Time:" in result
 
     def test_dm_metadata_formatting(self, metadata):
         """Test formatting DM message metadata."""
@@ -402,6 +405,9 @@ class TestFormatMetadataForPrompt:
         assert "Test User" in result
         assert "DM" in result
         assert "Server:" not in result
+        # Verify new features: current time and relative time
+        assert "Current Time:" in result
+        assert "Message Time:" in result
 
 
 class TestBuildEventContext:
