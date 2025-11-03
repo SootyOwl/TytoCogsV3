@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, overload
 
 from discord import Member, Message, User
+from redbot.core.utils.chat_formatting import humanize_timedelta
 
 if TYPE_CHECKING:
     from discord.abc import MessageableChannel
@@ -36,10 +37,22 @@ class MessageRecord:
 
     def format(self) -> str:
         """Format message record into human-readable text."""
-        # format timestamp
+        # format timestamp with both absolute and relative time
         try:
             dt = datetime.fromisoformat(self.timestamp)
+            # Ensure dt is timezone-aware (assume UTC if naive)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            
+            now = datetime.now(timezone.utc)
+            time_diff = now - dt
+            
+            # Format absolute time
             time_str = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+            
+            # Add relative time
+            relative_time = humanize_timedelta(timedelta=time_diff, negative_format="%s ago", maximum_units=3)
+            time_str = f"{time_str} ({relative_time})"
         except (ValueError, KeyError):
             time_str = self.timestamp
 
@@ -222,19 +235,32 @@ class MessageMetadata:
         """Format metadata into human-readable text."""
         lines = []
 
+        # Add current time reference first
+        now = datetime.now(timezone.utc)
+        current_time_str = now.strftime("%Y-%m-%d %H:%M:%S UTC")
+        lines.append(f"- Current Time: {current_time_str}")
+
         # Author information
         lines.append(self.author.format())
         # Guild and channel information
         if self.guild:
             lines.append(self.guild.format())
         lines.append(self.channel.format())
-        # Timestamp
+        # Timestamp with relative time
         try:
             dt = datetime.fromisoformat(self.timestamp)
+            # Ensure dt is timezone-aware (assume UTC if naive)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            
+            time_diff = now - dt
             time_str = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-            lines.append(f"- Time: {time_str}")
+            
+            # Add relative time
+            relative_time = humanize_timedelta(timedelta=time_diff, negative_format="%s ago", maximum_units=3)
+            lines.append(f"- Message Time: {time_str} ({relative_time})")
         except (ValueError, KeyError):
-            lines.append(f"- Time: {self.timestamp}")
+            lines.append(f"- Message Time: {self.timestamp}")
         # Message ID
         lines.append(f"- Message ID: {self.message_id}")
         return "\n".join(lines)
