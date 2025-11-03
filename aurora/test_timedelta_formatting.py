@@ -161,3 +161,26 @@ class TestRelativeTimeFormatting:
         # Should not crash, just use the raw timestamp
         result = msg_record.format()
         assert "invalid-timestamp" in result
+
+    def test_future_timestamp_handling(self):
+        """Test that future timestamps display 'in X' format."""
+        # Create a message record from 10 minutes in the future
+        ten_min_future = datetime.now(timezone.utc) + timedelta(minutes=10)
+        
+        msg_record = MessageRecord(
+            message_id=999888,
+            author="Time Traveler",
+            author_id=777888,
+            content="Message from the future",
+            clean_content="Message from the future",
+            timestamp=ten_min_future.isoformat(),
+            is_bot=False,
+            has_attachments=False,
+            has_embeds=False,
+        )
+        
+        result = msg_record.format()
+        
+        # Should contain "in" instead of "ago" for future timestamps
+        assert "in" in result
+        assert "ago" not in result

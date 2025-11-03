@@ -50,9 +50,15 @@ class MessageRecord:
             # Format absolute time
             time_str = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
             
-            # Add relative time
-            relative_time = humanize_timedelta(timedelta=time_diff, negative_format="%s ago", maximum_units=3)
-            time_str = f"{time_str} ({relative_time})"
+            # Add relative time (handle both past and future)
+            if time_diff.total_seconds() < 0:
+                # Future timestamp
+                relative_time = humanize_timedelta(timedelta=-time_diff, maximum_units=3)
+                time_str = f"{time_str} (in {relative_time})"
+            else:
+                # Past timestamp
+                relative_time = humanize_timedelta(timedelta=time_diff, negative_format="%s ago", maximum_units=3)
+                time_str = f"{time_str} ({relative_time})"
         except (ValueError, KeyError):
             time_str = self.timestamp
 
@@ -256,9 +262,15 @@ class MessageMetadata:
             time_diff = now - dt
             time_str = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
             
-            # Add relative time
-            relative_time = humanize_timedelta(timedelta=time_diff, negative_format="%s ago", maximum_units=3)
-            lines.append(f"- Message Time: {time_str} ({relative_time})")
+            # Add relative time (handle both past and future)
+            if time_diff.total_seconds() < 0:
+                # Future timestamp
+                relative_time = humanize_timedelta(timedelta=-time_diff, maximum_units=3)
+                lines.append(f"- Message Time: {time_str} (in {relative_time})")
+            else:
+                # Past timestamp
+                relative_time = humanize_timedelta(timedelta=time_diff, negative_format="%s ago", maximum_units=3)
+                lines.append(f"- Message Time: {time_str} ({relative_time})")
         except (ValueError, KeyError):
             lines.append(f"- Message Time: {self.timestamp}")
         # Message ID
