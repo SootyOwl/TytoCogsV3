@@ -1538,10 +1538,7 @@ class Aurora(commands.Cog):
             and message.channel.id
             and message.channel.parent
             and isinstance(message.channel.parent, discord.TextChannel)
-            and (
-                (await message.channel.parent.fetch_message(message.channel.id)).author
-                == self.bot.user
-            )
+            and (await self.is_bot_thread_starter(message))
             # this is the first message in the thread
             # i.e., the thread starter message is the most recent message in the channel except for this one
             # kinda hacky but it works
@@ -1663,6 +1660,19 @@ class Aurora(commands.Cog):
 
         except Exception as e:
             log.exception(f"Error processing message {message.id}: {e}")
+
+    async def is_bot_thread_starter(self, message):
+        try:
+            return (
+                await message.channel.parent.fetch_message(message.channel.id)
+            ).author == self.bot.user
+        except discord.NotFound:
+            return False
+        except Exception as e:
+            log.exception(
+                f"Error checking if bot is thread starter for message {message.id}: {e}"
+            )
+            return False
 
     # endregion
 
