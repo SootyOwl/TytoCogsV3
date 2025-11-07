@@ -566,7 +566,7 @@ class Aurora(commands.Cog):
             ] += 1
             # Ensure comparison is done with datetime objects
             prev_time = channel_summary["last_message_time"]
-            latest_time = self.compare_message_timestamps(message, prev_time)
+            latest_time = self.compare_message_timestamps(message.created_at, prev_time)
             channel_summary["last_message_time"] = latest_time.isoformat()
             channel_summary["last_message_user"] = (
                 f"{author.id=} ({author.display_name=} | {author.global_name=})"
@@ -582,7 +582,9 @@ class Aurora(commands.Cog):
             return {}
         return summary
 
-    def compare_message_timestamps(self, message, prev_time) -> datetime:
+    def compare_message_timestamps(
+        self, message_created_at: datetime, prev_time: datetime | str | None
+    ) -> datetime:
         """Compare a message timestamp with a previous timestamp and return the later datetime.
 
         Args:
@@ -592,16 +594,20 @@ class Aurora(commands.Cog):
         Returns:
             The later of the parsed prev_time and message.created_at.
         """
+        # ensure we have offset-aware datetimes for comparison
+        if not message_created_at.tzinfo:
+            message_created_at = message_created_at.replace(tzinfo=timezone.utc)
+
         if prev_time is not None and isinstance(prev_time, str):
             try:
                 prev_time_dt = datetime.fromisoformat(prev_time)
             except Exception:
-                prev_time_dt = datetime.min
+                prev_time_dt = datetime.min.replace(tzinfo=timezone.utc)
         elif isinstance(prev_time, datetime):
             prev_time_dt = prev_time
         else:
-            prev_time_dt = datetime.min
-        latest_time = max(prev_time_dt, message.created_at)
+            prev_time_dt = datetime.min.replace(tzinfo=timezone.utc)
+        latest_time = max(prev_time_dt, message_created_at)
         return latest_time
 
     # endregion
