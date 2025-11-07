@@ -1549,8 +1549,8 @@ class Aurora(commands.Cog):
             if not is_dm
             else False
         )
-        # Check for new thread replies to bot's thread starter message
-        is_new_thread_reply = (
+        # Check if this is the first reply in a thread created from a bot message
+        is_first_thread_reply = (
             message.type == discord.MessageType.default
             and isinstance(message.channel, discord.Thread)
             and message.channel.id
@@ -1573,7 +1573,7 @@ class Aurora(commands.Cog):
         )
 
         # If neither DM nor mention, track guild activity for periodic tasks
-        if not is_dm and not is_mention and not is_new_thread_reply:
+        if not is_dm and not is_mention and not is_first_thread_reply:
             if not self.activity_queue:
                 return
 
@@ -1624,12 +1624,19 @@ class Aurora(commands.Cog):
             context = await build_event_context(
                 message, max_reply_depth=max_reply_depth
             )
-            # if it's a thread reply to bot's thread starter, add that message to context if we're not over max depth
-            if is_new_thread_reply and len(context[1]) < max_reply_depth:
-                thread_starter_msg = await message.channel.parent.fetch_message(  # type: ignore
-                    message.channel.id
-                )
-                context[1].insert(thread_starter_msg)
+
+            # If we're in a thread, include the thread starter message in context if we're not over max depth
+            if (
+                isinstance(message.channel, discord.Thread)
+                and len(context[1]) < max_reply_depth
+            ):
+                try:
+                    thread_starter_msg = await message.channel.parent.fetch_message(  # type: ignore
+                        message.channel.id
+                    )
+                    context[1].insert(thread_starter_msg)
+                except Exception as e:
+                    log.exception(f"Error fetching thread starter message: {e}")
                 # if we're still under max depth, build context for the thread starter's reply chain as well and merge
                 if len(context[1]) < max_reply_depth:
                     parent_context = await build_event_context(
