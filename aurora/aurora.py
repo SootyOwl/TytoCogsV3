@@ -443,14 +443,16 @@ class Aurora(commands.Cog):
                 max_steps=50,
             )
             await self._process_agent_stream(message_stream)
-            # Update last activity tracking time
-            await self.config.guild(guild).last_server_activity.set(time.time())
         except Exception as e:
             log.exception(
                 "Exception during server activity tracking for guild %d: %s",
                 guild_id,
                 str(e),
             )
+        finally:
+            # Update last activity time
+            if guild:
+                await self.config.guild(guild).last_server_activity.set(time.time())
 
     async def before_activity_tracking(self):
         """Prepare for activity tracking by checking timing constraints.
