@@ -26,6 +26,7 @@ def format_timestamp(timestamp: str) -> str:
     relative_time = humanize_timedelta(
         timedelta=time_diff, negative_format="%s ago", maximum_units=3
     )
+    # humanize_timedelta returns an empty string when the time difference is zero or very small
     if not relative_time:
         relative_time = "just now"
     time_str += (
