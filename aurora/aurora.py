@@ -17,6 +17,7 @@ import discord
 from discord.ext import tasks
 from discord.utils import format_dt
 from letta_client import AsyncLetta, MessageCreate, ToolCall
+from letta_client.core import RequestOptions
 from letta_client.agents.messages.types.letta_streaming_response import (
     LettaStreamingResponse,
 )
@@ -110,6 +111,7 @@ class Aurora(commands.Cog):
             exponential_base=2.0,
             max_delay=30.0,
         )
+        self.request_options = RequestOptions(timeout_in_seconds=300, max_retries=3)
 
     async def cog_load(self):
         """Load the Letta client and start the synthesis."""
@@ -308,6 +310,7 @@ class Aurora(commands.Cog):
                 messages=[MessageCreate(role="user", content=heatbeat_prompt)],
                 stream_tokens=False,
                 max_steps=100,  # increased to allow more processing steps during synthesis
+                request_options=self.request_options,
             )
             await self._process_agent_stream(message_stream)
             # Update last synthesis time
@@ -441,6 +444,7 @@ class Aurora(commands.Cog):
                 ],
                 stream_tokens=False,
                 max_steps=50,
+                request_options=self.request_options,
             )
             await self._process_agent_stream(message_stream)
         except Exception as e:
@@ -1857,6 +1861,7 @@ class Aurora(commands.Cog):
                 messages=[MessageCreate(role="user", content=prompt)],
                 stream_tokens=False,  # Get complete chunks, not token-by-token
                 max_steps=50,
+                request_options=self.request_options,
             )
             await self._process_agent_stream(stream)
 
