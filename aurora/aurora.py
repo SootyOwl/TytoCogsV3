@@ -308,7 +308,6 @@ class Aurora(commands.Cog):
                 messages=[MessageCreate(role="user", content=heatbeat_prompt)],
                 stream_tokens=False,
                 max_steps=100,  # increased to allow more processing steps during synthesis
-                enable_thinking="True",
             )
             await self._process_agent_stream(message_stream)
             # Update last synthesis time
@@ -442,7 +441,6 @@ class Aurora(commands.Cog):
                 ],
                 stream_tokens=False,
                 max_steps=50,
-                enable_thinking="True",
             )
             await self._process_agent_stream(message_stream)
             # Update last activity tracking time
@@ -1823,7 +1821,6 @@ class Aurora(commands.Cog):
                 agent_id=agent_id,
                 messages=[MessageCreate(role="user", content=prompt)],
                 stream_tokens=False,  # Get complete chunks, not token-by-token
-                enable_thinking="true",
                 max_steps=50,
             )
             await self._process_agent_stream(stream)
