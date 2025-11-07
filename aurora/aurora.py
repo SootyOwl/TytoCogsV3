@@ -564,14 +564,12 @@ class Aurora(commands.Cog):
             channel_summary["active_users"][
                 f"{author.id=} ({author.display_name=} | {author.global_name=})"
             ] += 1
-            channel_summary["last_message_time"] = max(
-                channel_summary["last_message_time"] or 0,
-                message.created_at.timestamp(),
-            )
+            # Ensure comparison is done with datetime objects
+            prev_time = channel_summary["last_message_time"]
+            latest_time = self.compare_message_timestamps(message, prev_time)
+            channel_summary["last_message_time"] = latest_time.isoformat()
             channel_summary["last_message_user"] = (
-                author.id,
-                author.display_name,
-                author.global_name,
+                f"{author.id=} ({author.display_name=} | {author.global_name=})"
             )
         # Filter out channels below the threshold
         summary["channels"] = {
@@ -583,6 +581,28 @@ class Aurora(commands.Cog):
         if not summary["channels"]:
             return {}
         return summary
+
+    def compare_message_timestamps(self, message, prev_time) -> datetime:
+        """Compare a message timestamp with a previous timestamp and return the later datetime.
+
+        Args:
+            message: The message object containing the timestamp to compare.
+            prev_time: The previous timestamp to compare against, can be a string, datetime, or None.
+
+        Returns:
+            The later of the parsed prev_time and message.created_at.
+        """
+        if prev_time is not None and isinstance(prev_time, str):
+            try:
+                prev_time_dt = datetime.fromisoformat(prev_time)
+            except Exception:
+                prev_time_dt = datetime.min
+        elif isinstance(prev_time, datetime):
+            prev_time_dt = prev_time
+        else:
+            prev_time_dt = datetime.min
+        latest_time = max(prev_time_dt, message.created_at)
+        return latest_time
 
     # endregion
 
