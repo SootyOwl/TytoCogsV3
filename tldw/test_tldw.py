@@ -1,5 +1,6 @@
 import pytest
 from pytest_mock import MockerFixture
+from types import SimpleNamespace
 
 from tldw import tldw
 from yt_transcript_fetcher import YouTubeTranscriptFetcher
@@ -115,7 +116,7 @@ def test_cleanup_summary(mocker):
 # test cleanup_summary function with invalid input
 def test_cleanup_summary_invalid_input():
     with pytest.raises(ValueError):
-        tldw.cleanup_summary(None)
+        tldw.cleanup_summary(None)  # type: ignore[arg-type]
 
 
 # test get_llm_response coroutine
@@ -128,10 +129,8 @@ async def test_get_llm_response(mocker: MockerFixture):
         "openai.types.chat.chat_completion.ChatCompletion", autospec=True
     )
     mock_response.choices = [mocker.Mock()]
-    mock_response.choices[0].message.content = "Test response"
+    mock_response.choices[0].message.content = "alTest response"
     mock_client.chat.completions.create = mocker.AsyncMock(return_value=mock_response)
-    # Mock the Anthropic LLM Client (tldw.AsyncLLM) in the tldw module
-    mocker.patch("tldw.tldw.AsyncLLM", return_value=mock_client)
     # Test the get_llm_response function
     response = await tldw.get_llm_response(
         llm_client=mock_client,
@@ -143,17 +142,43 @@ async def test_get_llm_response(mocker: MockerFixture):
     assert mock_client.chat.completions.create.called
 
 
+@pytest.mark.asyncio
+async def test_get_llm_response_strips_reasoning_parts(mocker: MockerFixture):
+    mock_client = mocker.AsyncMock()
+    reasoning_part = SimpleNamespace(type="reasoning", text="analysis goes here")
+    text_part = SimpleNamespace(type="output_text", text="alTest response")
+
+    message = mocker.Mock()
+    message.content = [reasoning_part, text_part]
+
+    choice = mocker.Mock()
+    choice.message = message
+
+    mock_response = mocker.Mock()
+    mock_response.choices = [choice]
+
+    mock_client.chat.completions.create = mocker.AsyncMock(return_value=mock_response)
+
+    response = await tldw.get_llm_response(
+        llm_client=mock_client,
+        text="Test prompt",
+        system_prompt=("You are a YouTube video note taker and summarizer."),
+    )
+
+    assert response == "Test response"
+
+
 # test without mocking
 @pytest.fixture
 def llm_client():
     # load the .env file and get the api key
     from dotenv import load_dotenv
 
-    from tldw.tldw import AsyncLLM
+    from tldw.tldw import AsyncOpenAI
 
     load_dotenv()
 
-    return AsyncLLM(base_url="https://openrouter.ai/api/v1")
+    return AsyncOpenAI(base_url="https://openrouter.ai/api/v1")
 
 
 @pytest.mark.asyncio
@@ -165,7 +190,8 @@ async def test_get_llm_response_without_mocker(llm_client):
         text="Test prompt",
         system_prompt=(
             "You are a YouTube video note taker and summarizer, under test. Respond *only* with 'Test response'."
-        ),  # type: ignore
+        ),
+        model="inception/mercury",
     )
     assert isinstance(response, str)
     assert response == "Test response"
