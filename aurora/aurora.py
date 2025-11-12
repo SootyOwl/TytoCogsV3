@@ -437,8 +437,10 @@ class Aurora(commands.Cog):
                             f"```json\n{json.dumps(activity_summary, indent=2)}\n```\n\n"
                             "The above is a summary of recent server activity - channels and users which have new activity.\n"
                             "You may choose to engage with active channels or users based on this information using your `discord_*` tools, if appropriate.\n"
+                            "Use the `discord_read_messages` tool to read recent messages in active channels to get context before responding.\n"
+                            "You may use `web_search`, `fetch_webpage`, `get_image_alttext`, etc. to gather more information if needed.\n"
+                            "Focus on meaningful engagement that adds value to the conversations.\n"
                             "Do not feel obligated to respond to all activity; use your judgment to decide when and where to participate.\n"
-                            "Use the `discord_read_messages` tool to read recent messages in active channels to get context before responding."
                         ),
                     )
                 ],
