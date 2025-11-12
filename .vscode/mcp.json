@@ -1,0 +1,27 @@
+{
+	"servers": {
+		"letta": {
+			"command": "npx",
+			"args": [
+				"letta-mcp-server@2.0.1"
+			],
+			"env": {
+				"LETTA_BASE_URL": "${input:letta_base_url}",
+				"LETTA_PASSWORD": "${input:letta_password}"
+			},
+			"type": "stdio"
+		}
+	},
+	"inputs": [
+		{
+			"id": "letta_base_url",
+			"type": "promptString",
+			"description": "What is the LETTA_BASE_URL (must include /v1)?"
+		},
+		{
+			"id": "letta_password",
+			"type": "promptString",
+			"description": "What is the LETTA_PASSWORD?"
+		}
+	]
+}
