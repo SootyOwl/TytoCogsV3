@@ -1887,7 +1887,7 @@ class Aurora(commands.Cog):
                 case "reasoning_message":
                     # Log internal reasoning for debugging
                     if chunk.reasoning:
-                        log.debug(f"Agent reasoning: {chunk.reasoning}")
+                        log.info(f"Agent reasoning: {chunk.reasoning}")
 
                 case "tool_call_message":
                     # Track tool usage
@@ -1901,14 +1901,14 @@ class Aurora(commands.Cog):
                 case "tool_return_message":
                     # Log tool results
                     if chunk.status == "success":
-                        log.debug(f"Tool {chunk.name} succeeded")
+                        log.info(f"Tool {chunk.name} succeeded")
                     else:
                         log.warning(f"Tool {chunk.name} failed: {chunk.stderr}")
 
                 case "assistant_message":
                     # Agent may have internal thoughts not sent to Discord
                     if chunk.content:
-                        log.debug(f"Agent internal message: {chunk.content[:100]}...")
+                        log.info(f"Agent internal message: {chunk.content[:100]}...")
 
                 case "stop_reason":
                     log.info(f"Agent execution stopped: {chunk.stop_reason}")
@@ -1925,7 +1925,7 @@ class Aurora(commands.Cog):
                         f"Total tokens: {chunk.total_tokens}"
                     )
                 case _:
-                    log.debug(f"Received chunk type: {chunk.message_type}")
+                    log.info(f"Received chunk type: {chunk.message_type}")
 
     async def _handle_discord_set_presence(self, tool_call: ToolCall):
         """Handle the discord_set_presence tool call from the agent.
