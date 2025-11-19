@@ -17,7 +17,7 @@
     "hidden" : false,
     "disabled" : false,
     "required_cogs" : {},
-    "requirements" : ["yt-transcript-fetcher>=1.2.0", "openai>=1.78.1,<2"],
+    "requirements" : ["yt-transcript-fetcher>=1.1.1", "openai>=2"],
     "tags" : ["llm", "youtube", "video", "summarize", "openrouter"],
     "type" : "COG"
 }
