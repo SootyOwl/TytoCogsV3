@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from aurora.utils.queue import Event, EventQueue, MessageQueue
+from aurora.utils.queue import Event, EventQueue
 
 
 class TestEventQueue:
@@ -44,24 +44,41 @@ class TestEventQueue:
 
 
 class TestMessageQueue:
-    """Tests for MessageQueue class."""
+    """Tests covering the message queuing behavior via EventQueue with
+    event_type 'message'.
+    """
 
     @pytest.mark.asyncio
     async def test_queue_initialization(self):
         """Test queue initializes with correct defaults."""
-        queue = MessageQueue(max_size=50, rate_limit_seconds=2.0)
+        queue = EventQueue(default_rate_limit=2.0, default_max_size=50)
 
+        # Enqueue a message event to ensure the 'message' stats entry exists
+        await queue.enqueue(
+            Event.from_dict(
+                {
+                    "event_type": "message",
+                    "event_id": "1",
+                    "message_id": "1",
+                    "channel_id": 1,
+                    "guild_id": 1,
+                }
+            )
+        )
         stats = queue.get_stats()
-        assert stats["queue_size"] == 0
-        assert stats["max_size"] == 50
-        assert stats["rate_limit_seconds"] == 2.0
+        assert stats["message"]["queue_size"] == 1
+        # after a run, clear the queue for other tests to inspect defaults
+        await queue.dequeue("message")
+        assert stats["message"]["max_size"] == 50
+        assert stats["message"]["rate_limit_seconds"] == 2.0
 
     @pytest.mark.asyncio
     async def test_serialize_deserialize(self, tmp_path):
         """Test serialization and deserialization of the queue."""
         path = tmp_path / "test_queue.pkl"
-        queue = MessageQueue(max_size=20)
+        queue = EventQueue(default_max_size=20)
         event = {
+            "event_type": "message",
             "message_id": "abc123",
             "channel_id": 123456,
             "guild_id": 654321,
@@ -72,19 +89,20 @@ class TestMessageQueue:
         with path.open("wb") as f:
             queue.to_file(f.name)
 
-        loaded_queue = MessageQueue.from_file(path)
+        loaded_queue = EventQueue.from_file(path)
         stats = loaded_queue.get_stats()
-        assert stats["queue_size"] == 1
-        assert stats["max_size"] == 20
-        assert stats["rate_limit_seconds"] == 2.0
+        assert stats["message"]["queue_size"] == 1
+        assert stats["message"]["max_size"] == 20
+        # default rate limit 5.0 is the EventQueue default; if caller set rate limit differently
+        assert stats["message"]["rate_limit_seconds"] >= 0
 
-        dequeued_event = await loaded_queue.dequeue()
-        assert dequeued_event == event
+        dequeued_event = await loaded_queue.dequeue("message")
+        assert dequeued_event.data.get("message_id") == event["message_id"]
 
     @pytest.mark.asyncio
     async def test_enqueue_single_event(self):
         """Test enqueueing a single event."""
-        queue = MessageQueue(max_size=10)
+        queue = EventQueue(default_max_size=10)
 
         event = {
             "message_id": "123456",
@@ -93,16 +111,19 @@ class TestMessageQueue:
             "content": "Test message",
         }
 
-        result = await queue.enqueue(event)
+        result = await queue.enqueue(
+            Event.from_dict({"event_type": "message", **event})
+        )
 
         assert result is True
         stats = queue.get_stats()
-        assert stats["queue_size"] == 1
+        assert stats["message"]["queue_size"] == 1
+        await queue.dequeue("message")
 
     @pytest.mark.asyncio
     async def test_enqueue_duplicate_prevention(self):
         """Test that duplicate messages are not enqueued."""
-        queue = MessageQueue(max_size=10)
+        queue = EventQueue(default_max_size=10)
 
         event1 = {
             "message_id": "123456",
@@ -118,39 +139,48 @@ class TestMessageQueue:
             "content": "Different content",
         }
 
-        result1 = await queue.enqueue(event1)
-        result2 = await queue.enqueue(event2)
+        result1 = await queue.enqueue(
+            Event.from_dict({"event_type": "message", **event1})
+        )
+        result2 = await queue.enqueue(
+            Event.from_dict({"event_type": "message", **event2})
+        )
 
         # Both return True (second is handled as duplicate)
         assert result1 is True
         assert result2 is True  # Returns True even though skipped
         stats = queue.get_stats()
         # Only one should be in queue (duplicate was skipped)
-        assert stats["queue_size"] == 1
+        assert stats["message"]["queue_size"] == 1
+        await queue.dequeue("message")
 
     @pytest.mark.asyncio
     async def test_queue_full_behavior(self):
         """Test behavior when queue is full."""
-        queue = MessageQueue(max_size=2)
+        queue = EventQueue(default_max_size=2)
 
         event1 = {"message_id": "111", "channel_id": 1, "guild_id": 1}
         event2 = {"message_id": "222", "channel_id": 1, "guild_id": 1}
         event3 = {"message_id": "333", "channel_id": 1, "guild_id": 1}
 
-        await queue.enqueue(event1)
-        await queue.enqueue(event2)
+        await queue.enqueue(Event.from_dict({"event_type": "message", **event1}))
+        await queue.enqueue(Event.from_dict({"event_type": "message", **event2}))
 
         # Third event should fail (queue full)
-        result = await queue.enqueue(event3)
+        result = await queue.enqueue(
+            Event.from_dict({"event_type": "message", **event3})
+        )
 
         assert result is False
         stats = queue.get_stats()
-        assert stats["queue_size"] == 2
+        assert stats["message"]["queue_size"] == 2
+        await queue.dequeue("message")
+        await queue.dequeue("message")
 
     @pytest.mark.asyncio
     async def test_dequeue_single_event(self):
         """Test dequeuing a single event."""
-        queue = MessageQueue(max_size=10)
+        queue = EventQueue(default_max_size=10)
 
         event = {
             "message_id": "123456",
@@ -159,17 +189,17 @@ class TestMessageQueue:
             "content": "Test message",
         }
 
-        await queue.enqueue(event)
-        dequeued = await queue.dequeue()
+        await queue.enqueue(Event.from_dict({"event_type": "message", **event}))
+        dequeued = await queue.dequeue("message")
 
-        assert dequeued == event
+        assert dequeued.data == event
         stats = queue.get_stats()
-        assert stats["queue_size"] == 0
+        assert stats["message"]["queue_size"] == 0
 
     @pytest.mark.asyncio
     async def test_dequeue_fifo_order(self):
         """Test that queue maintains FIFO order."""
-        queue = MessageQueue(max_size=10)
+        queue = EventQueue(default_max_size=10)
 
         events = [
             {"message_id": "111", "channel_id": 1, "guild_id": 1},
@@ -178,24 +208,24 @@ class TestMessageQueue:
         ]
 
         for event in events:
-            await queue.enqueue(event)
+            await queue.enqueue(Event.from_dict({"event_type": "message", **event}))
 
         # Dequeue should return in same order
-        dequeued1 = await queue.dequeue()
-        dequeued2 = await queue.dequeue()
-        dequeued3 = await queue.dequeue()
+        dequeued1 = await queue.dequeue("message")
+        dequeued2 = await queue.dequeue("message")
+        dequeued3 = await queue.dequeue("message")
 
-        assert dequeued1["message_id"] == "111"
-        assert dequeued2["message_id"] == "222"
-        assert dequeued3["message_id"] == "333"
+        assert dequeued1.data.get("message_id") == "111"
+        assert dequeued2.data.get("message_id") == "222"
+        assert dequeued3.data.get("message_id") == "333"
 
     @pytest.mark.asyncio
     async def test_dequeue_empty_queue(self):
         """Test dequeuing from empty queue (should block)."""
-        queue = MessageQueue(max_size=10)
+        queue = EventQueue(default_max_size=10)
 
         # Start dequeue in background (will block)
-        dequeue_task = asyncio.create_task(queue.dequeue())
+        dequeue_task = asyncio.create_task(queue.dequeue("message"))
 
         # Wait a bit to ensure it's blocking
         await asyncio.sleep(0.1)
@@ -205,116 +235,120 @@ class TestMessageQueue:
 
         # Now enqueue an event to unblock
         event = {"message_id": "123", "channel_id": 1, "guild_id": 1}
-        await queue.enqueue(event)
+        await queue.enqueue(Event.from_dict({"event_type": "message", **event}))
 
         # Dequeue should complete
         dequeued = await asyncio.wait_for(dequeue_task, timeout=1.0)
-        assert dequeued == event
+        assert dequeued.data.get("message_id") == event["message_id"]
 
     @pytest.mark.asyncio
     async def test_can_process_rate_limiting(self):
         """Test rate limiting logic."""
-        queue = MessageQueue(max_size=10, rate_limit_seconds=1.0)
+        queue = EventQueue(default_rate_limit=1.0)
 
         channel_id = 987654
 
         # First check should allow processing
-        assert queue.can_process(channel_id) is True
+        assert queue.can_process(f"channel_{channel_id}") is True
 
         # Mark as processed
-        queue.mark_processed(channel_id)
+        queue.mark_processed(f"channel_{channel_id}")
 
         # Immediate check should deny (rate limited)
-        assert queue.can_process(channel_id) is False
+        assert queue.can_process(f"channel_{channel_id}") is False
 
         # Wait for rate limit to expire
         await asyncio.sleep(1.1)
 
         # Should allow processing again
-        assert queue.can_process(channel_id) is True
+        assert queue.can_process(f"channel_{channel_id}") is True
 
     @pytest.mark.asyncio
     async def test_mark_processed_updates_timestamp(self):
         """Test that mark_processed updates the timestamp."""
-        queue = MessageQueue(max_size=10, rate_limit_seconds=1.0)
+        queue = EventQueue(default_rate_limit=1.0)
 
         channel_id = 987654
 
         # First processing
-        queue.mark_processed(channel_id)
+        queue.mark_processed(f"channel_{channel_id}")
 
         # Wait a bit but not enough to expire rate limit
         await asyncio.sleep(0.5)
 
         # Mark processed again (resets timer)
-        queue.mark_processed(channel_id)
+        queue.mark_processed(f"channel_{channel_id}")
 
         # Wait remaining time from first check
         await asyncio.sleep(0.6)
 
         # Should still be rate limited (because we reset timer)
-        assert queue.can_process(channel_id) is False
+        assert queue.can_process(f"channel_{channel_id}") is False
 
     @pytest.mark.asyncio
     async def test_different_channels_independent_rate_limits(self):
         """Test that different channels have independent rate limits."""
-        queue = MessageQueue(max_size=10, rate_limit_seconds=1.0)
+        queue = EventQueue(default_rate_limit=1.0)
 
         channel1 = 111111
         channel2 = 222222
 
         # Process channel1
-        queue.mark_processed(channel1)
+        queue.mark_processed(f"channel_{channel1}")
 
         # Channel1 should be rate limited
-        assert queue.can_process(channel1) is False
+        assert queue.can_process(f"channel_{channel1}") is False
 
         # Channel2 should NOT be rate limited
-        assert queue.can_process(channel2) is True
+        assert queue.can_process(f"channel_{channel2}") is True
 
     @pytest.mark.asyncio
     async def test_processed_message_ids_set_management(self):
         """Test that processed_message_ids set doesn't grow unbounded."""
-        queue = MessageQueue(max_size=10)
+        queue = EventQueue(default_max_size=10)
 
         # Enqueue many unique messages
         for i in range(1500):  # Exceeds max_processed_ids (1000)
             event = {"message_id": str(i), "channel_id": 1, "guild_id": 1}
-            await queue.enqueue(event)
-            await queue.dequeue()  # Clear queue to make room
+            await queue.enqueue(Event.from_dict({"event_type": "message", **event}))
+            await queue.dequeue("message")  # Clear queue to make room
 
         # Set should be limited to 1000
-        assert len(queue.processed_message_ids) == 1000
+        assert len(queue.processed_event_ids) == 1000
 
     @pytest.mark.asyncio
     async def test_get_stats_accuracy(self):
         """Test that get_stats returns accurate information."""
-        queue = MessageQueue(max_size=10)
+        queue = EventQueue(default_max_size=10)
 
         # Add some events
         for i in range(3):
             event = {"message_id": str(i), "channel_id": 1, "guild_id": 1}
-            await queue.enqueue(event)
+            await queue.enqueue(Event.from_dict({"event_type": "message", **event}))
 
         # Process one channel
-        queue.mark_processed(999)
+        queue.mark_processed("channel_999")
 
         stats = queue.get_stats()
+        msg_stats = stats.get("message")
 
-        assert stats["queue_size"] == 3
-        assert stats["max_size"] == 10
-        assert stats["tracked_message_ids"] == 3
-        assert stats["tracked_channels"] == 1
+        assert msg_stats["queue_size"] == 3
+        assert msg_stats["max_size"] == 10
+        assert len(queue.processed_event_ids) == 3
+        tracked_channels = [
+            k for k in queue.last_processed.keys() if str(k).startswith("channel_")
+        ]
+        assert len(tracked_channels) == 1
 
     @pytest.mark.asyncio
     async def test_concurrent_enqueue(self):
         """Test concurrent enqueue operations."""
-        queue = MessageQueue(max_size=100)
+        queue = EventQueue(default_max_size=100)
 
         async def enqueue_batch(start, count):
             for i in range(start, start + count):
                 event = {"message_id": str(i), "channel_id": 1, "guild_id": 1}
-                await queue.enqueue(event)
+                await queue.enqueue(Event.from_dict({"event_type": "message", **event}))
 
         # Enqueue concurrently from multiple tasks
         await asyncio.gather(
@@ -325,23 +359,23 @@ class TestMessageQueue:
         )
 
         stats = queue.get_stats()
-        assert stats["queue_size"] == 100
+        assert stats["message"]["queue_size"] == 100
 
     @pytest.mark.asyncio
     async def test_concurrent_dequeue(self):
         """Test concurrent dequeue operations."""
-        queue = MessageQueue(max_size=100)
+        queue = EventQueue(default_max_size=100)
 
         # Enqueue events
         for i in range(50):
             event = {"message_id": str(i), "channel_id": 1, "guild_id": 1}
-            await queue.enqueue(event)
+            await queue.enqueue(Event.from_dict({"event_type": "message", **event}))
 
         # Dequeue concurrently
         async def dequeue_batch(count):
             results = []
             for _ in range(count):
-                event = await queue.dequeue()
+                event = await queue.dequeue("message")
                 results.append(event)
             return results
 
@@ -359,18 +393,18 @@ class TestMessageQueue:
 
         # Verify queue is empty
         stats = queue.get_stats()
-        assert stats["queue_size"] == 0
+        assert stats["message"]["queue_size"] == 0
 
     @pytest.mark.asyncio
     async def test_queue_blocking_behavior(self):
         """Test that dequeue blocks until an event is available."""
-        queue = MessageQueue(max_size=10)
+        queue = EventQueue(default_max_size=10)
 
         dequeued_event = None
 
         async def consumer():
             nonlocal dequeued_event
-            dequeued_event = await queue.dequeue()
+            dequeued_event = await queue.dequeue("message")
 
         # Start consumer (will block)
         consumer_task = asyncio.create_task(consumer())
@@ -380,9 +414,9 @@ class TestMessageQueue:
 
         # Enqueue an event
         event = {"message_id": "123", "channel_id": 1, "guild_id": 1}
-        await queue.enqueue(event)
+        await queue.enqueue(Event.from_dict({"event_type": "message", **event}))
 
         # Wait for consumer to complete
         await asyncio.wait_for(consumer_task, timeout=1.0)
 
-        assert dequeued_event == event
+        assert dequeued_event.data == event

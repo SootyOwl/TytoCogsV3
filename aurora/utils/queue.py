@@ -13,203 +13,9 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Union
 
 log = logging.getLogger("red.tyto.aurora.queue")
-
-
-class MessageQueue:
-    """Manages incoming Discord messages for agent processing.
-
-    Implements:
-    - Async queue for message events
-    - Rate limiting per channel
-    - Queue size limits with overflow handling
-    - Message deduplication
-    """
-
-    def __init__(self, max_size: int = 50, rate_limit_seconds: float = 2.0):
-        """Initialize the message queue.
-
-        Args:
-            max_size: Maximum number of events in queue (default: 50)
-            rate_limit_seconds: Minimum seconds between processing messages
-                               from the same channel (default: 2.0)
-        """
-        self.queue: asyncio.Queue = asyncio.Queue(maxsize=max_size)
-        self.is_processing: bool = False
-        self.last_processed: dict[int, datetime] = defaultdict(lambda: datetime.min)
-        self.rate_limit_seconds: float = rate_limit_seconds
-        # needs to be ordered to remove oldest entries first
-        self.processed_message_ids = OrderedDict()
-        self._max_processed_ids: int = 1000
-
-        log.info(
-            f"MessageQueue initialized: max_size={max_size}, "
-            f"rate_limit={rate_limit_seconds}s"
-        )
-
-    async def enqueue(self, event: dict, allow_duplicate: bool = False) -> bool:
-        """Add event to queue.
-
-        Args:
-            event: Event dictionary to queue
-
-        Returns:
-            True if event was queued successfully, False if queue is full
-        """
-        message_id = event.get("message_id")
-
-        # Check for duplicate (unless caller explicitly allows re-queueing the same message)
-        if (
-            message_id
-            and message_id in self.processed_message_ids
-            and not allow_duplicate
-        ):
-            log.debug(f"Skipping duplicate message {message_id}")
-            return True  # Return True to indicate it was handled (even if skipped)
-
-        try:
-            # Use put_nowait to avoid awaiting while holding caller context
-            self.queue.put_nowait(event)
-
-            # Track this message ID (only when first enqueuing, not for allowed re-queues)
-            if message_id and not allow_duplicate:
-                self.processed_message_ids[message_id] = None
-
-                # Prevent unbounded growth of processed_message_ids list
-                if len(self.processed_message_ids.keys()) > self._max_processed_ids:
-                    cleanup_size = self._max_processed_ids // 2
-                    for _ in range(cleanup_size):
-                        self.processed_message_ids.popitem(last=False)
-                    log.debug(
-                        f"Cleaned up {cleanup_size} old message IDs from tracking"
-                    )
-
-            log.debug(
-                f"Enqueued message {message_id}, queue size: {self.queue.qsize()}"
-            )
-            return True
-
-        except asyncio.QueueFull:
-            log.warning(
-                f"Message queue full (size={self.queue.qsize()}), "
-                f"dropping event for message {message_id}"
-            )
-            return False
-
-    def can_process(self, channel_id: int) -> bool:
-        """Check if enough time has passed since last message from this channel.
-
-        Args:
-            channel_id: Discord channel ID to check
-
-        Returns:
-            True if channel can be processed, False if rate limited
-        """
-        if self.is_processing:
-            return False
-        last = self.last_processed[channel_id]
-        elapsed = (datetime.now() - last).total_seconds()
-        can_process = elapsed >= self.rate_limit_seconds
-
-        if not can_process:
-            remaining = self.rate_limit_seconds - elapsed
-            log.debug(f"Channel {channel_id} rate limited, {remaining:.1f}s remaining")
-
-        return can_process
-
-    def mark_processed(self, channel_id: int):
-        """Mark a channel as having been processed.
-
-        Args:
-            channel_id: Discord channel ID to mark
-        """
-        self.is_processing = False
-        self.last_processed[channel_id] = datetime.now()
-        log.debug(f"Marked channel {channel_id} as processed")
-
-    async def dequeue(self) -> dict:
-        """Get next event from queue (blocks if empty).
-
-        Returns:
-            Event dictionary from queue
-        """
-        event = await self.queue.get()
-        log.debug(f"Dequeued event for message {event.get('message_id')}")
-        return event
-
-    def is_empty(self) -> bool:
-        """Check if queue is empty.
-
-        Returns:
-            True if queue is empty, False otherwise
-        """
-        return self.queue.empty()
-
-    def size(self) -> int:
-        """Get current queue size.
-
-        Returns:
-            Number of events in queue
-        """
-        return self.queue.qsize()
-
-    def clear(self):
-        """Clear all events from the queue."""
-        while not self.queue.empty():
-            try:
-                self.queue.get_nowait()
-            except asyncio.QueueEmpty:
-                break
-
-        log.info("Message queue cleared")
-
-    def get_stats(self) -> dict:
-        """Get queue statistics.
-
-        Returns:
-            Dictionary containing queue stats
-        """
-        return {
-            "queue_size": self.queue.qsize(),
-            "max_size": self.queue.maxsize,
-            "rate_limit_seconds": self.rate_limit_seconds,
-            "tracked_channels": len(self.last_processed),
-            "tracked_message_ids": len(self.processed_message_ids),
-        }
-
-    def to_file(self, file_path: str | Path):
-        """Serialize the message queue to a file."""
-        with open(file_path, "wb") as f:
-            pickle.dump(self, f)
-
-    @classmethod
-    def from_file(cls, file_path: str | Path) -> "MessageQueue":
-        """Deserialize the message queue from a file."""
-        if not Path(file_path).exists():
-            return cls()
-        with open(file_path, "rb") as f:
-            queue = pickle.load(f)
-        return queue
-
-    # ensure pickling works correctly
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        # convert asyncio.Queue to a serializable form
-        state["max_size"] = state["queue"].maxsize
-        state["queue"] = list(state["queue"]._queue)
-        # the lambda in defaultdict is not picklable, so we need to handle it
-        state["last_processed"] = dict(state["last_processed"])
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        # reconstruct asyncio.Queue from the list
-        q = asyncio.Queue(maxsize=state["max_size"])
-        for item in state["queue"]:
-            q.put_nowait(item)
-        self.queue = q
-        self.last_processed = defaultdict(lambda: datetime.min, state["last_processed"])
 
 
 @dataclass
@@ -217,7 +23,7 @@ class Event:
     """Represents a server activity event."""
 
     event_type: str
-    event_id: uuid.UUID = field(default_factory=uuid.uuid4)
+    event_id: Union[str, int, uuid.UUID] = field(default_factory=uuid.uuid4)
     data: dict = field(default_factory=dict)
 
     @property
@@ -235,9 +41,17 @@ class Event:
         event_type = data.get("event_type")
         if not event_type:
             raise ValueError("event_type is required to create an Event")
-        event_id = (
-            uuid.UUID(data.get("event_id")) if "event_id" in data else uuid.uuid4()
+
+        # Prefer an explicit event_id; for messages, allow using message_id
+        event_id = data.get("event_id") or (
+            data.get("message_id")
+            if event_type == "message" and data.get("message_id")
+            else uuid.uuid4()
         )
+        # normalize to string to make deduping consistent
+        if not isinstance(event_id, (str, int, uuid.UUID)):
+            event_id = str(event_id)
+
         event_data = {
             k: v for k, v in data.items() if k not in {"event_type", "event_id"}
         }
@@ -250,14 +64,18 @@ class EventQueue:
     Has a queue for each event type to allow independent processing.
     """
 
-    def __init__(self, default_rate_limit: float = 5.0):
+    def __init__(
+        self, default_rate_limit: float = 5.0, default_max_size: int | None = None
+    ):
         """Initialize the event queue.
 
         Args:
             default_rate_limit: Minimum seconds between processing events
                                of the same type (default: 5.0)
         """
-        self.queues: dict[str, asyncio.Queue] = defaultdict(asyncio.Queue)
+        self.default_max_size = default_max_size
+        self.max_sizes: dict[str, int] = defaultdict(lambda: default_max_size or 0)
+        self.queues: dict[str, asyncio.Queue] = {}
         self.default_rate_limit = default_rate_limit
         self.rate_limits: dict[str, float] = defaultdict(lambda: default_rate_limit)
         self.last_processed: dict[str, datetime] = defaultdict(lambda: datetime.min)
@@ -279,7 +97,12 @@ class EventQueue:
         if isinstance(event, dict):
             event = Event.from_dict(event)
 
-        queue = self.queues[event.event_type]
+        # Lazily initialize queue for this event_type with maxsize
+        queue = self.queues.get(event.event_type)
+        if queue is None:
+            maxsize = self.max_sizes[event.event_type] or 0
+            queue = asyncio.Queue(maxsize=maxsize)
+            self.queues[event.event_type] = queue
         # Check for duplicate
         if event.event_id in self.processed_event_ids and not allow_duplicates:
             log.debug(f"Skipping duplicate event {event.event_id}")
@@ -348,7 +171,12 @@ class EventQueue:
         Returns:
             Event instance from queue
         """
-        queue = self.queues[event_type]
+        queue = self.queues.get(event_type)
+        if queue is None:
+            # initialize empty queue with default max size
+            maxsize = self.max_sizes[event_type] or 0
+            queue = asyncio.Queue(maxsize=maxsize)
+            self.queues[event_type] = queue
         event = await queue.get()
         log.debug(f"Dequeued event {event.event_id} of type {event.event_type}")
         return event
@@ -364,7 +192,9 @@ class EventQueue:
             List of Event instances from queue
         """
         events = []
-        queue = self.queues[event_type]
+        queue = self.queues.get(event_type)
+        if queue is None:
+            return []
         while not queue.empty():
             event = await queue.get()
             events.append(event)
@@ -380,7 +210,9 @@ class EventQueue:
         Returns:
             True if the queue for the specified event type is empty, False otherwise
         """
-        queue = self.queues[event_type]
+        queue = self.queues.get(event_type)
+        if queue is None:
+            return True
         return queue.empty()
 
     def size(self, event_type: str) -> int:
@@ -392,7 +224,9 @@ class EventQueue:
         Returns:
             int: Number of events in the queue for the specified event type
         """
-        queue = self.queues[event_type]
+        queue = self.queues.get(event_type)
+        if queue is None:
+            return 0
         return queue.qsize()
 
     def clear(self, event_type: str):
@@ -401,7 +235,9 @@ class EventQueue:
         Args:
             event_type: Type of event queue to clear
         """
-        queue = self.queues[event_type]
+        queue = self.queues.get(event_type)
+        if queue is None:
+            return
         while not queue.empty():
             try:
                 queue.get_nowait()
@@ -426,6 +262,7 @@ class EventQueue:
         for event_type, queue in self.queues.items():
             stats[event_type] = {
                 "queue_size": queue.qsize(),
+                "max_size": queue.maxsize,
                 "rate_limit_seconds": self.rate_limits[event_type],
                 "last_processed": self.last_processed[event_type].isoformat(),
             }
@@ -450,7 +287,12 @@ class EventQueue:
         """Get state for pickling."""
         state = self.__dict__.copy()
         # Remove any non-picklable objects
-        state["queues"] = {k: list(v._queue) for k, v in self.queues.items()}
+        state["queues"] = {
+            k: list(getattr(v, "_queue", [])) for k, v in self.queues.items()
+        }
+        # store maxsize per queue so we can reconstruct
+        state["max_sizes"] = dict(self.max_sizes)
+        state["default_max_size"] = self.default_max_size
         # convert defaultdicts to regular dicts
         state["rate_limits"] = dict(state["rate_limits"])
         state["last_processed"] = dict(state["last_processed"])
@@ -461,9 +303,11 @@ class EventQueue:
         """Set state from pickling."""
         self.__dict__.update(state)
         # Reconstruct asyncio.Queues
-        self.queues = defaultdict(asyncio.Queue)
+        self.queues = {}
         for k, v in state["queues"].items():
-            q = asyncio.Queue()
+            # reconstruct with maxsize if available
+            maxsize = state.get("max_sizes", {}).get(k, 0) or 0
+            q = asyncio.Queue(maxsize=maxsize)
             for item in v:
                 q.put_nowait(item)
             self.queues[k] = q
@@ -473,3 +317,8 @@ class EventQueue:
         )
         self.last_processed = defaultdict(lambda: datetime.min, state["last_processed"])
         self.processed_event_ids = OrderedDict(state["processed_event_ids"])
+        # reconstruct max_sizes
+        self.max_sizes = defaultdict(
+            lambda: state.get("default_max_size", 0), state.get("max_sizes", {})
+        )
+        self.default_max_size = state.get("default_max_size")

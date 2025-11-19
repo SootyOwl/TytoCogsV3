@@ -11,12 +11,12 @@ import time
 from collections import Counter
 from datetime import date, datetime, timezone
 from enum import Enum
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Optional, Any
 
 import discord
 from discord.ext import tasks
 from discord.utils import format_dt
-from letta_client import AsyncLetta, MessageCreate, ToolCall
+from letta_client import AsyncLetta, MessageCreate
 from letta_client.core import RequestOptions
 from letta_client.agents.messages.types.letta_streaming_response import (
     LettaStreamingResponse,
@@ -30,7 +30,7 @@ from .utils.blocks import attach_blocks, detach_blocks
 from .utils.context import build_event_context
 from .utils.errors import CircuitBreaker, ErrorStats, RetryConfig, retry_with_backoff
 from .utils.prompts import build_prompt
-from .utils.queue import Event, EventQueue, MessageQueue
+from .utils.queue import Event, EventQueue
 
 log = logging.getLogger("red.tyto.aurora")
 
@@ -91,12 +91,9 @@ class Aurora(commands.Cog):
         self.letta: Optional[AsyncLetta] = None
         self.tasks: dict[str, tasks.Loop] = {}
 
-        # Message queue for event processing
-        self.queue: Optional[MessageQueue] = None
+        # Event queue for all events (messages and activity)
+        self.queue: Optional[EventQueue] = None
         self._events_paused: bool = False
-
-        # Event queue for tracking channel activity
-        self.activity_queue: Optional[EventQueue] = None
 
         # Error handling components
         self.circuit_breaker = CircuitBreaker(
@@ -113,19 +110,57 @@ class Aurora(commands.Cog):
         )
         self.request_options = RequestOptions(timeout_in_seconds=300, max_retries=3)
 
+    def _get_event_stats(self, event_type: str = "message") -> dict:
+        """Return normalized stats for a given event_type from the EventQueue.
+
+        This maps EventQueue.get_stats() values into a small shape used by the
+        UI and commands which expect a message-queue style summary.
+        """
+        if not self.queue:
+            return {
+                "queue_size": 0,
+                "max_size": 0,
+                "rate_limit_seconds": None,
+                "tracked_channels": 0,
+                "tracked_event_ids": 0,
+            }
+
+        stats = self._get_event_stats("message")
+        event_stats = stats.get(event_type, {})
+        # queue.maxsize is 0 for an unbounded asyncio.Queue
+        max_size = event_stats.get("max_size", None)
+        if max_size is None and event_type in self.queue.queues:
+            max_size = self.queue.queues[event_type].maxsize
+        rate_limit_seconds = event_stats.get("rate_limit_seconds")
+        tracked_channels = len(
+            [
+                k
+                for k in self.queue.last_processed.keys()
+                if str(k).startswith("channel_")
+            ]  # type: ignore
+        )
+        tracked_event_ids = (
+            len(self.queue.processed_event_ids)
+            if hasattr(self.queue, "processed_event_ids")
+            else 0
+        )
+        return {
+            "queue_size": event_stats.get("queue_size", 0),
+            "max_size": max_size or 0,
+            "rate_limit_seconds": rate_limit_seconds or self.queue.default_rate_limit,
+            "tracked_channels": tracked_channels,
+            "tracked_event_ids": tracked_event_ids,
+        }
+
     async def cog_load(self):
         """Load the Letta client and start the synthesis."""
         try:
             # Load persisted queues if they exist
-            self.queue = MessageQueue.from_file(self.data_path / "message_queue.pkl")
-            self.activity_queue = EventQueue.from_file(
-                self.data_path / "activity_queue.pkl"
-            )
+            self.queue = EventQueue.from_file(self.data_path / "event_queue.pkl")
             log.info("Loaded persisted queues from disk")
         except Exception as e:
             log.error(f"Error loading queues: {e}, initializing new queues.")
-            self.queue = MessageQueue()
-            self.activity_queue = EventQueue()
+            self.queue = EventQueue()
         # Start message processor worker
         self.process_message_queue.start()
         log.info("Message processor started")
@@ -181,9 +216,7 @@ class Aurora(commands.Cog):
         try:
             # Persist queues to disk
             if self.queue:
-                self.queue.to_file(self.data_path / "message_queue.pkl")
-            if self.activity_queue:
-                self.activity_queue.to_file(self.data_path / "activity_queue.pkl")
+                self.queue.to_file(self.data_path / "event_queue.pkl")
             log.info("Persisted queues to disk")
         except Exception as e:
             log.error(f"Error persisting queues: {e}")
@@ -387,7 +420,7 @@ class Aurora(commands.Cog):
         if not self.letta:
             log.warning("Letta client not configured. Cannot track server activity.")
             return
-        if not self.activity_queue:
+        if not self.queue:
             log.warning("Activity queue not initialized. Cannot track activity.")
             return
 
@@ -414,7 +447,7 @@ class Aurora(commands.Cog):
             log.info("Starting server activity tracking for guild %d", guild_id)
             # Consume all the server_activity events in the queue for this guild
             event_type = EventType.SERVER_ACTIVITY.format(guild_id=guild_id)
-            events: list[Event] = await self.activity_queue.consume_all(event_type)
+            events: list[Event] = await self.queue.consume_all(event_type)
             if not events:
                 log.info("No server activity events to process for guild %d.", guild_id)
                 return
@@ -646,7 +679,7 @@ class Aurora(commands.Cog):
             await ctx.send("❌ Message queue not initialized.")
             return
 
-        stats = self.queue.get_stats()
+        stats = self._get_event_stats("message")
 
         embed = discord.Embed(
             title="📊 Aurora Message Queue Status",
@@ -675,11 +708,11 @@ class Aurora(commands.Cog):
         )
         embed.add_field(
             name="Tracked Messages",
-            value=str(stats["tracked_message_ids"]),
+            value=str(stats["tracked_event_ids"]),
             inline=True,
         )
 
-        if self.queue.is_empty():
+        if self.queue.is_empty("message"):
             embed.description = "✨ Queue is empty - all messages processed!"
         else:
             embed.description = (
@@ -695,8 +728,8 @@ class Aurora(commands.Cog):
             await ctx.send("❌ Message queue not initialized.")
             return
 
-        initial_size = self.queue.get_stats()["queue_size"]
-        self.queue.clear()
+        initial_size = self.queue.size("message")
+        self.queue.clear("message")
 
         await ctx.send(f"✅ Cleared {initial_size} message(s) from the queue.")
         log.info(f"Queue cleared by {ctx.author}")
@@ -755,7 +788,7 @@ class Aurora(commands.Cog):
 
         # Global queue status
         if self.queue:
-            stats = self.queue.get_stats()
+            stats = self._get_event_stats("message")
             embed.add_field(
                 name="Queue",
                 value=f"{stats['queue_size']}/{stats['max_size']} messages",
@@ -989,7 +1022,14 @@ class Aurora(commands.Cog):
 
         # Update queue rate limit if initialized
         if self.queue:
-            self.queue.rate_limit_seconds = seconds
+            # Update EventQueue default rate limit value and adjust existing per-channel rate limits
+            try:
+                self.queue.default_rate_limit = seconds
+                for k in list(self.queue.rate_limits.keys()):
+                    if str(k).startswith("channel_"):
+                        self.queue.rate_limits[k] = seconds
+            except Exception:
+                log.exception("Error updating queue rate limits")
 
         await ctx.send(f"✅ Rate limit set to {seconds} seconds per channel.")
         log.info(
@@ -1474,7 +1514,7 @@ class Aurora(commands.Cog):
             event_type = "mention"  # Assume mention for preview
             include_mcp_guidance = guild_config.get("mcp_guidance_enabled", True)
             prompt = build_prompt(
-                event_type=event_type,
+                interaction_type=event_type,
                 message_content=message.content,
                 context=context,
                 include_mcp_guidance=include_mcp_guidance,
@@ -1592,7 +1632,7 @@ class Aurora(commands.Cog):
 
         # If neither DM nor mention, track guild activity for periodic tasks
         if not is_dm and not is_mention and not is_first_thread_reply:
-            if not self.activity_queue:
+            if not self.queue:
                 return
 
             # Enqueue guild activity event
@@ -1603,7 +1643,7 @@ class Aurora(commands.Cog):
                 "channel_id": message.channel.id,
                 "message_id": message.id,
             }
-            await self.activity_queue.enqueue(event)
+            await self.queue.enqueue(event)
             return
         # If DM responses are disabled, skip
         if is_dm:
@@ -1666,10 +1706,10 @@ class Aurora(commands.Cog):
                         context[1].insert(msg)
 
             # Build prompt
-            event_type = "dm" if is_dm else "mention"
+            interaction_type = "dm" if is_dm else "mention"
             include_mcp_guidance = guild_config.get("mcp_guidance_enabled", True)
             prompt = build_prompt(
-                event_type=event_type,
+                interaction_type=interaction_type,
                 message_content=message.content,
                 context=context,
                 include_mcp_guidance=include_mcp_guidance,
@@ -1677,7 +1717,8 @@ class Aurora(commands.Cog):
 
             # Create event for queue
             event = {
-                "event_type": event_type,
+                "event_type": "message",
+                "event_id": str(message.id),
                 "message": message,
                 "message_id": message.id,
                 "context": context,
@@ -1695,7 +1736,7 @@ class Aurora(commands.Cog):
                     "DM" if is_dm else getattr(message.channel, "name", "Unknown")
                 )
                 log.info(
-                    f"Queued {event_type} from {message.author} in "
+                    f"Queued {interaction_type} from {message.author} in "
                     f"{'DM' if is_dm else f'#{channel_name}'}"
                 )
             else:
@@ -1723,32 +1764,31 @@ class Aurora(commands.Cog):
     @tasks.loop(seconds=5)
     async def process_message_queue(self):
         """Worker that processes messages from the queue."""
-        if not self.letta or not self.queue or self.queue.is_empty():
+        if not self.letta or not self.queue or self.queue.is_empty("message"):
             return
 
         try:
-            event = await self.queue.dequeue()
-            channel_id = event["channel_id"]
+            event = await self.queue.dequeue("message")
+            channel_id = event.data["channel_id"]
 
-            agent_id = event.get("agent_id")
+            agent_id = event.data.get("agent_id")
             if not agent_id:
                 log.warning(
-                    f"No agent ID in event for message {event.get('message_id')}"
+                    f"No agent ID in event for message {event.data.get('message_id')}"
                 )
                 return
 
             # Rate limiting check
-            if not self.queue.can_process(channel_id):
+            rate_limit_key = f"channel_{channel_id}"
+            if not self.queue.can_process(rate_limit_key):
                 # Re-queue event for later, allow duplicate enqueue so we don't
                 # skip messages that were already tracked as processed.
-                await self.queue.enqueue(event, allow_duplicate=True)
+                await self.queue.enqueue(event, allow_duplicates=True)
                 await asyncio.sleep(0.5)
                 return
 
-            # Mark that we're processing so the queue can short-circuit other attempts
-            self.queue.is_processing = True
             # Get message and check if channel still exists
-            message: discord.Message = event["message"]
+            message: discord.Message = event.data["message"]
             try:
                 # Refresh message to ensure it still exists
                 message = await message.channel.fetch_message(message.id)
@@ -1760,7 +1800,7 @@ class Aurora(commands.Cog):
                 return
 
             # Show typing indicator while agent processes
-            guild_id = event.get("guild_id")
+            guild_id = event.data.get("guild_id")
             enable_typing = True
             if guild_id:
                 guild = self.bot.get_guild(guild_id)
@@ -1771,21 +1811,17 @@ class Aurora(commands.Cog):
             if enable_typing:
                 async with message.channel.typing():
                     # Send to Letta agent and monitor execution
-                    await self.send_to_agent(agent_id, event["prompt"], guild_id)
+                    await self.send_to_agent(agent_id, event.data["prompt"], guild_id)
             else:
-                await self.send_to_agent(agent_id, event["prompt"], guild_id)
+                await self.send_to_agent(agent_id, event.data["prompt"], guild_id)
 
             # Update last processed timestamp
-            self.queue.mark_processed(channel_id)
+            self.queue.mark_processed(rate_limit_key)
 
         except Exception as e:
             log.exception(f"Error processing message from queue: {e}")
-            # Ensure we clear processing flag even on errors
         finally:
-            # If queue exists, clear the processing flag. Guard in case queue was
-            # None or replaced during shutdown.
-            if self.queue:
-                self.queue.is_processing = False
+            pass
 
     async def send_to_agent(
         self, agent_id: str, prompt: str, guild_id: int | None = None
@@ -1931,10 +1967,12 @@ class Aurora(commands.Cog):
                 case _:
                     log.info(f"Received chunk type: {chunk.message_type}")
 
-    async def _handle_discord_set_presence(self, tool_call: ToolCall):
+    async def _handle_discord_set_presence(self, tool_call: Any):
         """Handle the discord_set_presence tool call from the agent.
 
-        This isn't working on the MCP server atm, so we implement it here.
+        Streaming responses may present a wrapper type instead of a plain
+        Letta `ToolCall` type. Accept `Any` and parse the expected payload
+        safely.
         """
         try:
             args = json.loads(tool_call.arguments)

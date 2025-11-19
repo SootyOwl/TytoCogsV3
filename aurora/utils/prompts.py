@@ -165,7 +165,7 @@ def build_dm_prompt(
 
 
 def build_prompt(
-    event_type: str,
+    interaction_type: str,
     message_content: str,
     context: tuple[MessageMetadata, ReplyChain],
     include_mcp_guidance: bool = True,
@@ -188,13 +188,13 @@ def build_prompt(
     """
     metadata, reply_chain = context
 
-    if event_type == "mention":
+    if interaction_type == "mention":
         return build_mention_prompt(
             message_content, metadata, reply_chain, include_mcp_guidance
         )
-    elif event_type == "dm":
+    elif interaction_type == "dm":
         return build_dm_prompt(
             message_content, metadata, reply_chain, include_mcp_guidance
         )
     else:
-        raise ValueError(f"Unknown event type: {event_type}")
+        raise ValueError(f"Unknown event type: {interaction_type}")
