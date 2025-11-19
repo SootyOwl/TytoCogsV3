@@ -38,6 +38,7 @@ def build_mention_prompt(
 
     # Build prompt sections
     prompt_parts = [
+        "[Message Notification]",
         f"You received a mention or reply on Discord from {author_name} ({author_id})",
         "",
         "**Context:**",

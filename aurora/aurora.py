@@ -256,7 +256,7 @@ class Aurora(commands.Cog):
                 "Document insights in temporal journals (daily/monthly/yearly) - NOTE: Do not manually create these memory blocks outside of this task as they are managed for you.",
                 "Synthesize experiences into core memory (zeitgeist, persona, humans, etc.)",
                 "Generate new goals and plans based on your reflections and insights",
-                "Update your agent persona to reflect your evolving identity and objectives",
+                "Update your persona to reflect your evolving identity and objectives",
                 "...and more as you see fit",
             ],
             "autonomy_level": "high",
@@ -267,7 +267,10 @@ class Aurora(commands.Cog):
                 f"aurora_year_{today.strftime('%Y')}",
             ],
         }
-        heatbeat_prompt = f"""```json\n{json.dumps(heatbeat_dict, indent=2)}\n```"""
+        heatbeat_prompt = (
+            "[Synthesis and Exploration Event]\n"
+            f"""```json\n{json.dumps(heatbeat_dict, indent=2)}\n```"""
+        )
         if not self.letta:
             log.warning("Letta client not configured. Cannot run synthesis.")
             return
@@ -307,7 +310,7 @@ class Aurora(commands.Cog):
             # Send the synthesis prompt to the agent
             message_stream = self.letta.agents.messages.create_stream(
                 agent_id=agent_id,
-                messages=[MessageCreate(role="user", content=heatbeat_prompt)],
+                messages=[MessageCreate(role="system", content=heatbeat_prompt)],
                 stream_tokens=False,
                 max_steps=100,  # increased to allow more processing steps during synthesis
                 request_options=self.request_options,
@@ -432,8 +435,9 @@ class Aurora(commands.Cog):
                 agent_id=agent_id,
                 messages=[
                     MessageCreate(
-                        role="user",
+                        role="system",
                         content=(
+                            "[Server Activity Notification]\n"
                             f"```json\n{json.dumps(activity_summary, indent=2)}\n```\n\n"
                             "The above is a summary of recent server activity - channels and users which have new activity.\n"
                             "You may choose to engage with active channels or users based on this information using your `discord_*` tools, if appropriate.\n"
@@ -1860,7 +1864,7 @@ class Aurora(commands.Cog):
         try:
             stream = self.letta.agents.messages.create_stream(
                 agent_id=agent_id,
-                messages=[MessageCreate(role="user", content=prompt)],
+                messages=[MessageCreate(role="system", content=prompt)],
                 stream_tokens=False,  # Get complete chunks, not token-by-token
                 max_steps=50,
                 request_options=self.request_options,
