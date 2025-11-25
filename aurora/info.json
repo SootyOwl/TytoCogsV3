@@ -15,7 +15,7 @@
         0
     ],
     "requirements": [
-        "letta-client>=0.1.324",
+        "letta-client>=1.0.0",
         "typing-extensions>=4.14.0"
     ],
     "tags": [

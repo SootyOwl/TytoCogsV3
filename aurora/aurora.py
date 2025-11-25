@@ -16,11 +16,7 @@ from typing import Any, AsyncIterator, Optional, TypedDict
 import discord
 from discord.ext import tasks
 from discord.utils import format_dt
-from letta_client import AsyncLetta, MessageCreate
-from letta_client.agents.messages.types.letta_streaming_response import (
-    LettaStreamingResponse,
-)
-from letta_client.core import RequestOptions
+from letta_client import AsyncLetta, RequestOptions
 from redbot.core import Config, commands
 from redbot.core.bot import Red
 from redbot.core.data_manager import cog_data_path
@@ -112,7 +108,7 @@ class Aurora(commands.Cog):
             exponential_base=2.0,
             max_delay=30.0,
         )
-        self.request_options = RequestOptions(timeout_in_seconds=300, max_retries=3)
+        self.request_options = RequestOptions(timeout=300, max_retries=3)
 
     def _get_event_stats(self, event_type: str = "message") -> dict:
         """Return normalized stats for a given event_type from the EventQueue.
@@ -180,7 +176,7 @@ class Aurora(commands.Cog):
         if token := letta_tokens.get("token"):
             self.letta = AsyncLetta(
                 base_url=letta_base_url,
-                token=token,
+                api_key=token,
             )
             log.info("Letta client configured successfully.")
 
@@ -345,17 +341,18 @@ class Aurora(commands.Cog):
                 )
 
             # Send the synthesis prompt to the agent
-            message_stream = self.letta.agents.messages.create_stream(
+            message_stream = await self.letta.agents.messages.create(
                 agent_id=agent_id,
                 messages=[
-                    MessageCreate.model_construct(
-                        role="system",
-                        content=heatbeat_prompt,
-                    )
+                    {
+                        "role": "system",
+                        "content": heatbeat_prompt,
+                    }
                 ],
+                streaming=True,
                 stream_tokens=False,
                 max_steps=100,  # increased to allow more processing steps during synthesis
-                request_options=self.request_options,
+                timeout=self.request_options.get("timeout"),
             )
             await self._process_agent_stream(message_stream)
             # Update last synthesis time
@@ -473,12 +470,12 @@ class Aurora(commands.Cog):
                 )
                 return
             # Send the activity summary to the agent
-            message_stream = self.letta.agents.messages.create_stream(
+            message_stream = await self.letta.agents.messages.create(
                 agent_id=agent_id,
                 messages=[
-                    MessageCreate.model_construct(
-                        role="system",
-                        content=(
+                    {
+                        "role": "system",
+                        "content": (
                             "[Server Activity Notification]\n\n"
                             f"```json\n{json.dumps(activity_summary, indent=2)}\n```\n\n"
                             "The above is a summary of recent server activity - channels and users which have new activity.\n"
@@ -488,11 +485,12 @@ class Aurora(commands.Cog):
                             "Focus on meaningful engagement that adds value to the conversations.\n"
                             "Do not feel obligated to respond to all activity; use your judgment to decide when and where to participate.\n"
                         ),
-                    )
+                    }
                 ],
+                streaming=True,
                 stream_tokens=False,
                 max_steps=50,
-                request_options=self.request_options,
+                timeout=self.request_options.get("timeout"),
             )
             await self._process_agent_stream(message_stream)
         except Exception as e:
@@ -1954,17 +1952,18 @@ class Aurora(commands.Cog):
             raise RuntimeError("Letta client not initialized")
 
         try:
-            stream = self.letta.agents.messages.create_stream(
+            stream = await self.letta.agents.messages.create(
                 agent_id=agent_id,
                 messages=[
-                    MessageCreate.model_construct(
-                        role="system",
-                        content=prompt,
-                    )
+                    {
+                        "role": "system",
+                        "content": prompt,
+                    }
                 ],
+                streaming=True,
                 stream_tokens=False,  # Get complete chunks, not token-by-token
                 max_steps=50,
-                request_options=self.request_options,
+                timeout=self.request_options.get("timeout"),
             )
             # Pass run_id container so it can be updated during stream processing
             await self._process_agent_stream(stream, run_tracker)
@@ -1976,7 +1975,7 @@ class Aurora(commands.Cog):
 
     async def _process_agent_stream(
         self,
-        stream: AsyncIterator[LettaStreamingResponse],
+        stream: AsyncIterator[Any],
         run_tracker: RunTracker | None = None,
     ) -> None:
         """Process agent stream and extract run_id for cancellation if needed.
@@ -2009,12 +2008,15 @@ class Aurora(commands.Cog):
 
                 case "tool_call_message":
                     # Track tool usage
-                    if chunk.tool_call and chunk.tool_call.name:
-                        tool_calls.append(chunk.tool_call.name)
-                        log.info(f"Agent calling tool: {chunk.tool_call.name}")
-                    # handle the discord_set_presence tool call internally
-                    if chunk.tool_call.name == "discord_set_presence":
-                        await self._handle_discord_set_presence(chunk.tool_call)
+                    # chunk.tool_calls is now a list
+                    current_tool_calls = getattr(chunk, "tool_calls", []) or []
+                    for tool_call in current_tool_calls:
+                        if tool_call.name:
+                            tool_calls.append(tool_call.name)
+                            log.info(f"Agent calling tool: {tool_call.name}")
+                        # handle the discord_set_presence tool call internally
+                        if tool_call.name == "discord_set_presence":
+                            await self._handle_discord_set_presence(tool_call)
 
                 case "tool_return_message":
                     # Log tool results

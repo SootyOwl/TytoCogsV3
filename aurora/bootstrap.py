@@ -136,7 +136,7 @@ if __name__ == "__main__":
 
     letta = AsyncLetta(
         base_url=os.getenv("LETTA_BASE_URL"),
-        token=os.getenv("LETTA_TOKEN"),
+        api_key=os.getenv("LETTA_TOKEN"),
     )
     agent_id = asyncio.run(
         initialize_basic_agent(

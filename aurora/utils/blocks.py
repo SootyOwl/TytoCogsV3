@@ -10,7 +10,8 @@ async def attach_blocks(
     """Attach blocks to the Letta client."""
     try:
         attached_labels = set()
-        current_blocks = await letta.agents.blocks.list(agent_id=agent_id)
+        current_blocks_page = await letta.agents.blocks.list(agent_id=agent_id)
+        current_blocks = current_blocks_page.items
         current_block_labels = {block.label for block in current_blocks}
         current_block_ids = {block.id for block in current_blocks}
 
@@ -25,7 +26,8 @@ async def attach_blocks(
                     continue
 
                 # Check if block exists globally
-                existing_blocks = await letta.blocks.list(label=label)
+                existing_blocks_page = await letta.blocks.list(label=label)
+                existing_blocks = existing_blocks_page.items
                 if existing_blocks and len(existing_blocks) > 0:
                     block = existing_blocks[0]
                     if block.id in current_block_ids:
@@ -77,7 +79,8 @@ async def detach_blocks(
     """Detach blocks from the Letta client."""
     try:
         detached_labels = set()
-        current_blocks = await letta.agents.blocks.list(agent_id=agent_id)
+        current_blocks_page = await letta.agents.blocks.list(agent_id=agent_id)
+        current_blocks = current_blocks_page.items
         current_block_map = {block.label: block.id for block in current_blocks}
 
         for label in block_names:
