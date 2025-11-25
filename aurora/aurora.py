@@ -11,12 +11,27 @@ import time
 from collections import Counter
 from datetime import date, datetime, timezone
 from enum import Enum
-from typing import Any, AsyncIterator, Optional, TypedDict
+from typing import Any, Optional, TypedDict
 
 import discord
 from discord.ext import tasks
 from discord.utils import format_dt
-from letta_client import AsyncLetta, RequestOptions
+from letta_client import AsyncLetta, AsyncStream, RequestOptions
+from letta_client.types.agents.approval_request_message import ApprovalRequestMessage
+from letta_client.types.agents.approval_response_message import ApprovalResponseMessage
+from letta_client.types.agents.assistant_message import AssistantMessage
+from letta_client.types.agents.hidden_reasoning_message import HiddenReasoningMessage
+from letta_client.types.agents.letta_streaming_response import (
+    LettaErrorMessage,
+    LettaPing,
+    LettaStopReason,
+    LettaUsageStatistics,
+)
+from letta_client.types.agents.reasoning_message import ReasoningMessage
+from letta_client.types.agents.system_message import SystemMessage
+from letta_client.types.agents.tool_call_message import ToolCallMessage
+from letta_client.types.agents.user_message import UserMessage
+from letta_client.types.tool_return_message import ToolReturnMessage
 from redbot.core import Config, commands
 from redbot.core.bot import Red
 from redbot.core.data_manager import cog_data_path
@@ -1952,7 +1967,21 @@ class Aurora(commands.Cog):
             raise RuntimeError("Letta client not initialized")
 
         try:
-            stream = await self.letta.agents.messages.create(
+            stream: AsyncStream[
+                SystemMessage
+                | UserMessage
+                | ReasoningMessage
+                | HiddenReasoningMessage
+                | ToolCallMessage
+                | ToolReturnMessage
+                | AssistantMessage
+                | ApprovalRequestMessage
+                | ApprovalResponseMessage
+                | LettaPing
+                | LettaErrorMessage
+                | LettaStopReason
+                | LettaUsageStatistics
+            ] = await self.letta.agents.messages.create(
                 agent_id=agent_id,
                 messages=[
                     {
@@ -1975,7 +2004,21 @@ class Aurora(commands.Cog):
 
     async def _process_agent_stream(
         self,
-        stream: AsyncIterator[Any],
+        stream: AsyncStream[
+            SystemMessage
+            | UserMessage
+            | ReasoningMessage
+            | HiddenReasoningMessage
+            | ToolCallMessage
+            | ToolReturnMessage
+            | AssistantMessage
+            | ApprovalRequestMessage
+            | ApprovalResponseMessage
+            | LettaPing
+            | LettaErrorMessage
+            | LettaStopReason
+            | LettaUsageStatistics
+        ],
         run_tracker: RunTracker | None = None,
     ) -> None:
         """Process agent stream and extract run_id for cancellation if needed.
