@@ -11,16 +11,16 @@ import time
 from collections import Counter
 from datetime import date, datetime, timezone
 from enum import Enum
-from typing import AsyncIterator, Optional, Any
+from typing import Any, AsyncIterator, Optional, TypedDict
 
 import discord
 from discord.ext import tasks
 from discord.utils import format_dt
 from letta_client import AsyncLetta, MessageCreate
-from letta_client.core import RequestOptions
 from letta_client.agents.messages.types.letta_streaming_response import (
     LettaStreamingResponse,
 )
+from letta_client.core import RequestOptions
 from redbot.core import Config, commands
 from redbot.core.bot import Red
 from redbot.core.data_manager import cog_data_path
@@ -33,6 +33,10 @@ from .utils.prompts import build_prompt
 from .utils.queue import Event, EventQueue
 
 log = logging.getLogger("red.tyto.aurora")
+
+RunTracker = TypedDict(
+    "RunTracker", {"run_id": str | None, "task": asyncio.Task | None}
+)
 
 
 class ToolCallError(Exception):
@@ -343,7 +347,12 @@ class Aurora(commands.Cog):
             # Send the synthesis prompt to the agent
             message_stream = self.letta.agents.messages.create_stream(
                 agent_id=agent_id,
-                messages=[MessageCreate(role="system", content=heatbeat_prompt)],
+                messages=[
+                    MessageCreate.model_construct(
+                        role="system",
+                        content=heatbeat_prompt,
+                    )
+                ],
                 stream_tokens=False,
                 max_steps=100,  # increased to allow more processing steps during synthesis
                 request_options=self.request_options,
@@ -467,10 +476,10 @@ class Aurora(commands.Cog):
             message_stream = self.letta.agents.messages.create_stream(
                 agent_id=agent_id,
                 messages=[
-                    MessageCreate(
+                    MessageCreate.model_construct(
                         role="system",
                         content=(
-                            "[Server Activity Notification]\n"
+                            "[Server Activity Notification]\n\n"
                             f"```json\n{json.dumps(activity_summary, indent=2)}\n```\n\n"
                             "The above is a summary of recent server activity - channels and users which have new activity.\n"
                             "You may choose to engage with active channels or users based on this information using your `discord_*` tools, if appropriate.\n"
@@ -1831,6 +1840,8 @@ class Aurora(commands.Cog):
         The agent will use discord_send() MCP tool to respond directly.
         Includes retry logic and circuit breaker protection.
         """
+        run_tracker: RunTracker = {"run_id": None, "task": None}
+
         try:
             agent_timeout = 60
             if guild_id:
@@ -1842,12 +1853,53 @@ class Aurora(commands.Cog):
                     except Exception as e:
                         log.error(f"Error fetching guild config for {guild_id}: {e}")
 
-            # Wrapper to apply asyncio timeout around the actual agent call
+            # Wrapper to execute agent call and track task/run_id
             async def _execute_with_timeout(aid: str, prm: str, timeout: float):
-                await asyncio.wait_for(
-                    self._execute_agent_call(aid, prm),
-                    timeout=timeout,
+                # Reset run tracking for this attempt
+                run_tracker["run_id"] = None
+
+                task = asyncio.create_task(
+                    self._execute_agent_call(aid, prm, run_tracker)
                 )
+                run_tracker["task"] = task
+
+                try:
+                    await asyncio.wait_for(task, timeout=timeout)
+                except asyncio.TimeoutError as exc:
+                    raise TimeoutError(
+                        "Agent execution timed out after configured timeout"
+                    ) from exc
+                finally:
+                    run_tracker["task"] = None
+
+            async def _cleanup_after_failure(attempt: int, exception: Exception):
+                task: asyncio.Task | None = run_tracker.get("task")
+                if task and not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
+                run_id = run_tracker.get("run_id")
+                if run_id and self.letta:
+                    try:
+                        await self.letta.agents.messages.cancel(
+                            agent_id, run_ids=[run_id]
+                        )
+                        log.info(
+                            "Cancelled Letta run %s for agent %s before retry",
+                            run_id,
+                            agent_id,
+                        )
+                    except Exception as cancel_err:
+                        log.error(
+                            "Failed to cancel Letta run %s for agent %s: %s",
+                            run_id,
+                            agent_id,
+                            cancel_err,
+                        )
+                run_tracker["run_id"] = None
 
             # Execute with retry and circuit breaker
             await retry_with_backoff(
@@ -1857,7 +1909,9 @@ class Aurora(commands.Cog):
                 agent_id,
                 prompt,
                 agent_timeout,
+                before_retry=_cleanup_after_failure,
             )
+            run_tracker["run_id"] = None
             # Record success for stats
             self.error_stats.record_success()
 
@@ -1889,7 +1943,9 @@ class Aurora(commands.Cog):
 
             raise
 
-    async def _execute_agent_call(self, agent_id: str, prompt: str):
+    async def _execute_agent_call(
+        self, agent_id: str, prompt: str, run_tracker: RunTracker | None = None
+    ) -> None:
         """Internal method to execute the actual Letta agent call.
 
         This is separated out so it can be wrapped with retry logic.
@@ -1900,18 +1956,18 @@ class Aurora(commands.Cog):
         try:
             stream = self.letta.agents.messages.create_stream(
                 agent_id=agent_id,
-                messages=[MessageCreate(role="system", content=prompt)],
+                messages=[
+                    MessageCreate.model_construct(
+                        role="system",
+                        content=prompt,
+                    )
+                ],
                 stream_tokens=False,  # Get complete chunks, not token-by-token
                 max_steps=50,
                 request_options=self.request_options,
             )
-            await self._process_agent_stream(stream)
-
-        except asyncio.TimeoutError as e:
-            log.error(f"Timeout waiting for agent {agent_id} response")
-            raise TimeoutError(
-                "Agent execution timed out after configured timeout"
-            ) from e
+            # Pass run_id container so it can be updated during stream processing
+            await self._process_agent_stream(stream, run_tracker)
 
         except Exception as e:
             # Let retry logic handle it
@@ -1919,10 +1975,32 @@ class Aurora(commands.Cog):
             raise
 
     async def _process_agent_stream(
-        self, stream: AsyncIterator[LettaStreamingResponse]
-    ):
+        self,
+        stream: AsyncIterator[LettaStreamingResponse],
+        run_tracker: RunTracker | None = None,
+    ) -> None:
+        """Process agent stream and extract run_id for cancellation if needed.
+
+        Args:
+            stream: The async iterator of streaming response chunks
+            run_tracker: Optional dict to store the run_id and share state with callers
+        """
         tool_calls = []
+        run_id_found = False
         async for chunk in stream:
+            # Extract run_id from any chunk that has it (most message types have run_id)
+            if (
+                not run_id_found
+                and run_tracker is not None
+                and not run_tracker.get("run_id")
+                and hasattr(chunk, "run_id")
+            ):
+                potential_run_id = getattr(chunk, "run_id", None)
+                if potential_run_id:
+                    run_tracker["run_id"] = potential_run_id
+                    log.debug(f"Extracted run_id: {potential_run_id}")
+                    run_id_found = True
+            # Handle different chunk types
             match chunk.message_type:
                 case "reasoning_message":
                     # Log internal reasoning for debugging

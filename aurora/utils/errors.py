@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Callable, Any
+from typing import Optional, Callable, Any, Awaitable
 from functools import wraps
 
 log = logging.getLogger("red.tyto.aurora.errors")
@@ -162,6 +162,7 @@ async def retry_with_backoff(
     config: RetryConfig,
     circuit_breaker: Optional[CircuitBreaker] = None,
     *args,
+    before_retry: Optional[Callable[[int, Exception], Awaitable[None]]] = None,
     **kwargs,
 ) -> Any:
     """Execute function with retry logic and exponential backoff.
@@ -171,6 +172,7 @@ async def retry_with_backoff(
         config: Retry configuration
         circuit_breaker: Optional circuit breaker to check
         *args: Positional arguments for func
+        before_retry: Optional async callback invoked after a failure but before the next attempt
         **kwargs: Keyword arguments for func
 
     Returns:
@@ -205,6 +207,17 @@ async def retry_with_backoff(
             if circuit_breaker:
                 circuit_breaker.record_failure()
 
+            # Allow caller to perform cleanup before deciding on next attempt
+            if before_retry:
+                try:
+                    await before_retry(attempt, e)
+                except Exception as cleanup_err:
+                    log.error(
+                        "Error during retry cleanup after attempt %d: %s",
+                        attempt + 1,
+                        cleanup_err,
+                    )
+
             # Check if this is the last attempt
             if attempt == config.max_attempts - 1:
                 log.error(f"All {config.max_attempts} retry attempts exhausted")
@@ -220,7 +233,8 @@ async def retry_with_backoff(
             await asyncio.sleep(delay)
 
     # All retries exhausted
-    raise last_exception
+    if last_exception:
+        raise last_exception
 
 
 def with_retry(
@@ -249,7 +263,14 @@ def with_retry(
                 base_delay=base_delay,
                 exponential_base=exponential_base,
             )
-            return await retry_with_backoff(func, config, None, *args, **kwargs)
+            return await retry_with_backoff(
+                func,
+                config,
+                None,
+                *args,
+                before_retry=None,
+                **kwargs,
+            )
 
         return wrapper
 
