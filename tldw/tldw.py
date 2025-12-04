@@ -9,8 +9,7 @@ from datetime import datetime, timezone
 import aiohttp
 import discord
 from discord import ButtonStyle
-from openai import AsyncOpenAI as AsyncLLM
-from openai.types.chat import ChatCompletion
+from openai import AsyncOpenAI
 from redbot.core import Config, app_commands, commands
 from redbot.core.bot import Red
 from redbot.core.utils.embed import randomize_color
@@ -55,7 +54,7 @@ class TLDWatch(commands.Cog):
         }
         self.config.register_guild(**default_guild)
 
-        self.llm_client: t.Optional[AsyncLLM] = None
+        self.llm_client: t.Optional[AsyncOpenAI] = None
         self._summary_cache = OrderedDict()
         self.yt_transcript_fetcher = YouTubeTranscriptFetcher()
 
@@ -78,7 +77,7 @@ class TLDWatch(commands.Cog):
         """Initialize the LLM client with the stored API key."""
         openrouter_keys = await self.bot.get_shared_api_tokens("openrouter")
         if api_key := openrouter_keys.get("api_key"):
-            self.llm_client = AsyncLLM(
+            self.llm_client = AsyncOpenAI(
                 api_key=api_key, base_url="https://openrouter.ai/api/v1"
             )
 
@@ -668,7 +667,7 @@ class TLDWatch(commands.Cog):
             footer += " | Summary truncated to fit in embed."
         return footer
 
-    async def generate_summary(self, text: str) -> ChatCompletion:
+    async def generate_summary(self, text: str) -> str | None:
         """Generate a summary using OpenRouter."""
         if not self.llm_client:
             raise ValueError("API key is not set. Please set the API key first.")
@@ -785,13 +784,100 @@ def get_video_id(video_url: str) -> str:
         raise ValueError("Invalid YouTube video URL")
 
 
+def _coerce_content_to_text(content: t.Any) -> str | None:
+    """Coerce OpenAI chat message content (which may be str, list, or dict) into text."""
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, dict):
+        text_value = content.get("text")
+        return text_value if isinstance(text_value, str) else None
+
+    if isinstance(content, list):
+        text_fragments: list[str] = []
+        for part in content:
+            part_type = None
+            part_text = None
+            if isinstance(part, str):
+                part_text = part
+            elif isinstance(part, dict):
+                part_type = part.get("type")
+                part_text = part.get("text")
+            else:
+                part_type = getattr(part, "type", None)
+                part_text = getattr(part, "text", None)
+
+            if not isinstance(part_text, str):
+                continue
+
+            # Skip reasoning/analysis traces; keep user-facing text only.
+            if part_type in {"analysis", "reasoning"}:
+                continue
+
+            text_fragments.append(part_text)
+
+        if text_fragments:
+            return "".join(text_fragments)
+
+    return None
+
+
+def _extract_message_text(message: t.Any) -> str | None:
+    """Extract the textual content from a chat completion message."""
+
+    direct_content = getattr(message, "content", None)
+    if coerced := _coerce_content_to_text(direct_content):
+        return coerced
+
+    # Fallback for objects exposing model_dump()/to_dict() style helpers.
+    for attr in ("model_dump", "dict", "to_dict"):
+        helper = getattr(message, attr, None)
+        if callable(helper):
+            try:
+                payload = helper()
+            except Exception:  # pragma: no cover - defensive
+                continue
+            content = payload.get("content") if isinstance(payload, dict) else None
+            if content is None:
+                continue
+            if coerced := _coerce_content_to_text(content):
+                return coerced
+
+    # As a last resort, attempt to access pydantic's model_extra for OpenAI SDK types.
+    model_extra = getattr(message, "model_extra", None)
+    if isinstance(model_extra, dict):
+        content = model_extra.get("content")
+        if coerced := _coerce_content_to_text(content):
+            return coerced
+
+    return None
+
+
+def _strip_provider_artifacts(text: str) -> str:
+    """Remove known provider artefacts that can leak into the first tokens."""
+
+    def looks_like_summary_start(candidate: str) -> bool:
+        if not candidate:
+            return False
+        lead = candidate[0]
+        return lead.isupper() or lead in "#*-•0123456789"
+
+    prefixes = ("agentfinal", "ntfinal", "final", "nal", "al")
+    for prefix in prefixes:
+        if text.startswith(prefix):
+            remainder = text[len(prefix) :].lstrip()
+            if looks_like_summary_start(remainder):
+                return remainder
+    return text
+
+
 async def get_llm_response(
-    llm_client: AsyncLLM,
+    llm_client: AsyncOpenAI,
     text: str,
     system_prompt: str,
     model: str = "openrouter/auto",
     other_models: list[str] = [],
-) -> ChatCompletion:
+) -> str | None:
     response = await llm_client.chat.completions.create(
         model=model,
         extra_headers={
@@ -810,19 +896,29 @@ async def get_llm_response(
         stop=["```"],
         messages=[
             {
-                "role": "developer",
+                "role": "system",
                 "content": system_prompt,
             },
             {
                 "role": "user",
-                "content": text
-                + "\n\n"
-                + "Summarise the key points in this video transcript in the form of markdown-formatted concise notes, in the language of the transcript.",
+                "content": (
+                    text + "\n\n"
+                    "Summarise the key points in this video transcript in the form of markdown-formatted concise notes, in the language of the transcript.\n"
+                    "Begin the summary with a markdown header starting with '# ' followed by a concise title.\n"
+                    "Use bullet points, numbered lists, and subheadings as appropriate.\n"
+                    "Do not include any introductory or closing remarks.\n"
+                ),
             },
             {
                 "role": "assistant",
-                "content": "Here are the key points from the video transcript:\n\n```markdown",
+                "content": "Here are the key points from the video transcript:\n\n```\n",
             },
         ],
     )
-    return response
+    message_text = _extract_message_text(response.choices[0].message)
+    if not isinstance(message_text, str) or not message_text.strip():
+        raise ValueError("LLM did not return any text content.")
+    sanitized = _strip_provider_artifacts(message_text.strip())
+    if not sanitized:
+        raise ValueError("LLM returned empty content after sanitization.")
+    return sanitized
