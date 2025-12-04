@@ -1,9 +1,10 @@
-import pytest
-from pytest_mock import MockerFixture
 from types import SimpleNamespace
 
-from tldw import tldw
+import pytest
+from pytest_mock import MockerFixture
 from yt_transcript_fetcher import YouTubeTranscriptFetcher
+
+from tldw import tldw
 
 
 # test video url conversion
@@ -85,31 +86,45 @@ async def test_get_transcript_invalid_video_id(ytt_api):
 # test cleanup_summary function
 def test_cleanup_summary(mocker):
     # Test case 1: Basic test
-    summary = "This is a test summary.```"
-    cleaned_summary = tldw.cleanup_summary(summary)
+    response = mocker.Mock()
+    response.choices = [mocker.Mock()]
+    response.choices[0].message.content = "This is a test summary.```"
+    cleaned_summary = tldw.cleanup_summary(response)
     assert cleaned_summary.description == "This is a test summary."
 
     # Test case 2: Summary with multiple ```
-    summary = "This is a test summary.```More text```"
-    cleaned_summary = tldw.cleanup_summary(summary)
+    response = mocker.Mock()
+    response.choices = [mocker.Mock()]
+    response.choices[0].message.content = "This is a test summary.```More text```"
+    cleaned_summary = tldw.cleanup_summary(response)
     assert cleaned_summary.description == "This is a test summary."
 
     # Test case 3: Summary without ```
-    summary = "This is a test summary."
-    cleaned_summary = tldw.cleanup_summary(summary)
+    response = mocker.Mock()
+    response.choices = [mocker.Mock()]
+    response.choices[0].message.content = "This is a test summary."
+    cleaned_summary = tldw.cleanup_summary(response)
     assert cleaned_summary.description == "This is a test summary."
 
     # Test case 4: Empty summary
     with pytest.raises(ValueError):
-        tldw.cleanup_summary("")
+        response = mocker.Mock()
+        response.choices = [mocker.Mock()]
+        response.choices[0].message.content = "   "
+        tldw.cleanup_summary(response)
 
     # Test case 5: Summary with ``` at the beginning
     with pytest.raises(ValueError):
-        tldw.cleanup_summary("```This is a test summary.")
+        response = mocker.Mock()
+        response.choices = [mocker.Mock()]
+        response.choices[0].message.content = "```This is a test summary."
+        tldw.cleanup_summary(response)
 
     # Test case 6: Summary with markdown title
-    summary = "# Title\nThis is a test summary."
-    cleaned_summary = tldw.cleanup_summary(summary)
+    response = mocker.Mock()
+    response.choices = [mocker.Mock()]
+    response.choices[0].message.content = "# Title\nThis is a test summary.```"
+    cleaned_summary = tldw.cleanup_summary(response)
     assert cleaned_summary.description == "This is a test summary."
     assert cleaned_summary.title == "Title"
 
@@ -123,8 +138,6 @@ def test_cleanup_summary_invalid_input():
 # test get_llm_response coroutine
 @pytest.mark.asyncio
 async def test_get_llm_response(mocker: MockerFixture):
-    # FIXME: Update this test for the new AsyncLLM client (OpenRouter)
-    # Mock the LLM Client (tldw.AsyncLLM)
     mock_client = mocker.AsyncMock()
     mock_response = mocker.patch(
         "openai.types.chat.chat_completion.ChatCompletion", autospec=True
@@ -138,8 +151,8 @@ async def test_get_llm_response(mocker: MockerFixture):
         text="Test prompt",
         system_prompt=("You are a YouTube video note taker and summarizer."),
     )
-    assert response == "Test response"
-    assert isinstance(response, str)
+    assert response.choices[0].message.content == "Test response"
+    assert isinstance(response, tldw.ChatCompletion)
     assert mock_client.chat.completions.create.called
 
 
@@ -165,8 +178,9 @@ async def test_get_llm_response_strips_reasoning_parts(mocker: MockerFixture):
         text="Test prompt",
         system_prompt=("You are a YouTube video note taker and summarizer."),
     )
-
-    assert response == "Test response"
+    # strip out reasoning parts
+    stripped_content = tldw.cleanup_summary(response)
+    assert stripped_content.description == "Test response"
 
 
 # test without mocking
@@ -186,7 +200,7 @@ def llm_client():
 async def test_get_llm_response_without_mocker(llm_client):
     """Test the get_llm_response function without mocking."""
     # Test the get_llm_response function
-    response = await tldw.get_llm_response(
+    response: tldw.ChatCompletion = await tldw.get_llm_response(
         llm_client=llm_client,
         text="Test prompt",
         system_prompt=(
@@ -194,5 +208,4 @@ async def test_get_llm_response_without_mocker(llm_client):
         ),
         model="openai/gpt-oss-safeguard-20b",
     )
-    assert isinstance(response, str)
-    assert response == "Test response"
+    assert response.choices[0].message.content == "Test response"

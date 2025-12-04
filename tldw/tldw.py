@@ -10,6 +10,7 @@ import aiohttp
 import discord
 from discord import ButtonStyle
 from openai import AsyncOpenAI
+from openai.types.chat.chat_completion import ChatCompletion
 from redbot.core import Config, app_commands, commands
 from redbot.core.bot import Red
 from redbot.core.utils.embed import randomize_color
@@ -612,13 +613,8 @@ class TLDWatch(commands.Cog):
         response = await self.generate_summary(transcript)
         if not response or not response.choices or not response.choices[0].message:
             raise ValueError("Failed to generate a summary.")
-        summary = (
-            response.choices[0].message.content
-            if response.choices[0].message.content
-            else ""
-        )
         # cleanup the summary
-        summary = cleanup_summary(summary)
+        summary = cleanup_summary(response)
         if not summary or not summary.description:
             raise ValueError("Failed to generate a summary.")
 
@@ -667,7 +663,7 @@ class TLDWatch(commands.Cog):
             footer += " | Summary truncated to fit in embed."
         return footer
 
-    async def generate_summary(self, text: str) -> str | None:
+    async def generate_summary(self, text: str) -> ChatCompletion:
         """Generate a summary using OpenRouter."""
         if not self.llm_client:
             raise ValueError("API key is not set. Please set the API key first.")
@@ -699,13 +695,21 @@ class TLDWatch(commands.Cog):
             raise ValueError(f"Error generating summary: {e}") from e
 
 
-def cleanup_summary(summary: str):
+def cleanup_summary(response: ChatCompletion):
     """The summary should have a closing ```"""
-    if not summary or not summary.strip():
-        raise ValueError("Failed to generate a summary, no content found.")
+    if not response or not response.choices or not response.choices[0].message:
+        raise ValueError("Failed to generate a summary.")
+    message_text = _extract_message_text(response.choices[0].message)
+    if not isinstance(message_text, str) or not message_text.strip():
+        raise ValueError("LLM did not return any text content.")
+    sanitized = _strip_provider_artifacts(message_text.strip())
+    if not sanitized:
+        raise ValueError("LLM returned empty content after sanitization.")
+    if not sanitized or not sanitized.strip():
+        raise ValueError("Failed to generate a summary.")
     # remove any leading or trailing whitespace
     return markdown_to_embed(
-        summary.split("```")[
+        sanitized.split("```")[
             0
         ]  # the closing ``` indicates the end of the summary, only keep everything before it
         .strip()  # remove leading/trailing whitespace
@@ -877,8 +881,8 @@ async def get_llm_response(
     system_prompt: str,
     model: str = "openrouter/auto",
     other_models: list[str] = [],
-) -> str | None:
-    response = await llm_client.chat.completions.create(
+) -> ChatCompletion:
+    response: ChatCompletion = await llm_client.chat.completions.create(
         model=model,
         extra_headers={
             "HTTP-Referer": "https://github.com/SootyOwl/TytoCogsV3",
@@ -915,10 +919,4 @@ async def get_llm_response(
             },
         ],
     )
-    message_text = _extract_message_text(response.choices[0].message)
-    if not isinstance(message_text, str) or not message_text.strip():
-        raise ValueError("LLM did not return any text content.")
-    sanitized = _strip_provider_artifacts(message_text.strip())
-    if not sanitized:
-        raise ValueError("LLM returned empty content after sanitization.")
-    return sanitized
+    return response
