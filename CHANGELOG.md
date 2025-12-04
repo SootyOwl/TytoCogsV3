@@ -1,3 +1,9 @@
+## 0.7.0 (2025-12-04)
+
+### Feat
+
+- **tldw**: update LLM client and enhance response handling
+
 ## 0.6.0 (2025-09-12)
 
 ### Feat
