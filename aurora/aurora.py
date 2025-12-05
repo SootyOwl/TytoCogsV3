@@ -1354,6 +1354,7 @@ class Aurora(commands.Cog):
             return
 
         await self.config.guild(ctx.guild).server_activity_interval.set(seconds)
+        await self.config.guild(ctx.guild).activity_threshold.set(threshold)
 
         # Update activity task if running
         guild_config = await self.config.guild(ctx.guild).all()
@@ -1366,9 +1367,11 @@ class Aurora(commands.Cog):
                     f"Activity tracking task interval updated to {seconds}s for guild {ctx.guild.id}"
                 )
 
-        await ctx.send(f"✅ Activity tracking interval set to {seconds} seconds.")
+        await ctx.send(
+            f"✅ Activity tracking interval set to {seconds} seconds, threshold {threshold} messages."
+        )
         log.info(
-            f"Activity tracking interval set to {seconds}s by {ctx.author} in guild {ctx.guild.id}"
+            f"Activity tracking interval set to {seconds}s, threshold {threshold} messages by {ctx.author} in guild {ctx.guild.id}"
         )
 
     @aurora.command(name="setagent")
