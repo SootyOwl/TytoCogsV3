@@ -125,28 +125,30 @@ class Aurora(commands.Cog):
         )
         self.request_options = RequestOptions(timeout=300, max_retries=3)
 
-    def _get_event_stats(self, event_type: str = "message") -> dict:
-        """Return normalized stats for a given event_type from the EventQueue.
+    def _get_event_stats(self, event_type: str | None = None) -> dict:
+        """Return normalized stats for event types from the EventQueue.
 
-        This maps EventQueue.get_stats() values into a small shape used by the
-        UI and commands which expect a message-queue style summary.
+        This maps EventQueue.get_stats() values into a shape used by the
+        UI and commands which expect an event-queue style summary.
+
+        Args:
+            event_type: Specific event type to get stats for, or None for all types.
+
+        Returns:
+            If event_type is specified: stats dict for that event type.
+            If event_type is None: dict mapping event_type -> stats dict for all types.
         """
         if not self.queue:
-            return {
+            empty_stats = {
                 "queue_size": 0,
                 "max_size": 0,
                 "rate_limit_seconds": None,
                 "tracked_channels": 0,
                 "tracked_event_ids": 0,
             }
+            return empty_stats if event_type else {}
 
-        stats = self._get_event_stats("message")
-        event_stats = stats.get(event_type, {})
-        # queue.maxsize is 0 for an unbounded asyncio.Queue
-        max_size = event_stats.get("max_size", None)
-        if max_size is None and event_type in self.queue.queues:
-            max_size = self.queue.queues[event_type].maxsize
-        rate_limit_seconds = event_stats.get("rate_limit_seconds")
+        # Global tracking stats (shared across all event types)
         tracked_channels = len(
             [
                 k
@@ -159,12 +161,34 @@ class Aurora(commands.Cog):
             if hasattr(self.queue, "processed_event_ids")
             else 0
         )
+
+        queue = self.queue  # Local reference for type narrowing
+
+        def build_stats_for_type(et: str, raw_stats: dict) -> dict:
+            """Build normalized stats for a single event type."""
+            # queue.maxsize is 0 for an unbounded asyncio.Queue
+            max_size = raw_stats.get("max_size", None)
+            if max_size is None and et in queue.queues:
+                max_size = queue.queues[et].maxsize
+            rate_limit_seconds = raw_stats.get("rate_limit_seconds")
+            return {
+                "queue_size": raw_stats.get("queue_size", 0),
+                "max_size": max_size or 0,
+                "rate_limit_seconds": rate_limit_seconds or queue.default_rate_limit,
+                "last_processed": raw_stats.get("last_processed"),
+                "tracked_channels": tracked_channels,
+                "tracked_event_ids": tracked_event_ids,
+            }
+
+        raw_stats = queue.get_stats()
+
+        if event_type is not None:
+            # Return stats for specific event type
+            return build_stats_for_type(event_type, raw_stats.get(event_type, {}))
+
+        # Return stats for all event types
         return {
-            "queue_size": event_stats.get("queue_size", 0),
-            "max_size": max_size or 0,
-            "rate_limit_seconds": rate_limit_seconds or self.queue.default_rate_limit,
-            "tracked_channels": tracked_channels,
-            "tracked_event_ids": tracked_event_ids,
+            et: build_stats_for_type(et, et_stats) for et, et_stats in raw_stats.items()
         }
 
     async def cog_load(self):
@@ -696,49 +720,87 @@ class Aurora(commands.Cog):
 
     @aurora_queue.command(name="status")
     async def queue_status(self, ctx: commands.Context):
-        """Show current queue state and statistics."""
+        """Show current queue state and statistics for all event types."""
         if not self.queue:
-            await ctx.send("❌ Message queue not initialized.")
+            await ctx.send("❌ Event queue not initialized.")
             return
 
-        stats = self._get_event_stats("message")
+        all_stats = self._get_event_stats()  # Get all event types
 
         embed = discord.Embed(
-            title="📊 Aurora Message Queue Status",
+            title="📊 Aurora Event Queue Status",
             color=discord.Color.blue(),
         )
 
-        embed.add_field(
-            name="Queue Size",
-            value=f"{stats['queue_size']}/{stats['max_size']}",
-            inline=True,
-        )
-        embed.add_field(
-            name="Rate Limit",
-            value=f"{stats['rate_limit_seconds']}s",
-            inline=True,
-        )
+        # Global status fields
         embed.add_field(
             name="Events Paused",
             value="✅ Yes" if self._events_paused else "❌ No",
             inline=True,
         )
-        embed.add_field(
-            name="Tracked Channels",
-            value=str(stats["tracked_channels"]),
-            inline=True,
-        )
-        embed.add_field(
-            name="Tracked Messages",
-            value=str(stats["tracked_event_ids"]),
-            inline=True,
-        )
 
-        if self.queue.is_empty("message"):
-            embed.description = "✨ Queue is empty - all messages processed!"
+        # Get global tracking stats from any event type (they're shared)
+        if all_stats:
+            first_stats = next(iter(all_stats.values()))
+            embed.add_field(
+                name="Tracked Channels",
+                value=str(first_stats.get("tracked_channels", 0)),
+                inline=True,
+            )
+            embed.add_field(
+                name="Tracked Event IDs",
+                value=str(first_stats.get("tracked_event_ids", 0)),
+                inline=True,
+            )
+        else:
+            embed.add_field(name="Tracked Channels", value="0", inline=True)
+            embed.add_field(name="Tracked Event IDs", value="0", inline=True)
+
+        # Add a field for each event type queue
+        total_pending = 0
+        if all_stats:
+            for event_type, stats in sorted(all_stats.items()):
+                queue_size = stats.get("queue_size", 0)
+                max_size = stats.get("max_size", 0)
+                rate_limit = stats.get("rate_limit_seconds", "?")
+                last_processed = stats.get("last_processed", "Never")
+
+                total_pending += queue_size
+
+                # Format the event type name for display
+                display_name = event_type.replace("_", " ").title()
+                if "server_activity" in event_type:
+                    # Extract guild ID from server_activity_{guild_id}
+                    display_name = "🔔 " + display_name
+                elif event_type == "message":
+                    display_name = "💬 Message"
+                else:
+                    display_name = "📋 " + display_name
+
+                max_display = f"/{max_size}" if max_size > 0 else " (unbounded)"
+                queue_info = (
+                    f"**Size:** {queue_size}{max_display}\n"
+                    f"**Rate Limit:** {rate_limit}s\n"
+                    f"**Last Processed:** {last_processed}"
+                )
+                embed.add_field(
+                    name=display_name,
+                    value=queue_info,
+                    inline=True,
+                )
+        else:
+            embed.add_field(
+                name="No Queues",
+                value="No event queues have been initialized yet.",
+                inline=False,
+            )
+
+        # Set description based on overall queue state
+        if total_pending == 0:
+            embed.description = "✨ All queues empty - all events processed!"
         else:
             embed.description = (
-                f"⚠️ {stats['queue_size']} message(s) waiting to be processed."
+                f"⚠️ {total_pending} event(s) waiting to be processed across all queues."
             )
 
         await ctx.send(embed=embed)
