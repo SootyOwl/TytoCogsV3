@@ -1010,7 +1010,9 @@ class Aurora(commands.Cog):
             return
         await self.config.guild(ctx.guild).reply_thread_depth.set(depth)  # type: ignore
         await ctx.send(f"✅ Reply thread depth set to {depth} messages.")
-        log.info(f"Reply depth set to {depth} by {ctx.author} in guild {ctx.guild.id}")
+        log.info(
+            f"Reply depth set to {depth} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
 
     @aurora_config.command(name="typing")
     async def config_typing(self, ctx: commands.Context, enabled: bool):
@@ -1025,7 +1027,9 @@ class Aurora(commands.Cog):
         await self.config.guild(ctx.guild).enable_typing_indicator.set(enabled)
         status = "enabled" if enabled else "disabled"
         await ctx.send(f"✅ Typing indicator {status}.")
-        log.info(f"Typing indicator {status} by {ctx.author} in guild {ctx.guild.id}")
+        log.info(
+            f"Typing indicator {status} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
 
     @aurora_config.command(name="ratelimit")
     async def config_rate_limit(self, ctx: commands.Context, seconds: float):
@@ -1055,7 +1059,7 @@ class Aurora(commands.Cog):
 
         await ctx.send(f"✅ Rate limit set to {seconds} seconds per channel.")
         log.info(
-            f"Rate limit set to {seconds}s by {ctx.author} in guild {ctx.guild.id}"
+            f"Rate limit set to {seconds}s by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
         )
 
     @aurora_config.command(name="queuesize")
@@ -1076,7 +1080,9 @@ class Aurora(commands.Cog):
             f"✅ Maximum queue size set to {size}.\n"
             f"⚠️ Note: Queue size change requires cog reload to take effect."
         )
-        log.info(f"Queue size set to {size} by {ctx.author} in guild {ctx.guild.id}")
+        log.info(
+            f"Queue size set to {size} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
 
     @aurora_config.command(name="timeout")
     async def config_timeout(self, ctx: commands.Context, seconds: int):
@@ -1094,7 +1100,7 @@ class Aurora(commands.Cog):
         await self.config.guild(ctx.guild).agent_timeout.set(seconds)
         await ctx.send(f"✅ Agent timeout set to {seconds} seconds.")
         log.info(
-            f"Agent timeout set to {seconds}s by {ctx.author} in guild {ctx.guild.id}"
+            f"Agent timeout set to {seconds}s by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
         )
 
     @aurora_config.command(name="mcpguidance")
@@ -1113,7 +1119,9 @@ class Aurora(commands.Cog):
             f"✅ MCP tool guidance {status}.\n"
             f"ℹ️ When enabled, prompts include hints about using discord_read_messages() and discord_send() tools."
         )
-        log.info(f"MCP guidance {status} by {ctx.author} in guild {ctx.guild.id}")
+        log.info(
+            f"MCP guidance {status} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
 
     @aurora_config.command(name="show")
     async def config_show(self, ctx: commands.Context, guild_id: int | None = None):
@@ -1252,7 +1260,9 @@ class Aurora(commands.Cog):
             f"Agent ID: `{agent_id}`\n\n"
             f"The bot will now respond to mentions and DMs (if configured)."
         )
-        log.info(f"Agent {agent_id} enabled for guild {ctx.guild.id} by {ctx.author}")
+        log.info(
+            f"Agent {agent_id} enabled for guild {ctx.guild.name} ({ctx.guild.id}) by {ctx.author}"
+        )
 
         # Start synthesis tasks if Letta is initialized
         if self.letta:
@@ -1296,7 +1306,9 @@ class Aurora(commands.Cog):
             f"✅ Aurora agent disabled for {ctx.guild.name}.\n"
             f"The bot will no longer respond to mentions or DMs."
         )
-        log.info(f"Agent disabled for guild {ctx.guild.id} by {ctx.author}")
+        log.info(
+            f"Agent disabled for guild {ctx.guild.name} ({ctx.guild.id}) by {ctx.author}"
+        )
 
     @aurora.command(name="setsynthesisinterval")
     async def set_synthesis_interval(self, ctx: commands.Context, seconds: int):
@@ -1325,12 +1337,12 @@ class Aurora(commands.Cog):
             if task:
                 task.change_interval(seconds=seconds)
                 log.info(
-                    f"Synthesis task interval updated to {seconds}s for guild {ctx.guild.id}"
+                    f"Synthesis task interval updated to {seconds}s for guild {ctx.guild.name} ({ctx.guild.id})"
                 )
 
         await ctx.send(f"✅ Synthesis interval set to {seconds} seconds.")
         log.info(
-            f"Synthesis interval set to {seconds}s by {ctx.author} in guild {ctx.guild.id}"
+            f"Synthesis interval set to {seconds}s by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
         )
 
     @aurora.command(name="setactivity")
@@ -1364,14 +1376,14 @@ class Aurora(commands.Cog):
             if task:
                 task.change_interval(seconds=seconds)
                 log.info(
-                    f"Activity tracking task interval updated to {seconds}s for guild {ctx.guild.id}"
+                    f"Activity tracking task interval updated to {seconds}s for guild {ctx.guild.name} ({ctx.guild.id})"
                 )
 
         await ctx.send(
             f"✅ Activity tracking interval set to {seconds} seconds, threshold {threshold} messages."
         )
         log.info(
-            f"Activity tracking interval set to {seconds}s, threshold {threshold} messages by {ctx.author} in guild {ctx.guild.id}"
+            f"Activity tracking interval set to {seconds}s, threshold {threshold} messages by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id}"
         )
 
     @aurora.command(name="setagent")
@@ -1402,7 +1414,9 @@ class Aurora(commands.Cog):
             synthesis_task = self._get_task(self.synthesis, ctx.guild.id)
             if synthesis_task:
                 synthesis_task.restart()
-                log.info(f"Synthesis task restarted for guild {ctx.guild.id}")
+                log.info(
+                    f"Synthesis task restarted for guild {ctx.guild.name} ({ctx.guild.id})"
+                )
 
             activity_task = self._get_or_create_task(
                 self.track_server_activity,
@@ -1411,7 +1425,9 @@ class Aurora(commands.Cog):
             )
             if activity_task:
                 activity_task.restart()
-                log.info(f"Activity tracking task restarted for guild {ctx.guild.id}")
+                log.info(
+                    f"Activity tracking task restarted for guild {ctx.guild.name} ({ctx.guild.id})"
+                )
 
         await ctx.send(
             f"✅ Agent ID updated for {ctx.guild.name}!\n"
@@ -1419,7 +1435,7 @@ class Aurora(commands.Cog):
             f"New: `{agent_id}`"
         )
         log.info(
-            f"Agent ID changed from {old_agent_id} to {agent_id} for guild {ctx.guild.id} by {ctx.author}"
+            f"Agent ID changed from {old_agent_id} to {agent_id} for guild {ctx.guild.name} ({ctx.guild.id}) by {ctx.author}"
         )
 
     @aurora.group(name="global")
