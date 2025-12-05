@@ -532,6 +532,8 @@ class Aurora(commands.Cog):
                 timeout=self.request_options.get("timeout"),
             )
             await self._process_agent_stream(message_stream)
+            # Mark event type as processed for stats display
+            self.queue.mark_processed(event_type)
         except Exception as e:
             log.exception(
                 "Exception during server activity tracking for guild %d: %s",
@@ -1918,8 +1920,11 @@ class Aurora(commands.Cog):
             else:
                 await self.send_to_agent(agent_id, event.data["prompt"], guild_id)
 
-            # Update last processed timestamp
+            # Update last processed timestamps:
+            # - rate_limit_key for per-channel rate limiting
+            # - "message" event type for stats display
             self.queue.mark_processed(rate_limit_key)
+            self.queue.mark_processed("message")
 
         except Exception as e:
             log.exception(f"Error processing message from queue: {e}")

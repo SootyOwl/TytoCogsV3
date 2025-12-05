@@ -264,7 +264,9 @@ class EventQueue:
                 "queue_size": queue.qsize(),
                 "max_size": queue.maxsize,
                 "rate_limit_seconds": self.rate_limits[event_type],
-                "last_processed": self.last_processed[event_type].isoformat(),
+                "last_processed": self.last_processed[event_type].isoformat()
+                if self.last_processed[event_type] != datetime.min
+                else None,
             }
         return stats
 
