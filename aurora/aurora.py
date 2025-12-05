@@ -783,7 +783,7 @@ class Aurora(commands.Cog):
                 queue_info = (
                     f"**Size:** {queue_size}{max_display}\n"
                     f"**Rate Limit:** {rate_limit}s\n"
-                    f"**Last Processed:** {last_processed}"
+                    f"**Last Processed:** {last_processed if last_processed else 'Never'}"
                 )
                 embed.add_field(
                     name=display_name,
