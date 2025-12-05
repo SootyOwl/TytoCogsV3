@@ -7,7 +7,6 @@ that can respond to messages in channels and DMs.
 import asyncio
 import json
 import logging
-import time
 from collections import Counter
 from datetime import date, datetime, timezone
 from enum import Enum
@@ -61,6 +60,7 @@ class EventType(str, Enum):
 
     MESSAGE = "message"
     SERVER_ACTIVITY = "server_activity_{guild_id}"
+    SYNTHESIS = "synthesis_{guild_id}"
 
     def format(self, **kwargs) -> str:
         """Format the event type with the given keyword arguments."""
@@ -87,7 +87,6 @@ class Aurora(commands.Cog):
             "agent_id": None,
             "enabled": False,
             "synthesis_interval": 3600,
-            "last_synthesis": 0,
             "server_activity_interval": 1800,
             "activity_threshold": 1,
             # Event system settings
@@ -393,13 +392,15 @@ class Aurora(commands.Cog):
                 timeout=self.request_options.get("timeout"),
             )
             await self._process_agent_stream(message_stream)
-            # Update last synthesis time
-            await self.config.guild(guild).last_synthesis.set(time.time())
         except Exception as e:
             log.exception(
                 "Exception during synthesis for guild %d: %s", guild_id, str(e)
             )
         finally:
+            # Update last synthesis time (even on error, to prevent rapid retries)
+            event_type = EventType.SYNTHESIS.format(guild_id=guild_id)
+            if self.queue:
+                self.queue.mark_processed(event_type)
             # detach blocks
             if self.letta and agent_id and attached:
                 success, _ = await detach_blocks(self.letta, agent_id, block_names)
@@ -438,11 +439,21 @@ class Aurora(commands.Cog):
             return False
 
         guild_config = await self.config.guild(guild).all()
-        last_synthesis = guild_config.get("last_synthesis")
         synthesis_interval: int = guild_config.get("synthesis_interval", 3600)
 
-        if last_synthesis:
-            time_since_last = time.time() - last_synthesis
+        # Get last synthesis time from queue
+        event_type = EventType.SYNTHESIS.format(guild_id=guild_id)
+        last_synthesis_dt = (
+            self.queue.last_processed.get(event_type, datetime.min)
+            if self.queue
+            else datetime.min
+        )
+
+        if last_synthesis_dt != datetime.min:
+            time_since_last = (
+                datetime.now(timezone.utc)
+                - last_synthesis_dt.replace(tzinfo=timezone.utc)
+            ).total_seconds()
             if time_since_last < synthesis_interval:
                 wait_time: float = synthesis_interval - time_since_last
                 log.info(
@@ -1238,6 +1249,16 @@ class Aurora(commands.Cog):
         if not activity_task:
             activity_task = None
             log.info("No activity tracking task found for guild %d", guild.id)
+        # Get last synthesis timestamp from queue
+        synthesis_event_type = EventType.SYNTHESIS.format(guild_id=guild.id)
+        last_synthesis_dt = (
+            self.queue.last_processed.get(synthesis_event_type, datetime.min)
+            if self.queue
+            else datetime.min
+        )
+        last_synthesis_ts = (
+            last_synthesis_dt.timestamp() if last_synthesis_dt != datetime.min else 0
+        )
         # Get last activity tracking timestamp from queue
         activity_event_type = EventType.SERVER_ACTIVITY.format(guild_id=guild.id)
         last_activity_dt = (
@@ -1253,8 +1274,8 @@ class Aurora(commands.Cog):
                 f"✅ Enabled\nAgent ID: `{agent_id}`\n"
                 f"Synthesis Task: {'Running' if synthesis_task else 'Not Running'}\n"
                 f"Synthesis Interval: `every {humanize_timedelta(seconds=guild_config.get('synthesis_interval', 3600))}`\n"
-                f"Last Synthesis: {format_dt(datetime.fromtimestamp(guild_config.get('last_synthesis', 0), tz=timezone.utc), 'F') if guild_config.get('last_synthesis', 0) > 0 else 'Never'}\n"
-                f"Next Synthesis: {format_dt(datetime.fromtimestamp(guild_config.get('last_synthesis', 0) + guild_config.get('synthesis_interval', 3600), tz=timezone.utc), 'F') if guild_config.get('last_synthesis', 0) > 0 else 'N/A'}\n"
+                f"Last Synthesis: {format_dt(datetime.fromtimestamp(last_synthesis_ts, tz=timezone.utc), 'F') if last_synthesis_ts > 0 else 'Never'}\n"
+                f"Next Synthesis: {format_dt(datetime.fromtimestamp(last_synthesis_ts + guild_config.get('synthesis_interval', 3600), tz=timezone.utc), 'F') if last_synthesis_ts > 0 else 'N/A'}\n"
                 f"Activity Tracking Task: {'Running' if activity_task else 'Not Running'}\n"
                 f"Activity Tracking Interval: `every {humanize_timedelta(seconds=guild_config.get('server_activity_interval', 3600))}`\n"
                 f"Activity Threshold: {guild_config.get('activity_threshold', 1)} messages/channel\n"
