@@ -29,7 +29,6 @@ def mock_config():
     guild_config.all = AsyncMock(return_value={})
     guild_config.agent_id = AsyncMock()
     guild_config.enabled = AsyncMock()
-    guild_config.last_synthesis = AsyncMock()
 
     # Handle config.guild(guild) calls
     config.guild.return_value = guild_config
@@ -129,7 +128,189 @@ async def test_synthesis_execution(aurora_cog, mock_bot, mock_config):
         mock_attach.assert_called_once()
         mock_letta.agents.messages.create.assert_called_once()
         mock_detach.assert_called_once()
-        mock_config.guild(mock_guild).last_synthesis.set.assert_called_once()
+        # Verify mark_processed is called for the synthesis event type (timestamps now tracked via queue, not config)
+        aurora_cog.queue.mark_processed.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_synthesis_no_letta_client(aurora_cog, mock_bot):
+    """Test synthesis returns early when Letta client is not configured."""
+    guild_id = 123
+    aurora_cog.letta = None  # No Letta client
+
+    with patch("aurora.aurora.attach_blocks", new_callable=AsyncMock) as mock_attach:
+        await aurora_cog.synthesis(guild_id)
+
+        # Should not attempt to attach blocks or process
+        mock_attach.assert_not_called()
+        # mark_processed should still be called (in finally block)
+        aurora_cog.queue.mark_processed.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_synthesis_guild_not_found(aurora_cog, mock_bot, mock_config):
+    """Test synthesis stops task when guild is not found."""
+    guild_id = 123
+    aurora_cog.letta = AsyncMock()
+    mock_bot.get_guild.return_value = None  # Guild not found
+
+    # Track task removal
+    aurora_cog._remove_task = Mock()
+
+    with patch("aurora.aurora.attach_blocks", new_callable=AsyncMock) as mock_attach:
+        await aurora_cog.synthesis(guild_id)
+
+        # Should stop the task
+        aurora_cog._remove_task.assert_called_once()
+        # Should not attach blocks
+        mock_attach.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_synthesis_no_agent_id(aurora_cog, mock_bot, mock_config):
+    """Test synthesis stops task when agent_id is not configured."""
+    guild_id = 123
+    aurora_cog.letta = AsyncMock()
+
+    mock_guild = Mock(spec=discord.Guild)
+    mock_guild.id = guild_id
+    mock_bot.get_guild.return_value = mock_guild
+
+    # No agent_id in config
+    mock_config.guild(mock_guild).all.return_value = {
+        "enabled": True,
+        "agent_id": None,
+    }
+
+    aurora_cog._remove_task = Mock()
+
+    with patch("aurora.aurora.attach_blocks", new_callable=AsyncMock) as mock_attach:
+        await aurora_cog.synthesis(guild_id)
+
+        # Should stop the task
+        aurora_cog._remove_task.assert_called_once()
+        # Should not attach blocks
+        mock_attach.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_synthesis_block_attach_failure_continues(
+    aurora_cog, mock_bot, mock_config
+):
+    """Test synthesis continues even if block attach fails."""
+    guild_id = 123
+    agent_id = "agent-123"
+
+    mock_guild = Mock(spec=discord.Guild)
+    mock_guild.id = guild_id
+    mock_bot.get_guild.return_value = mock_guild
+
+    mock_config.guild(mock_guild).all.return_value = {
+        "agent_id": agent_id,
+        "enabled": True,
+    }
+
+    mock_letta = AsyncMock()
+    aurora_cog.letta = mock_letta
+
+    mock_stream = AsyncMock()
+    mock_stream.__aiter__.return_value = []
+    mock_letta.agents.messages.create.return_value = mock_stream
+
+    with (
+        patch("aurora.aurora.attach_blocks", new_callable=AsyncMock) as mock_attach,
+        patch("aurora.aurora.detach_blocks", new_callable=AsyncMock) as mock_detach,
+    ):
+        # Block attach fails
+        mock_attach.return_value = (False, set())
+        mock_detach.return_value = (True, set())
+
+        await aurora_cog.synthesis(guild_id)
+
+        # Should still call Letta agent
+        mock_letta.agents.messages.create.assert_called_once()
+        # Should not try to detach (attached is False/empty set)
+        mock_detach.assert_not_called()
+        # mark_processed should still be called
+        aurora_cog.queue.mark_processed.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_synthesis_exception_still_updates_timestamp(
+    aurora_cog, mock_bot, mock_config
+):
+    """Test that mark_processed is called even when synthesis throws an exception."""
+    guild_id = 123
+    agent_id = "agent-123"
+
+    mock_guild = Mock(spec=discord.Guild)
+    mock_guild.id = guild_id
+    mock_bot.get_guild.return_value = mock_guild
+
+    mock_config.guild(mock_guild).all.return_value = {
+        "agent_id": agent_id,
+        "enabled": True,
+    }
+
+    mock_letta = AsyncMock()
+    aurora_cog.letta = mock_letta
+
+    # Make Letta API call raise an exception
+    mock_letta.agents.messages.create.side_effect = Exception("API Error")
+
+    with (
+        patch("aurora.aurora.attach_blocks", new_callable=AsyncMock) as mock_attach,
+        patch("aurora.aurora.detach_blocks", new_callable=AsyncMock) as mock_detach,
+    ):
+        mock_attach.return_value = (True, {"block1"})
+        mock_detach.return_value = (True, {"block1"})
+
+        # Should not raise - exception is caught
+        await aurora_cog.synthesis(guild_id)
+
+        # mark_processed should still be called (in finally block)
+        aurora_cog.queue.mark_processed.assert_called()
+        # Blocks should still be detached
+        mock_detach.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_synthesis_detach_failure_logged(aurora_cog, mock_bot, mock_config):
+    """Test that block detach failure is handled gracefully."""
+    guild_id = 123
+    agent_id = "agent-123"
+
+    mock_guild = Mock(spec=discord.Guild)
+    mock_guild.id = guild_id
+    mock_bot.get_guild.return_value = mock_guild
+
+    mock_config.guild(mock_guild).all.return_value = {
+        "agent_id": agent_id,
+        "enabled": True,
+    }
+
+    mock_letta = AsyncMock()
+    aurora_cog.letta = mock_letta
+
+    mock_stream = AsyncMock()
+    mock_stream.__aiter__.return_value = []
+    mock_letta.agents.messages.create.return_value = mock_stream
+
+    with (
+        patch("aurora.aurora.attach_blocks", new_callable=AsyncMock) as mock_attach,
+        patch("aurora.aurora.detach_blocks", new_callable=AsyncMock) as mock_detach,
+    ):
+        mock_attach.return_value = (True, {"block1"})
+        # Detach fails
+        mock_detach.return_value = (False, set())
+
+        # Should not raise
+        await aurora_cog.synthesis(guild_id)
+
+        # Detach was attempted
+        mock_detach.assert_called_once()
+        # mark_processed should still be called
+        aurora_cog.queue.mark_processed.assert_called()
 
 
 @pytest.mark.asyncio
