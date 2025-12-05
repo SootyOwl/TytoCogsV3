@@ -921,10 +921,11 @@ class Aurora(commands.Cog):
             "open": "🔴",
             "half_open": "🟡",
         }
+        error_rate = await self.error_stats.get_error_rate(300)
         error_text = (
             f"**Circuit Breaker:** {error_state_emoji.get(circuit_status['state'], '❓')} {circuit_status['state'].upper()}\n"
             f"**Recent Failures:** {circuit_status['failure_count']}\n"
-            f"**Error Rate (5min):** {self.error_stats.get_error_rate(300):.1f}%"
+            f"**Error Rate (5min):** {error_rate:.1f}%"
         )
         embed.add_field(
             name="Error Handling (Global)",
@@ -991,7 +992,7 @@ class Aurora(commands.Cog):
     @aurora_events.command(name="errors")
     async def events_errors(self, ctx: commands.Context):
         """Show detailed error statistics."""
-        stats = self.error_stats.get_stats()
+        stats = await self.error_stats.get_stats()
         circuit_status = self.circuit_breaker.get_status()
 
         embed = discord.Embed(
@@ -2064,29 +2065,27 @@ class Aurora(commands.Cog):
 
             # Execute with retry and circuit breaker
             await retry_with_backoff(
-                _execute_with_timeout,
+                lambda: _execute_with_timeout(agent_id, prompt, agent_timeout),
                 self.retry_config,
                 self.circuit_breaker,
-                agent_id,
-                prompt,
-                agent_timeout,
                 before_retry=_cleanup_after_failure,
             )
             run_tracker["run_id"] = None
             # Record success for stats
-            self.error_stats.record_success()
+            await self.error_stats.record_success()
 
         except Exception as e:
             # Record error for stats
-            self.error_stats.record_error(e)
+            await self.error_stats.record_error(e)
             log.exception(
                 f"Fatal error during agent execution for agent {agent_id}: {e}"
             )
 
             # Check if we should alert
-            if self.error_stats.should_alert(threshold=50.0):
+            if await self.error_stats.should_alert(threshold=50.0):
+                error_rate = await self.error_stats.get_error_rate(300)
                 log.critical(
-                    f"High error rate detected: {self.error_stats.get_error_rate(300):.1f}% "
+                    f"High error rate detected: {error_rate:.1f}% "
                     f"over last 5 minutes. Circuit breaker state: {self.circuit_breaker.state}"
                 )
                 # message the bot owner
@@ -2095,7 +2094,7 @@ class Aurora(commands.Cog):
                     try:
                         await owner.send(
                             f"⚠️ High error rate detected in Aurora cog: "
-                            f"{self.error_stats.get_error_rate(300):.1f}% over last 5 minutes.\n"
+                            f"{error_rate:.1f}% over last 5 minutes.\n"
                             f"Circuit breaker state: {self.circuit_breaker.state}\n"
                             f"Please investigate."
                         )

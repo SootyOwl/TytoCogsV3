@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections import deque
 from datetime import datetime, timedelta
 from typing import Optional, Callable, Any, Awaitable
 from functools import wraps
@@ -16,6 +17,8 @@ class CircuitBreaker:
     - CLOSED: Normal operation, requests pass through
     - OPEN: Too many failures, requests are rejected immediately
     - HALF_OPEN: Testing if service recovered, limited requests allowed
+
+    This class is thread-safe and can be used from multiple async tasks.
     """
 
     CLOSED = "closed"
@@ -43,69 +46,73 @@ class CircuitBreaker:
         self.failure_count = 0
         self.last_failure_time: Optional[datetime] = None
         self.half_open_count = 0
+        self._lock = asyncio.Lock()
 
-    def can_execute(self) -> bool:
+    async def can_execute(self) -> bool:
         """Check if execution is allowed in current state."""
-        if self.state == self.CLOSED:
-            return True
-
-        if self.state == self.OPEN:
-            # Check if recovery timeout has elapsed
-            if self.last_failure_time:
-                elapsed = (datetime.now() - self.last_failure_time).total_seconds()
-                if elapsed >= self.recovery_timeout:
-                    log.info("Circuit breaker entering half-open state")
-                    self.state = self.HALF_OPEN
-                    self.half_open_count = 1  # Count this as the first attempt
-                    return True
-            return False
-
-        if self.state == self.HALF_OPEN:
-            # Allow limited attempts
-            if self.half_open_count < self.half_open_attempts:
-                self.half_open_count += 1
+        async with self._lock:
+            if self.state == self.CLOSED:
                 return True
+
+            if self.state == self.OPEN:
+                # Check if recovery timeout has elapsed
+                if self.last_failure_time:
+                    elapsed = (datetime.now() - self.last_failure_time).total_seconds()
+                    if elapsed >= self.recovery_timeout:
+                        log.info("Circuit breaker entering half-open state")
+                        self.state = self.HALF_OPEN
+                        self.half_open_count = 1  # Count this as the first attempt
+                        return True
+                return False
+
+            if self.state == self.HALF_OPEN:
+                # Allow limited attempts
+                if self.half_open_count < self.half_open_attempts:
+                    self.half_open_count += 1
+                    return True
+                return False
+
             return False
 
-        return False
-
-    def record_success(self):
+    async def record_success(self):
         """Record successful execution."""
-        if self.state == self.HALF_OPEN:
-            log.info("Circuit breaker closing after successful recovery")
-            self.state = self.CLOSED
-            self.failure_count = 0
-            self.half_open_count = 0
-        elif self.state == self.CLOSED:
-            # Reset failure count on success
-            self.failure_count = 0
-
-    def record_failure(self):
-        """Record failed execution."""
-        self.failure_count += 1
-        self.last_failure_time = datetime.now()
-
-        if self.state == self.HALF_OPEN:
-            # Only re-open if we've exhausted all half-open attempts
-            if self.half_open_count >= self.half_open_attempts:
-                log.warning(
-                    f"Circuit breaker re-opening after {self.half_open_count} failed "
-                    f"recovery attempts"
-                )
-                self.state = self.OPEN
+        async with self._lock:
+            if self.state == self.HALF_OPEN:
+                log.info("Circuit breaker closing after successful recovery")
+                self.state = self.CLOSED
+                self.failure_count = 0
                 self.half_open_count = 0
-            else:
-                log.info(
-                    f"Half-open attempt {self.half_open_count}/{self.half_open_attempts} "
-                    f"failed, will retry"
-                )
-        elif self.state == self.CLOSED:
-            if self.failure_count >= self.failure_threshold:
-                log.error(
-                    f"Circuit breaker opening after {self.failure_count} failures. "
-                    f"Will retry in {self.recovery_timeout}s"
-                )
-                self.state = self.OPEN
+            elif self.state == self.CLOSED:
+                # Reset failure count on success
+                self.failure_count = 0
+
+    async def record_failure(self):
+        """Record failed execution."""
+        async with self._lock:
+            self.failure_count += 1
+            self.last_failure_time = datetime.now()
+
+            if self.state == self.HALF_OPEN:
+                # Only re-open if we've exhausted all half-open attempts
+                if self.half_open_count >= self.half_open_attempts:
+                    log.warning(
+                        f"Circuit breaker re-opening after {self.half_open_count} failed "
+                        f"recovery attempts"
+                    )
+                    self.state = self.OPEN
+                    self.half_open_count = 0
+                else:
+                    log.info(
+                        f"Half-open attempt {self.half_open_count}/{self.half_open_attempts} "
+                        f"failed, will retry"
+                    )
+            elif self.state == self.CLOSED:
+                if self.failure_count >= self.failure_threshold:
+                    log.error(
+                        f"Circuit breaker opening after {self.failure_count} failures. "
+                        f"Will retry in {self.recovery_timeout}s"
+                    )
+                    self.state = self.OPEN
 
     def get_status(self) -> dict:
         """Get current circuit breaker status."""
@@ -168,22 +175,18 @@ class RetryConfig:
 
 
 async def retry_with_backoff(
-    func: Callable,
+    func: Callable[[], Awaitable[Any]],
     config: RetryConfig,
     circuit_breaker: Optional[CircuitBreaker] = None,
-    *args,
     before_retry: Optional[Callable[[int, Exception], Awaitable[None]]] = None,
-    **kwargs,
 ) -> Any:
     """Execute function with retry logic and exponential backoff.
 
     Args:
-        func: Async function to execute
+        func: Async function to execute (use a closure or functools.partial to pass arguments)
         config: Retry configuration
         circuit_breaker: Optional circuit breaker to check
-        *args: Positional arguments for func
         before_retry: Optional async callback invoked after a failure but before the next attempt
-        **kwargs: Keyword arguments for func
 
     Returns:
         Result of successful function execution
@@ -195,15 +198,15 @@ async def retry_with_backoff(
 
     for attempt in range(config.max_attempts):
         # Check circuit breaker
-        if circuit_breaker and not circuit_breaker.can_execute():
+        if circuit_breaker and not await circuit_breaker.can_execute():
             raise Exception("Circuit breaker is open, execution blocked")
 
         try:
-            result = await func(*args, **kwargs)
+            result = await func()
 
             # Success - record and return
             if circuit_breaker:
-                circuit_breaker.record_success()
+                await circuit_breaker.record_success()
 
             if attempt > 0:
                 log.info(f"Retry succeeded on attempt {attempt + 1}")
@@ -215,7 +218,7 @@ async def retry_with_backoff(
 
             # Record failure
             if circuit_breaker:
-                circuit_breaker.record_failure()
+                await circuit_breaker.record_failure()
 
             # Allow caller to perform cleanup before deciding on next attempt
             if before_retry:
@@ -245,6 +248,8 @@ async def retry_with_backoff(
     # All retries exhausted
     if last_exception:
         raise last_exception
+    # Should never reach here, but satisfy type checker
+    raise RuntimeError("Retry loop exited unexpectedly")
 
 
 def with_retry(
@@ -265,7 +270,7 @@ def with_retry(
             ...
     """
 
-    def decorator(func: Callable):
+    def decorator(func: Callable[..., Awaitable[Any]]):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             config = RetryConfig(
@@ -273,13 +278,10 @@ def with_retry(
                 base_delay=base_delay,
                 exponential_base=exponential_base,
             )
+            # Create closure that captures args/kwargs
             return await retry_with_backoff(
-                func,
+                lambda: func(*args, **kwargs),
                 config,
-                None,
-                *args,
-                before_retry=None,
-                **kwargs,
             )
 
         return wrapper
@@ -288,7 +290,10 @@ def with_retry(
 
 
 class ErrorStats:
-    """Track error statistics for monitoring and alerting."""
+    """Track error statistics for monitoring and alerting.
+
+    This class is thread-safe and can be used from multiple async tasks.
+    """
 
     def __init__(self, window_size: int = 100):
         """Initialize error statistics tracker.
@@ -297,33 +302,35 @@ class ErrorStats:
             window_size: Number of recent operations to track
         """
         self.window_size = window_size
-        self.recent_operations = []  # List of (timestamp, success: bool)
-        self.error_counts = {}  # error_type -> count
+        self.recent_operations: deque[tuple[datetime, bool]] = deque(maxlen=window_size)
+        self.error_counts: dict[str, int] = {}
         self.total_errors = 0
         self.total_operations = 0
+        self._lock = asyncio.Lock()
 
-    def record_success(self):
+    async def record_success(self):
         """Record successful operation."""
-        self._add_operation(True)
+        async with self._lock:
+            self._add_operation(True)
 
-    def record_error(self, error: Exception):
+    async def record_error(self, error: Exception):
         """Record failed operation."""
-        self._add_operation(False)
+        async with self._lock:
+            self._add_operation(False)
 
-        error_type = type(error).__name__
-        self.error_counts[error_type] = self.error_counts.get(error_type, 0) + 1
-        self.total_errors += 1
+            error_type = type(error).__name__
+            self.error_counts[error_type] = self.error_counts.get(error_type, 0) + 1
+            self.total_errors += 1
 
     def _add_operation(self, success: bool):
-        """Add operation to tracking window."""
+        """Add operation to tracking window. Internal use only - caller must hold lock."""
         self.recent_operations.append((datetime.now(), success))
         self.total_operations += 1
+        # No need to manually maintain window size - deque handles it with maxlen
 
-        # Maintain window size
-        if len(self.recent_operations) > self.window_size:
-            self.recent_operations.pop(0)
-
-    def get_error_rate(self, time_window_seconds: Optional[float] = None) -> float:
+    async def get_error_rate(
+        self, time_window_seconds: Optional[float] = None
+    ) -> float:
         """Calculate error rate.
 
         Args:
@@ -332,10 +339,17 @@ class ErrorStats:
         Returns:
             Error rate as percentage (0-100)
         """
+        async with self._lock:
+            return self._get_error_rate_unlocked(time_window_seconds)
+
+    def _get_error_rate_unlocked(
+        self, time_window_seconds: Optional[float] = None
+    ) -> float:
+        """Calculate error rate. Internal use only - caller must hold lock."""
         if not self.recent_operations:
             return 0.0
 
-        operations = self.recent_operations
+        operations = list(self.recent_operations)
 
         if time_window_seconds:
             cutoff = datetime.now() - timedelta(seconds=time_window_seconds)
@@ -347,18 +361,19 @@ class ErrorStats:
         failures = sum(1 for _, success in operations if not success)
         return (failures / len(operations)) * 100
 
-    def get_stats(self) -> dict:
+    async def get_stats(self) -> dict:
         """Get comprehensive error statistics."""
-        return {
-            "total_operations": self.total_operations,
-            "total_errors": self.total_errors,
-            "recent_error_rate": self.get_error_rate(),
-            "error_rate_5min": self.get_error_rate(300),
-            "error_by_type": dict(self.error_counts),
-            "window_size": len(self.recent_operations),
-        }
+        async with self._lock:
+            return {
+                "total_operations": self.total_operations,
+                "total_errors": self.total_errors,
+                "recent_error_rate": self._get_error_rate_unlocked(),
+                "error_rate_5min": self._get_error_rate_unlocked(300),
+                "error_by_type": dict(self.error_counts),
+                "window_size": len(self.recent_operations),
+            }
 
-    def should_alert(self, threshold: float = 50.0) -> bool:
+    async def should_alert(self, threshold: float = 50.0) -> bool:
         """Check if error rate exceeds alert threshold.
 
         Args:
@@ -367,4 +382,4 @@ class ErrorStats:
         Returns:
             True if alert should be triggered
         """
-        return self.get_error_rate(300) > threshold  # 5 minute window
+        return await self.get_error_rate(300) > threshold  # 5 minute window
