@@ -56,7 +56,7 @@ class CircuitBreaker:
                 if elapsed >= self.recovery_timeout:
                     log.info("Circuit breaker entering half-open state")
                     self.state = self.HALF_OPEN
-                    self.half_open_count = 0
+                    self.half_open_count = 1  # Count this as the first attempt
                     return True
             return False
 
@@ -86,9 +86,19 @@ class CircuitBreaker:
         self.last_failure_time = datetime.now()
 
         if self.state == self.HALF_OPEN:
-            log.warning("Circuit breaker re-opening after failed recovery attempt")
-            self.state = self.OPEN
-            self.half_open_count = 0
+            # Only re-open if we've exhausted all half-open attempts
+            if self.half_open_count >= self.half_open_attempts:
+                log.warning(
+                    f"Circuit breaker re-opening after {self.half_open_count} failed "
+                    f"recovery attempts"
+                )
+                self.state = self.OPEN
+                self.half_open_count = 0
+            else:
+                log.info(
+                    f"Half-open attempt {self.half_open_count}/{self.half_open_attempts} "
+                    f"failed, will retry"
+                )
         elif self.state == self.CLOSED:
             if self.failure_count >= self.failure_threshold:
                 log.error(
