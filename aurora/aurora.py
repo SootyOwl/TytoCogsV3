@@ -377,21 +377,28 @@ class Aurora(commands.Cog):
                     "Failed to attach blocks for guild %d during synthesis.", guild_id
                 )
 
-            # Send the synthesis prompt to the agent
-            message_stream = await self.letta.agents.messages.create(
-                agent_id=agent_id,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": heatbeat_prompt,
-                    }
-                ],
-                streaming=True,
-                stream_tokens=False,
-                max_steps=100,  # increased to allow more processing steps during synthesis
-                timeout=self.request_options.get("timeout"),
+            # Send the synthesis prompt to the agent with retry logic
+            async def send_synthesis_message():
+                message_stream = await self.letta.agents.messages.create(
+                    agent_id=agent_id,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": heatbeat_prompt,
+                        }
+                    ],
+                    streaming=True,
+                    stream_tokens=False,
+                    max_steps=100,  # increased to allow more processing steps during synthesis
+                    timeout=self.request_options.get("timeout"),
+                )
+                await self._process_agent_stream(message_stream)
+
+            await retry_with_backoff(
+                send_synthesis_message,
+                self.retry_config,
+                self.circuit_breaker,
             )
-            await self._process_agent_stream(message_stream)
         except Exception as e:
             log.exception(
                 "Exception during synthesis for guild %d: %s", guild_id, str(e)
@@ -518,30 +525,38 @@ class Aurora(commands.Cog):
                     "No channels met the activity threshold for guild %d.", guild_id
                 )
                 return
-            # Send the activity summary to the agent
-            message_stream = await self.letta.agents.messages.create(
-                agent_id=agent_id,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "[Server Activity Notification]\n\n"
-                            f"```json\n{json.dumps(activity_summary, indent=2)}\n```\n\n"
-                            "The above is a summary of recent server activity - channels and users which have new activity.\n"
-                            "You may choose to engage with active channels or users based on this information using your `discord_*` tools, if appropriate.\n"
-                            "Use the `discord_read_messages` tool to read recent messages in active channels to get context before responding.\n"
-                            "You may use `web_search`, `fetch_webpage`, `get_image_alttext`, etc. to gather more information if needed.\n"
-                            "Focus on meaningful engagement that adds value to the conversations.\n"
-                            "Do not feel obligated to respond to all activity; use your judgment to decide when and where to participate.\n"
-                        ),
-                    }
-                ],
-                streaming=True,
-                stream_tokens=False,
-                max_steps=50,
-                timeout=self.request_options.get("timeout"),
+
+            # Send the activity summary to the agent with retry logic
+            async def send_activity_message():
+                message_stream = await self.letta.agents.messages.create(
+                    agent_id=agent_id,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "[Server Activity Notification]\n\n"
+                                f"```json\n{json.dumps(activity_summary, indent=2)}\n```\n\n"
+                                "The above is a summary of recent server activity - channels and users which have new activity.\n"
+                                "You may choose to engage with active channels or users based on this information using your `discord_*` tools, if appropriate.\n"
+                                "Use the `discord_read_messages` tool to read recent messages in active channels to get context before responding.\n"
+                                "You may use `web_search`, `fetch_webpage`, `get_image_alttext`, etc. to gather more information if needed.\n"
+                                "Focus on meaningful engagement that adds value to the conversations.\n"
+                                "Do not feel obligated to respond to all activity; use your judgment to decide when and where to participate.\n"
+                            ),
+                        }
+                    ],
+                    streaming=True,
+                    stream_tokens=False,
+                    max_steps=50,
+                    timeout=self.request_options.get("timeout"),
+                )
+                await self._process_agent_stream(message_stream)
+
+            await retry_with_backoff(
+                send_activity_message,
+                self.retry_config,
+                self.circuit_breaker,
             )
-            await self._process_agent_stream(message_stream)
         except Exception as e:
             log.exception(
                 "Exception during server activity tracking for guild %d: %s",
