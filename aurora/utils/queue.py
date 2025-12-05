@@ -295,6 +295,8 @@ class EventQueue:
         # store maxsize per queue so we can reconstruct
         state["max_sizes"] = dict(self.max_sizes)
         state["default_max_size"] = self.default_max_size
+        state["default_rate_limit"] = self.default_rate_limit
+        state["_max_processed_ids"] = self._max_processed_ids
         # convert defaultdicts to regular dicts
         state["rate_limits"] = dict(state["rate_limits"])
         state["last_processed"] = dict(state["last_processed"])
@@ -303,24 +305,31 @@ class EventQueue:
 
     def __setstate__(self, state):
         """Set state from pickling."""
-        self.__dict__.update(state)
+        # Restore scalar values first (needed for defaultdict lambdas)
+        self.default_rate_limit = state.get("default_rate_limit", 5.0)
+        self.default_max_size = state.get("default_max_size")
+        self._max_processed_ids = state.get("_max_processed_ids", 1000)
+
         # Reconstruct asyncio.Queues
         self.queues = {}
-        for k, v in state["queues"].items():
+        for k, v in state.get("queues", {}).items():
             # reconstruct with maxsize if available
             maxsize = state.get("max_sizes", {}).get(k, 0) or 0
             q = asyncio.Queue(maxsize=maxsize)
             for item in v:
                 q.put_nowait(item)
             self.queues[k] = q
-        # Reconstruct defaultdicts
+
+        # Reconstruct defaultdicts with proper default factories
+        # Capture values in local variables to avoid closure issues
+        default_rate = self.default_rate_limit
+        default_max = self.default_max_size or 0
+
         self.rate_limits = defaultdict(
-            lambda: self.default_rate_limit, state["rate_limits"]
+            lambda: default_rate, state.get("rate_limits", {})
         )
-        self.last_processed = defaultdict(lambda: datetime.min, state["last_processed"])
-        self.processed_event_ids = OrderedDict(state["processed_event_ids"])
-        # reconstruct max_sizes
-        self.max_sizes = defaultdict(
-            lambda: state.get("default_max_size", 0), state.get("max_sizes", {})
+        self.last_processed = defaultdict(
+            lambda: datetime.min, state.get("last_processed", {})
         )
-        self.default_max_size = state.get("default_max_size")
+        self.processed_event_ids = OrderedDict(state.get("processed_event_ids", {}))
+        self.max_sizes = defaultdict(lambda: default_max, state.get("max_sizes", {}))

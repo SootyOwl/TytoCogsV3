@@ -1820,15 +1820,14 @@ class Aurora(commands.Cog):
                 include_mcp_guidance=include_mcp_guidance,
             )
 
-            # Create event for queue
+            # Create event for queue (only picklable data - no Discord objects)
             event = {
                 "event_type": "message",
                 "event_id": str(message.id),
-                "message": message,
                 "message_id": message.id,
                 "context": context,
                 "prompt": prompt,
-                "timestamp": message.created_at,
+                "timestamp": message.created_at.isoformat(),
                 "guild_id": message.guild.id if message.guild else None,
                 "channel_id": message.channel.id,
                 "agent_id": agent_id,
@@ -1892,16 +1891,31 @@ class Aurora(commands.Cog):
                 await asyncio.sleep(0.5)
                 return
 
-            # Get message and check if channel still exists
-            message: discord.Message = event.data["message"]
+            # Fetch channel and message from IDs (we only store picklable data in queue)
+            message_id = event.data["message_id"]
+            channel = self.bot.get_channel(channel_id)
+            if not channel or not isinstance(
+                channel,
+                (
+                    discord.TextChannel,
+                    discord.Thread,
+                    discord.DMChannel,
+                    discord.GroupChannel,
+                ),
+            ):
+                log.warning(
+                    f"Channel {channel_id} not found or not a messageable channel, skipping message {message_id}"
+                )
+                return
+
             try:
-                # Refresh message to ensure it still exists
-                message = await message.channel.fetch_message(message.id)
+                # Fetch message to ensure it still exists
+                message: discord.Message = await channel.fetch_message(message_id)
             except discord.NotFound:
-                log.info(f"Message {message.id} was deleted, skipping")
+                log.info(f"Message {message_id} was deleted, skipping")
                 return
             except discord.Forbidden:
-                log.warning(f"No permission to access message {message.id}, skipping")
+                log.warning(f"No permission to access message {message_id}, skipping")
                 return
 
             # Show typing indicator while agent processes
