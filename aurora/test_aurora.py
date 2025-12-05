@@ -30,7 +30,6 @@ def mock_config():
     guild_config.agent_id = AsyncMock()
     guild_config.enabled = AsyncMock()
     guild_config.last_synthesis = AsyncMock()
-    guild_config.last_server_activity = AsyncMock()
 
     # Handle config.guild(guild) calls
     config.guild.return_value = guild_config
@@ -185,7 +184,8 @@ async def test_track_server_activity(aurora_cog, mock_bot, mock_config):
     # Verify
     aurora_cog.queue.consume_all.assert_called_once()
     mock_letta.agents.messages.create.assert_called_once()
-    mock_config.guild(mock_guild).last_server_activity.set.assert_called_once()
+    # Verify mark_processed is called for the event type (timestamps now tracked via queue, not config)
+    aurora_cog.queue.mark_processed.assert_called()
 
 
 @pytest.mark.asyncio

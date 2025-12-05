@@ -89,7 +89,6 @@ class Aurora(commands.Cog):
             "synthesis_interval": 3600,
             "last_synthesis": 0,
             "server_activity_interval": 1800,
-            "last_server_activity": 0,  # timestamp of last activity tracking notification
             "activity_threshold": 1,
             # Event system settings
             "reply_thread_depth": 5,
@@ -532,8 +531,6 @@ class Aurora(commands.Cog):
                 timeout=self.request_options.get("timeout"),
             )
             await self._process_agent_stream(message_stream)
-            # Mark event type as processed for stats display
-            self.queue.mark_processed(event_type)
         except Exception as e:
             log.exception(
                 "Exception during server activity tracking for guild %d: %s",
@@ -541,9 +538,11 @@ class Aurora(commands.Cog):
                 str(e),
             )
         finally:
-            # Update last activity time
-            if guild:
-                await self.config.guild(guild).last_server_activity.set(time.time())
+            # Always mark as processed to update timing for rate limiting and stats
+            # This uses queue.last_processed as the single source of truth
+            if self.queue:
+                event_type = EventType.SERVER_ACTIVITY.format(guild_id=guild_id)
+                self.queue.mark_processed(event_type)
 
     async def before_activity_tracking(self):
         """Prepare for activity tracking by checking timing constraints.
@@ -574,21 +573,24 @@ class Aurora(commands.Cog):
             return False
 
         guild_config = await self.config.guild(guild).all()
-        last_activity = guild_config.get("last_server_activity")
         activity_interval: int = guild_config.get("server_activity_interval", 1800)
 
-        if last_activity:
-            time_since_last = time.time() - last_activity
-            if time_since_last < activity_interval:
-                wait_time: float = activity_interval - time_since_last
-                log.info(
-                    "Not enough time since last activity tracking for guild %d. "
-                    "Waiting %.1f seconds.",
-                    guild_id,
-                    wait_time,
-                )
-                # wait until next interval
-                await asyncio.sleep(wait_time)
+        # Use queue.last_processed as the single source of truth for timing
+        event_type = EventType.SERVER_ACTIVITY.format(guild_id=guild_id)
+        if self.queue:
+            last_processed = self.queue.last_processed.get(event_type)
+            if last_processed and last_processed != datetime.min:
+                time_since_last = (datetime.now() - last_processed).total_seconds()
+                if time_since_last < activity_interval:
+                    wait_time: float = activity_interval - time_since_last
+                    log.info(
+                        "Not enough time since last activity tracking for guild %d. "
+                        "Waiting %.1f seconds.",
+                        guild_id,
+                        wait_time,
+                    )
+                    # wait until next interval
+                    await asyncio.sleep(wait_time)
         return True
 
     async def build_activity_summary(self, events: list[Event], threshold: int) -> dict:
@@ -1236,6 +1238,16 @@ class Aurora(commands.Cog):
         if not activity_task:
             activity_task = None
             log.info("No activity tracking task found for guild %d", guild.id)
+        # Get last activity tracking timestamp from queue
+        activity_event_type = EventType.SERVER_ACTIVITY.format(guild_id=guild.id)
+        last_activity_dt = (
+            self.queue.last_processed.get(activity_event_type, datetime.min)
+            if self.queue
+            else datetime.min
+        )
+        last_activity_ts = (
+            last_activity_dt.timestamp() if last_activity_dt != datetime.min else 0
+        )
         agent_status = (
             (
                 f"✅ Enabled\nAgent ID: `{agent_id}`\n"
@@ -1246,8 +1258,8 @@ class Aurora(commands.Cog):
                 f"Activity Tracking Task: {'Running' if activity_task else 'Not Running'}\n"
                 f"Activity Tracking Interval: `every {humanize_timedelta(seconds=guild_config.get('server_activity_interval', 3600))}`\n"
                 f"Activity Threshold: {guild_config.get('activity_threshold', 1)} messages/channel\n"
-                f"Last Activity Tracking: {format_dt(datetime.fromtimestamp(guild_config.get('last_server_activity', 0), tz=timezone.utc), 'F') if guild_config.get('last_server_activity', 0) > 0 else 'Never'}\n"
-                f"Next Activity Tracking: {format_dt(datetime.fromtimestamp(guild_config.get('last_server_activity', 0) + guild_config.get('server_activity_interval', 3600), tz=timezone.utc), 'F') if guild_config.get('last_server_activity', 0) > 0 else 'N/A'}"
+                f"Last Activity Tracking: {format_dt(datetime.fromtimestamp(last_activity_ts, tz=timezone.utc), 'F') if last_activity_ts > 0 else 'Never'}\n"
+                f"Next Activity Tracking: {format_dt(datetime.fromtimestamp(last_activity_ts + guild_config.get('server_activity_interval', 3600), tz=timezone.utc), 'F') if last_activity_ts > 0 else 'N/A'}"
             )
             if guild_config.get("enabled") and agent_id
             else "❌ Disabled"
