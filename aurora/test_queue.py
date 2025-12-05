@@ -548,6 +548,54 @@ class TestEventQueue:
         assert dequeued.data["channel_id"] == 111222333444555666
         assert dequeued.data["message_id"] == 123456789012345678
 
+    @pytest.mark.asyncio
+    async def test_serialize_synthesis_timing_across_restart(self, tmp_path):
+        """Test that synthesis timing is preserved across bot restarts (pickle roundtrip).
+
+        This ensures that when the bot restarts, it knows when synthesis was last run
+        and can correctly calculate when the next synthesis should occur.
+        """
+        path = tmp_path / "test_synthesis_timing.pkl"
+        queue = EventQueue(default_rate_limit=3600.0)  # 1 hour default
+
+        # Simulate synthesis completing for two guilds
+        guild_id_1 = 123456789
+        guild_id_2 = 987654321
+        synthesis_event_1 = f"synthesis_{guild_id_1}"
+        synthesis_event_2 = f"synthesis_{guild_id_2}"
+
+        # Mark synthesis as processed (this is what aurora.py does in the finally block)
+        queue.mark_processed(synthesis_event_1)
+        before_ts_1 = queue.last_processed[synthesis_event_1]
+
+        # Small delay to ensure different timestamps
+        import asyncio
+
+        await asyncio.sleep(0.01)
+
+        queue.mark_processed(synthesis_event_2)
+        before_ts_2 = queue.last_processed[synthesis_event_2]
+
+        # Verify timestamps are different
+        assert before_ts_1 != before_ts_2
+
+        # Simulate bot restart by serializing and deserializing
+        queue.to_file(path)
+        loaded_queue = EventQueue.from_file(path)
+
+        # Verify timestamps are preserved exactly
+        assert loaded_queue.last_processed[synthesis_event_1] == before_ts_1
+        assert loaded_queue.last_processed[synthesis_event_2] == before_ts_2
+
+        # Verify rate limiting works after restart
+        # (synthesis just ran, so should not be able to process again immediately)
+        assert not loaded_queue.can_process(synthesis_event_1)
+        assert not loaded_queue.can_process(synthesis_event_2)
+
+        # Verify last_processed is directly accessible
+        assert loaded_queue.last_processed[synthesis_event_1] == before_ts_1
+        assert loaded_queue.last_processed[synthesis_event_2] == before_ts_2
+
 
 class TestMessageQueue:
     """Tests covering the message queuing behavior via EventQueue with
