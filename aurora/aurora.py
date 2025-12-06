@@ -485,8 +485,6 @@ class Aurora(commands.Cog):
                 log.info("No server activity events to process for guild %d.", guild_id)
                 return
             # Build activity summary
-            activity_summary: dict
-            events_to_reenqueue: list[Event]
             activity_summary, events_to_reenqueue = await self.build_activity_summary(
                 events, threshold=guild_config.get("activity_threshold", 1)
             )
@@ -495,7 +493,7 @@ class Aurora(commands.Cog):
             # Re-enqueue events from channels that didn't meet the threshold
             if events_to_reenqueue:
                 log.info(
-                    "Re-enqueueing %d events from channels below threshold for guild %d.",
+                    "Re-enqueuing %d events from channels below threshold for guild %d.",
                     len(events_to_reenqueue),
                     guild_id,
                 )

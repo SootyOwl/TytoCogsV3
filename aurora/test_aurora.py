@@ -587,10 +587,9 @@ async def test_track_server_activity_reenqueues_below_threshold(aurora_cog, mock
     call_args = mock_letta.agents.messages.create.call_args
     messages = call_args.kwargs["messages"]
     assert len(messages) == 1
-    # The message content should contain the activity summary
-    assert (
-        "server_activity_summary" in messages[0]["content"] or "Server Activity Notification" in messages[0]["content"]
-    )
+    # The message content should contain the activity notification header
+    message_content = messages[0]["content"]
+    assert "Server Activity Notification" in message_content, "Message should contain activity notification header"
 
 
 @pytest.mark.asyncio
