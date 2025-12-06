@@ -514,12 +514,25 @@ class Aurora(commands.Cog):
                 log.info("No server activity events to process for guild %d.", guild_id)
                 return
             # Build activity summary
-            activity_summary: dict = await self.build_activity_summary(
+            activity_summary: dict
+            events_to_reenqueue: list[Event]
+            activity_summary, events_to_reenqueue = await self.build_activity_summary(
                 events, threshold=guild_config.get("activity_threshold", 1)
             )
             log.info(
                 "Built activity summary for guild %d: %s", guild_id, activity_summary
             )
+            
+            # Re-enqueue events from channels that didn't meet the threshold
+            if events_to_reenqueue:
+                log.info(
+                    "Re-enqueueing %d events from channels below threshold for guild %d.",
+                    len(events_to_reenqueue),
+                    guild_id,
+                )
+                for event in events_to_reenqueue:
+                    await self.queue.enqueue(event, allow_duplicates=True)
+            
             if not activity_summary:
                 log.info(
                     "No channels met the activity threshold for guild %d.", guild_id
@@ -619,7 +632,7 @@ class Aurora(commands.Cog):
                     await asyncio.sleep(wait_time)
         return True
 
-    async def build_activity_summary(self, events: list[Event], threshold: int) -> dict:
+    async def build_activity_summary(self, events: list[Event], threshold: int) -> tuple[dict, list[Event]]:
         """Build a summary of server activity from the list of events.
 
         Don't need content, just who said stuff in which channel.
@@ -631,13 +644,18 @@ class Aurora(commands.Cog):
             threshold (int): Minimum number of messages in a channel to be included in the summary.
 
         Returns:
-            dict: The activity summary.
+            tuple[dict, list[Event]]: A tuple containing:
+                - The activity summary dict for channels meeting the threshold
+                - List of events from channels below the threshold (to be re-enqueued)
         """
         summary: dict = {
             "type": "server_activity_summary",
             "description": "Summary of recently active channels and users. Notifies about which channels have had activity and who has been active there.",
             "channels": {},
         }
+        # Track which events correspond to which channels
+        channel_events: dict[int, list[Event]] = {}
+        
         for event in events:
             channel_id = event.data.get("channel_id")
             message_id = event.data.get("message_id")
@@ -677,6 +695,11 @@ class Aurora(commands.Cog):
                         "last_message_user": None,
                     },
                 }
+                channel_events[channel_id] = []
+            
+            # Track this event for this channel
+            channel_events[channel_id].append(event)
+            
             channel_summary = summary["channels"][channel_id]["activity_summary"]
 
             # Update channel activity summary
@@ -692,16 +715,30 @@ class Aurora(commands.Cog):
             channel_summary["last_message_user"] = (
                 f"{author.id=} ({author.display_name=} | {author.global_name=})"
             )
-        # Filter out channels below the threshold
+        
+        # Separate channels that meet threshold from those that don't
+        channels_below_threshold = [
+            channel_id
+            for channel_id, channel_data in summary["channels"].items()
+            if channel_data["activity_summary"]["total_messages"] < threshold
+        ]
+        
+        # Filter out channels below the threshold from summary
         summary["channels"] = {
             channel_id: channel_data
             for channel_id, channel_data in summary["channels"].items()
             if channel_data["activity_summary"]["total_messages"] >= threshold
         }
+        
+        # Collect events from channels below threshold to re-enqueue
+        events_to_reenqueue = []
+        for channel_id in channels_below_threshold:
+            events_to_reenqueue.extend(channel_events.get(channel_id, []))
+        
         # If no channels meet the threshold, return an empty summary
         if not summary["channels"]:
-            return {}
-        return summary
+            return {}, events_to_reenqueue
+        return summary, events_to_reenqueue
 
     def compare_message_timestamps(
         self, message_created_at: datetime, prev_time: datetime | str | None
