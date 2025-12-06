@@ -67,9 +67,7 @@ async def test_initialize_letta_success(aurora_cog, mock_bot):
         # Verify
         assert client is not None
         assert aurora_cog.letta is not None
-        MockLetta.assert_called_once_with(
-            base_url="https://api.letta.ai/v1", api_key="valid_token"
-        )
+        MockLetta.assert_called_once_with(base_url="https://api.letta.ai/v1", api_key="valid_token")
 
 
 @pytest.mark.asyncio
@@ -194,9 +192,7 @@ async def test_synthesis_no_agent_id(aurora_cog, mock_bot, mock_config):
 
 
 @pytest.mark.asyncio
-async def test_synthesis_block_attach_failure_continues(
-    aurora_cog, mock_bot, mock_config
-):
+async def test_synthesis_block_attach_failure_continues(aurora_cog, mock_bot, mock_config):
     """Test synthesis continues even if block attach fails."""
     guild_id = 123
     agent_id = "agent-123"
@@ -236,9 +232,7 @@ async def test_synthesis_block_attach_failure_continues(
 
 
 @pytest.mark.asyncio
-async def test_synthesis_exception_still_updates_timestamp(
-    aurora_cog, mock_bot, mock_config
-):
+async def test_synthesis_exception_still_updates_timestamp(aurora_cog, mock_bot, mock_config):
     """Test that mark_processed is called even when synthesis throws an exception."""
     guild_id = 123
     agent_id = "agent-123"
@@ -490,7 +484,7 @@ async def test_on_message_active_queuing(aurora_cog, mock_bot, mock_config):
 async def test_track_server_activity_reenqueues_below_threshold(aurora_cog, mock_bot, mock_config):
     """Test that events from channels below the activity threshold are re-enqueued."""
     from aurora.utils.queue import Event
-    
+
     # Setup
     guild_id = 123
     agent_id = "agent-123"
@@ -519,25 +513,29 @@ async def test_track_server_activity_reenqueues_below_threshold(aurora_cog, mock
     # Channel 456 has 2 messages (below threshold)
     # Channel 789 has 3 messages (meets threshold)
     mock_events = []
-    
+
     # Channel 456 - 2 messages (below threshold)
     for i in range(2):
-        event = Event.from_dict({
-            "event_type": f"server_activity_{guild_id}",
-            "channel_id": 456,
-            "message_id": 1000 + i,
-        })
+        event = Event.from_dict(
+            {
+                "event_type": f"server_activity_{guild_id}",
+                "channel_id": 456,
+                "message_id": 1000 + i,
+            }
+        )
         mock_events.append(event)
-    
+
     # Channel 789 - 3 messages (meets threshold)
     for i in range(3):
-        event = Event.from_dict({
-            "event_type": f"server_activity_{guild_id}",
-            "channel_id": 789,
-            "message_id": 2000 + i,
-        })
+        event = Event.from_dict(
+            {
+                "event_type": f"server_activity_{guild_id}",
+                "channel_id": 789,
+                "message_id": 2000 + i,
+            }
+        )
         mock_events.append(event)
-    
+
     aurora_cog.queue.consume_all.return_value = mock_events
 
     # Mock message fetching for both channels
@@ -545,7 +543,7 @@ async def test_track_server_activity_reenqueues_below_threshold(aurora_cog, mock
         mock_channel = AsyncMock(spec=discord.TextChannel)
         mock_channel.id = channel_id
         mock_channel.name = f"channel-{channel_id}"
-        
+
         async def fetch_message_mock(message_id):
             mock_message = Mock(spec=discord.Message)
             mock_message.channel = mock_channel
@@ -554,18 +552,19 @@ async def test_track_server_activity_reenqueues_below_threshold(aurora_cog, mock
             mock_message.author.global_name = "UserGlobal"
             mock_message.created_at = datetime.now()
             return mock_message
-        
+
         mock_channel.fetch_message = fetch_message_mock
         return mock_channel
-    
+
     mock_bot.get_channel.side_effect = get_channel_mock
-    
+
     # Mock the queue.enqueue method to track re-enqueued events
     enqueued_events = []
+
     async def mock_enqueue(event, allow_duplicates=False):
         enqueued_events.append((event, allow_duplicates))
         return True
-    
+
     aurora_cog.queue.enqueue = mock_enqueue
 
     # Execute
@@ -574,29 +573,31 @@ async def test_track_server_activity_reenqueues_below_threshold(aurora_cog, mock
     # Verify
     # Should have consumed all events
     aurora_cog.queue.consume_all.assert_called_once()
-    
+
     # Should have re-enqueued the 2 events from channel 456 (below threshold)
     assert len(enqueued_events) == 2, f"Expected 2 re-enqueued events, got {len(enqueued_events)}"
-    
+
     # All re-enqueued events should be from channel 456
     for event, allow_duplicates in enqueued_events:
         assert event.data["channel_id"] == 456, "Re-enqueued event should be from channel 456"
         assert allow_duplicates is True, "Re-enqueued events should allow duplicates"
-    
+
     # Should have sent notification for channel 789 (which met the threshold)
     mock_letta.agents.messages.create.assert_called_once()
     call_args = mock_letta.agents.messages.create.call_args
     messages = call_args.kwargs["messages"]
     assert len(messages) == 1
     # The message content should contain the activity summary
-    assert "server_activity_summary" in messages[0]["content"] or "Server Activity Notification" in messages[0]["content"]
+    assert (
+        "server_activity_summary" in messages[0]["content"] or "Server Activity Notification" in messages[0]["content"]
+    )
 
 
 @pytest.mark.asyncio
 async def test_track_server_activity_no_notification_when_all_below_threshold(aurora_cog, mock_bot, mock_config):
     """Test that no notification is sent when all channels are below threshold, but events are re-enqueued."""
     from aurora.utils.queue import Event
-    
+
     # Setup
     guild_id = 123
     agent_id = "agent-123"
@@ -619,20 +620,22 @@ async def test_track_server_activity_no_notification_when_all_below_threshold(au
     # Create mock events for one channel with only 2 messages (below threshold)
     mock_events = []
     for i in range(2):
-        event = Event.from_dict({
-            "event_type": f"server_activity_{guild_id}",
-            "channel_id": 456,
-            "message_id": 1000 + i,
-        })
+        event = Event.from_dict(
+            {
+                "event_type": f"server_activity_{guild_id}",
+                "channel_id": 456,
+                "message_id": 1000 + i,
+            }
+        )
         mock_events.append(event)
-    
+
     aurora_cog.queue.consume_all.return_value = mock_events
 
     # Mock message fetching
     mock_channel = AsyncMock(spec=discord.TextChannel)
     mock_channel.id = 456
     mock_channel.name = "general"
-    
+
     async def fetch_message_mock(message_id):
         mock_message = Mock(spec=discord.Message)
         mock_message.channel = mock_channel
@@ -641,16 +644,17 @@ async def test_track_server_activity_no_notification_when_all_below_threshold(au
         mock_message.author.global_name = "UserGlobal"
         mock_message.created_at = datetime.now()
         return mock_message
-    
+
     mock_channel.fetch_message = fetch_message_mock
     mock_bot.get_channel.return_value = mock_channel
-    
+
     # Mock the queue.enqueue method to track re-enqueued events
     enqueued_events = []
+
     async def mock_enqueue(event, allow_duplicates=False):
         enqueued_events.append((event, allow_duplicates))
         return True
-    
+
     aurora_cog.queue.enqueue = mock_enqueue
 
     # Execute
@@ -659,13 +663,13 @@ async def test_track_server_activity_no_notification_when_all_below_threshold(au
     # Verify
     # Should have consumed all events
     aurora_cog.queue.consume_all.assert_called_once()
-    
+
     # Should have re-enqueued all 2 events (since they're below threshold)
     assert len(enqueued_events) == 2, f"Expected 2 re-enqueued events, got {len(enqueued_events)}"
-    
+
     # All re-enqueued events should allow duplicates
     for event, allow_duplicates in enqueued_events:
         assert allow_duplicates is True, "Re-enqueued events should allow duplicates"
-    
+
     # Should NOT have sent any notification to the agent
     mock_letta.agents.messages.create.assert_not_called()
