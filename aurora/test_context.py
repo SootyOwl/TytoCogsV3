@@ -349,7 +349,7 @@ class TestFormatReplyChain:
         """Test formatting message with attachments."""
         result = format_reply_chain(chain)
 
-        assert "has_attachments: True" in result
+        assert "has_attachments: true" in result
 
 
 class TestFormatMetadataForPrompt:

@@ -67,7 +67,9 @@ async def test_initialize_letta_success(aurora_cog, mock_bot):
         # Verify
         assert client is not None
         assert aurora_cog.letta is not None
-        MockLetta.assert_called_once_with(base_url="https://api.letta.ai/v1", api_key="valid_token")
+        MockLetta.assert_called_once_with(
+            base_url="https://api.letta.ai/v1", api_key="valid_token"
+        )
 
 
 @pytest.mark.asyncio
@@ -192,7 +194,9 @@ async def test_synthesis_no_agent_id(aurora_cog, mock_bot, mock_config):
 
 
 @pytest.mark.asyncio
-async def test_synthesis_block_attach_failure_continues(aurora_cog, mock_bot, mock_config):
+async def test_synthesis_block_attach_failure_continues(
+    aurora_cog, mock_bot, mock_config
+):
     """Test synthesis continues even if block attach fails."""
     guild_id = 123
     agent_id = "agent-123"
@@ -232,7 +236,9 @@ async def test_synthesis_block_attach_failure_continues(aurora_cog, mock_bot, mo
 
 
 @pytest.mark.asyncio
-async def test_synthesis_exception_still_updates_timestamp(aurora_cog, mock_bot, mock_config):
+async def test_synthesis_exception_still_updates_timestamp(
+    aurora_cog, mock_bot, mock_config
+):
     """Test that mark_processed is called even when synthesis throws an exception."""
     guild_id = 123
     agent_id = "agent-123"
@@ -439,7 +445,7 @@ async def test_on_message_active_queuing(aurora_cog, mock_bot, mock_config):
     aurora_cog.letta = AsyncMock()
     aurora_cog._events_paused = False
 
-    mock_message = Mock(spec=discord.Message)
+    mock_message = MagicMock(spec=discord.Message)
     mock_message.author.bot = False
     mock_message.author.display_name = "TestUser"
     mock_message.author.global_name = "TestUserGlobal"
@@ -453,6 +459,7 @@ async def test_on_message_active_queuing(aurora_cog, mock_bot, mock_config):
 
     mock_message.id = 789
     mock_message.content = "Hello @Aurora"
+    mock_message.clean_content = "Hello @Aurora"
     mock_message.mentions = [mock_bot.user]  # Bot is mentioned
     mock_message.reference = None
     mock_message.created_at = datetime.now()
@@ -481,7 +488,9 @@ async def test_on_message_active_queuing(aurora_cog, mock_bot, mock_config):
 
 
 @pytest.mark.asyncio
-async def test_track_server_activity_reenqueues_below_threshold(aurora_cog, mock_bot, mock_config):
+async def test_track_server_activity_reenqueues_below_threshold(
+    aurora_cog, mock_bot, mock_config
+):
     """Test that events from channels below the activity threshold are re-enqueued."""
     from aurora.utils.queue import Event
 
@@ -575,11 +584,15 @@ async def test_track_server_activity_reenqueues_below_threshold(aurora_cog, mock
     aurora_cog.queue.consume_all.assert_called_once()
 
     # Should have re-enqueued the 2 events from channel 456 (below threshold)
-    assert len(enqueued_events) == 2, f"Expected 2 re-enqueued events, got {len(enqueued_events)}"
+    assert len(enqueued_events) == 2, (
+        f"Expected 2 re-enqueued events, got {len(enqueued_events)}"
+    )
 
     # All re-enqueued events should be from channel 456
     for event, allow_duplicates in enqueued_events:
-        assert event.data["channel_id"] == 456, "Re-enqueued event should be from channel 456"
+        assert event.data["channel_id"] == 456, (
+            "Re-enqueued event should be from channel 456"
+        )
         assert allow_duplicates is True, "Re-enqueued events should allow duplicates"
 
     # Should have sent notification for channel 789 (which met the threshold)
@@ -589,11 +602,15 @@ async def test_track_server_activity_reenqueues_below_threshold(aurora_cog, mock
     assert len(messages) == 1
     # The message content should contain the activity notification header
     message_content = messages[0]["content"]
-    assert "Server Activity Notification" in message_content, "Message should contain activity notification header"
+    assert "Server Activity Notification" in message_content, (
+        "Message should contain activity notification header"
+    )
 
 
 @pytest.mark.asyncio
-async def test_track_server_activity_no_notification_when_all_below_threshold(aurora_cog, mock_bot, mock_config):
+async def test_track_server_activity_no_notification_when_all_below_threshold(
+    aurora_cog, mock_bot, mock_config
+):
     """Test that no notification is sent when all channels are below threshold, but events are re-enqueued."""
     from aurora.utils.queue import Event
 
@@ -664,7 +681,9 @@ async def test_track_server_activity_no_notification_when_all_below_threshold(au
     aurora_cog.queue.consume_all.assert_called_once()
 
     # Should have re-enqueued all 2 events (since they're below threshold)
-    assert len(enqueued_events) == 2, f"Expected 2 re-enqueued events, got {len(enqueued_events)}"
+    assert len(enqueued_events) == 2, (
+        f"Expected 2 re-enqueued events, got {len(enqueued_events)}"
+    )
 
     # All re-enqueued events should allow duplicates
     for event, allow_duplicates in enqueued_events:

@@ -6,7 +6,9 @@ based on different event types (mentions, DMs).
 
 import logging
 
-from aurora.utils.dataclasses import MessageMetadata, ReplyChain
+from discord import Message as DiscordMessage
+
+from aurora.utils.dataclasses import MessageMetadata, MessageRecord, ReplyChain
 
 from .context import format_metadata_for_prompt, format_reply_chain
 
@@ -14,7 +16,7 @@ log = logging.getLogger("red.tyto.aurora.prompts")
 
 
 def build_mention_prompt(
-    message_content: str,
+    message: MessageRecord,
     metadata: MessageMetadata,
     reply_chain: ReplyChain,
     include_mcp_guidance: bool = True,
@@ -63,7 +65,9 @@ def build_mention_prompt(
         [
             "",
             "**Current Message (the mention you're responding to):**",
-            f"{author_name}: {message_content}",
+            "```yaml",
+            message.format_yaml(),
+            "```",
         ]
     )
 
@@ -75,10 +79,10 @@ def build_mention_prompt(
                 "**Available Tools:**",
                 "You have access to MCP Discord tools to gather context and respond:",
                 f'- discord_get_server_info(guildId="{guild_id}"): Get detailed server information',
-                f'- discord_read_messages(channelId="{channel_id}", limit=20): Read recent channel messages for context',
+                f'- discord_read_messages(channelId="{channel_id}", limit=20): Read recent channel messages to gather context',
                 f'- discord_search_messages(guildId="{guild_id}", ...): Search server-wide messages for relevant info, if needed',
                 f'- discord_send(channelId="{channel_id}", message="your response", replyToMessageId="{message_id}"): Send your response',
-                "- discord_add_reaction(channelId, messageId, emoji): React to messages",
+                f"- discord_add_reaction(channelId={channel_id}, messageId={message_id}, emoji='👍'): React to messages",
                 "...and more.",
                 "",
                 "You also have access to web search and browsing tools to gather external information if needed, as well as the ability to run code.",
@@ -95,7 +99,7 @@ def build_mention_prompt(
 
 
 def build_dm_prompt(
-    message_content: str,
+    message: MessageRecord,
     metadata: MessageMetadata,
     reply_chain: ReplyChain,
     include_mcp_guidance: bool = True,
@@ -139,7 +143,9 @@ def build_dm_prompt(
         [
             "",
             "**Current Message:**",
-            message_content,
+            "```yaml",
+            message.format_yaml(),
+            "```",
         ]
     )
 
@@ -166,7 +172,7 @@ def build_dm_prompt(
 
 def build_prompt(
     interaction_type: str,
-    message_content: str,
+    message: DiscordMessage,
     context: tuple[MessageMetadata, ReplyChain],
     include_mcp_guidance: bool = True,
 ) -> str:
@@ -176,7 +182,7 @@ def build_prompt(
 
     Args:
         event_type: Type of event ("mention" or "dm")
-        message_content: The actual message content
+        message: Discord message object
         context: Event context from context.build_event_context()
         include_mcp_guidance: Whether to include MCP tool usage hints (default: True)
 
@@ -187,14 +193,14 @@ def build_prompt(
         ValueError: If event_type is not recognized
     """
     metadata, reply_chain = context
-
+    message_record = MessageRecord.from_message(message)
     if interaction_type == "mention":
         return build_mention_prompt(
-            message_content, metadata, reply_chain, include_mcp_guidance
+            message_record, metadata, reply_chain, include_mcp_guidance
         )
     elif interaction_type == "dm":
         return build_dm_prompt(
-            message_content, metadata, reply_chain, include_mcp_guidance
+            message_record, metadata, reply_chain, include_mcp_guidance
         )
     else:
         raise ValueError(f"Unknown event type: {interaction_type}")

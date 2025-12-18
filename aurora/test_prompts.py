@@ -82,15 +82,30 @@ def reply_chain():
     )
 
 
+@pytest.fixture
+def mock_message():
+    """Fixture for a mock message record."""
+    message = MessageRecord(
+        message_id=333333,
+        author="Test User",
+        author_id=111222,
+        content="Hello @bot, how are you?",
+        clean_content="Hello @bot, how are you?",
+        timestamp="2025-10-16T12:30:00",
+        is_bot=False,
+        has_attachments=False,
+        has_embeds=False,
+    )
+    return message
+
+
 class TestBuildMentionPrompt:
     """Tests for build_mention_prompt function."""
 
-    def test_basic_mention_prompt(self, message_metadata):
+    def test_basic_mention_prompt(self, message_metadata, mock_message):
         """Test building a basic mention prompt."""
-        content = "Hello @bot, how are you?"
-
         prompt = build_mention_prompt(
-            message_content=content,
+            message=mock_message,
             metadata=message_metadata,
             reply_chain=ReplyChain(),
             include_mcp_guidance=True,
@@ -104,12 +119,16 @@ class TestBuildMentionPrompt:
         assert "discord_read_messages" in prompt  # MCP tool guidance
         assert "discord_send" in prompt  # MCP tool guidance
 
-    def test_mention_prompt_with_reply_chain(self, message_metadata, reply_chain):
+    def test_mention_prompt_with_reply_chain(
+        self, message_metadata, reply_chain, mock_message
+    ):
         """Test mention prompt with reply chain context."""
-        content = "@bot what do you think?"
+        # update mock_message content to reference reply chain
+        mock_message.content = "@bot what do you think?"
+        mock_message.clean_content = "@bot what do you think?"
 
         prompt = build_mention_prompt(
-            message_content=content,
+            message=mock_message,
             metadata=message_metadata,
             reply_chain=reply_chain,
             include_mcp_guidance=True,
@@ -126,7 +145,7 @@ class TestBuildMentionPrompt:
 class TestBuildDMPrompt:
     """Tests for build_dm_prompt function."""
 
-    def test_basic_dm_prompt(self):
+    def test_basic_dm_prompt(self, mock_message):
         """Test building a basic DM prompt."""
         metadata = MessageMetadata(
             **{
@@ -153,10 +172,11 @@ class TestBuildDMPrompt:
             }
         )
 
-        content = "Hey bot, can you help me?"
+        mock_message.content = "Hey bot, can you help me?"
+        mock_message.clean_content = "Hey bot, can you help me?"
 
         prompt = build_dm_prompt(
-            message_content=content,
+            message=mock_message,
             metadata=metadata,
             reply_chain=ReplyChain(),
             include_mcp_guidance=True,
@@ -169,7 +189,7 @@ class TestBuildDMPrompt:
             "direct message" in prompt.lower() or "DM" in prompt
         )  # Should mention it's a DM
 
-    def test_dm_prompt_with_reply_chain(self):
+    def test_dm_prompt_with_reply_chain(self, mock_message):
         """Test DM prompt with reply chain."""
         metadata = MessageMetadata(
             **{
@@ -226,10 +246,10 @@ class TestBuildDMPrompt:
                 ),
             ]
         )
-        content = "Actually, can you explain Y instead?"
-
+        mock_message.content = "Actually, can you explain Y instead?"
+        mock_message.clean_content = "Actually, can you explain Y instead?"
         prompt = build_dm_prompt(
-            message_content=content,
+            message=mock_message,
             metadata=metadata,
             reply_chain=reply_chain,
             include_mcp_guidance=True,
@@ -245,31 +265,65 @@ class TestBuildDMPrompt:
 class TestBuildPrompt:
     """Tests for build_prompt function."""
 
-    def test_build_mention_event_prompt(self, message_metadata, reply_chain):
+    @pytest.fixture
+    def mock_discord_message_factory(self, mocker):
+        """Fixture to create a mock message."""
+
+        from discord import Message
+
+        def _factory(content: str) -> Message:
+            message = mocker.MagicMock(spec=Message)
+            message.id = 444444
+            message.content = content
+            message.clean_content = content
+            message.created_at.isoformat.return_value = "2025-10-16T12:30:00"
+            message.attachments = []
+            message.embeds = []
+            message.author.id = 111222
+            message.author.name = "testuser"
+            message.author.bot = False
+            message.author.display_name = "Test User"
+            message.channel.id = 987654
+            message.channel.name = "general"
+            message.guild.id = 555666
+            message.guild.name = "Test Server"
+            return message
+
+        return _factory
+
+    def test_build_mention_event_prompt(
+        self, message_metadata, reply_chain, mock_discord_message_factory
+    ):
         """Test that build_prompt correctly routes mention events."""
         context = (message_metadata, reply_chain)
 
-        prompt = build_prompt("mention", "Test mention", context)
+        mock_message = mock_discord_message_factory("Test mention")
+
+        prompt = build_prompt("mention", mock_message, context)
 
         # Should contain mention-specific elements
         assert "Test mention" in prompt
         assert "discord_read_messages" in prompt  # Server mentions get MCP guidance
 
-    def test_build_dm_event_prompt(self, message_metadata, reply_chain):
+    def test_build_dm_event_prompt(
+        self, message_metadata, reply_chain, mock_discord_message_factory
+    ):
         """Test that build_prompt correctly routes DM events."""
         context = (message_metadata, reply_chain)
-
-        prompt = build_prompt("dm", "Test DM", context)
+        mock_message = mock_discord_message_factory("Test DM")
+        prompt = build_prompt("dm", mock_message, context)
 
         # Should contain DM-specific elements
         assert "Test DM" in prompt
         assert "direct message" in prompt.lower() or "DM" in prompt
 
-    def test_build_prompt_with_reply_chain(self, message_metadata, reply_chain):
+    def test_build_prompt_with_reply_chain(
+        self, message_metadata, reply_chain, mock_discord_message_factory
+    ):
         """Test build_prompt includes reply chain context."""
         context = (message_metadata, reply_chain)
-
-        prompt = build_prompt("mention", "Checking reply chain", context)
+        mock_message = mock_discord_message_factory("Checking reply chain")
+        prompt = build_prompt("mention", mock_message, context)
 
         # Should include reply chain context
         assert "Alice" in prompt

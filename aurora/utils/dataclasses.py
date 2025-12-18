@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, overload
 
+import yaml
 from discord import Member, Message, User
 from redbot.core.utils.chat_formatting import humanize_timedelta
 
@@ -48,6 +49,8 @@ class MessageRecord:
     is_bot: bool
     has_attachments: bool
     has_embeds: bool
+    attachments: list[str] = field(default_factory=list)  # URLs of attachments
+    embed_summaries: list[dict] = field(default_factory=list)  # Summaries of embeds
 
     @classmethod
     def from_message(cls, message: Message) -> "MessageRecord":
@@ -61,6 +64,8 @@ class MessageRecord:
             is_bot=message.author.bot,
             has_attachments=len(message.attachments) > 0,
             has_embeds=len(message.embeds) > 0,
+            attachments=[attachment.url for attachment in message.attachments],
+            embed_summaries=[embed.to_dict() for embed in message.embeds],  # type: ignore
         )
 
     def format(self) -> str:
@@ -86,20 +91,29 @@ class MessageRecord:
         line += f" [MessageID: {self.message_id}]"
         return line
 
+    def to_dict(self) -> dict:
+        """Convert message record to dictionary for YAML serialization."""
+        return {
+            "message_id": self.message_id,
+            "author": self.author,
+            "author_id": self.author_id,
+            "content": self.clean_content,
+            "timestamp": self.timestamp,
+            "is_bot": self.is_bot,
+            "has_attachments": self.has_attachments,
+            "attachments": self.attachments,
+            "has_embeds": self.has_embeds,
+            "embed_summaries": self.embed_summaries,
+        }
+
     def format_yaml(self) -> str:
         """Format message record into YAML-like text."""
-        yaml_str = (
-            f"- message_id: {self.message_id}\n"
-            f"  author: {self.author}\n"
-            f"  author_id: {self.author_id}\n"
-            f"  content: |\n"
-            f"    {self.clean_content.replace(chr(10), chr(10) + '    ')}\n"
-            f"  timestamp: {self.timestamp}\n"
-            f"  is_bot: {self.is_bot}\n"
-            f"  has_attachments: {self.has_attachments}\n"
-            f"  has_embeds: {self.has_embeds}\n"
+        return yaml.dump(
+            self.to_dict(),
+            sort_keys=False,
+            default_flow_style=False,  # Use block style
+            allow_unicode=True,  # Allow Unicode characters (e.g., emojis)
         )
-        return yaml_str
 
 
 @dataclass
@@ -142,11 +156,12 @@ class ReplyChain:
         if not self.messages:
             return "No reply chain."
 
-        lines = []
-        for msg in self.messages:
-            lines.append(msg.format_yaml())
-
-        return "\n".join(lines)
+        return yaml.dump(
+            [msg.to_dict() for msg in self.messages],
+            sort_keys=False,
+            default_flow_style=False,  # Use block style
+            allow_unicode=True,  # Allow Unicode characters (e.g., emojis)
+        )
 
 
 @dataclass
@@ -183,9 +198,7 @@ class ChannelMetadata:
     type: str
 
     @classmethod
-    def from_channel(cls, channel_data) -> "ChannelMetadata":
-        if TYPE_CHECKING:
-            channel_data: MessageableChannel = channel_data  # type: ignore
+    def from_channel(cls, channel_data: "MessageableChannel") -> "ChannelMetadata":
         return cls(
             id=channel_data.id,
             name=getattr(channel_data, "name", "DM"),
@@ -241,8 +254,15 @@ class MessageMetadata:
         return cls(
             message_id=0,
             timestamp="",
-            author=AuthorMetadata(0, "", "", False, []),
-            channel=ChannelMetadata(0, "", ""),
+            author=AuthorMetadata(
+                id=0,
+                username="",
+                display_name="",
+                global_name="",
+                is_bot=False,
+                roles=[],
+            ),
+            channel=ChannelMetadata(id=0, name="", type=""),
             guild=None,
         )
 

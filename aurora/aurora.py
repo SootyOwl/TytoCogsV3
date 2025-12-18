@@ -1951,7 +1951,7 @@ class Aurora(commands.Cog):
             include_mcp_guidance = guild_config.get("mcp_guidance_enabled", True)
             prompt = build_prompt(
                 interaction_type=interaction_type,
-                message_content=message.content,
+                message=message,
                 context=context,
                 include_mcp_guidance=include_mcp_guidance,
             )
