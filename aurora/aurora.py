@@ -10,7 +10,7 @@ import logging
 from collections import Counter
 from datetime import date, datetime, timezone
 from enum import Enum
-from typing import Any, Optional, TypedDict
+from typing import Any, Literal, Optional, TypedDict
 
 import discord
 from discord.ext import tasks
@@ -44,7 +44,9 @@ from .utils.queue import Event, EventQueue
 
 log = logging.getLogger("red.tyto.aurora")
 
-RunTracker = TypedDict("RunTracker", {"run_id": str | None, "task": asyncio.Task | None})
+RunTracker = TypedDict(
+    "RunTracker", {"run_id": str | None, "task": asyncio.Task | None}
+)
 
 
 class ToolCallError(Exception):
@@ -70,7 +72,9 @@ class Aurora(commands.Cog):
 
     def __init__(self, bot: Red):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=3897456238745, force_registration=True)
+        self.config = Config.get_conf(
+            self, identifier=3897456238745, force_registration=True
+        )
         default_global = {
             "letta_base_url": "https://api.letta.ai/v1",
         }
@@ -93,6 +97,7 @@ class Aurora(commands.Cog):
             "agent_timeout": 60,
             "mcp_guidance_enabled": True,
             "rate_limit_seconds": 2,
+            "events_as_user_messages": False,
         }
         self.config.register_guild(**default_guild)
 
@@ -144,9 +149,17 @@ class Aurora(commands.Cog):
 
         # Global tracking stats (shared across all event types)
         tracked_channels = len(
-            [k for k in self.queue.last_processed.keys() if str(k).startswith("channel_")]  # type: ignore
+            [
+                k
+                for k in self.queue.last_processed.keys()
+                if str(k).startswith("channel_")
+            ]  # type: ignore
         )
-        tracked_event_ids = len(self.queue.processed_event_ids) if hasattr(self.queue, "processed_event_ids") else 0
+        tracked_event_ids = (
+            len(self.queue.processed_event_ids)
+            if hasattr(self.queue, "processed_event_ids")
+            else 0
+        )
 
         queue = self.queue  # Local reference for type narrowing
 
@@ -173,7 +186,9 @@ class Aurora(commands.Cog):
             return build_stats_for_type(event_type, raw_stats.get(event_type, {}))
 
         # Return stats for all event types
-        return {et: build_stats_for_type(et, et_stats) for et, et_stats in raw_stats.items()}
+        return {
+            et: build_stats_for_type(et, et_stats) for et, et_stats in raw_stats.items()
+        }
 
     async def cog_load(self):
         """Load the Letta client and start the synthesis."""
@@ -214,7 +229,9 @@ class Aurora(commands.Cog):
                         synthesis_interval,
                         before_coro=self.before_synthesis,
                     )
-                    activity_interval = guild_config.get("server_activity_interval", 1800)
+                    activity_interval = guild_config.get(
+                        "server_activity_interval", 1800
+                    )
                     self._get_or_create_task(
                         self.track_server_activity,
                         guild_id,
@@ -322,7 +339,8 @@ class Aurora(commands.Cog):
             ],
         }
         heatbeat_prompt = (
-            "[Synthesis and Exploration Event]\n" f"""```json\n{json.dumps(heatbeat_dict, indent=2)}\n```"""
+            "[Synthesis and Exploration Event]\n"
+            f"""```json\n{json.dumps(heatbeat_dict, indent=2)}\n```"""
         )
         if not self.letta:
             log.warning("Letta client not configured. Cannot run synthesis.")
@@ -339,6 +357,11 @@ class Aurora(commands.Cog):
 
             guild_config = await self.config.guild(guild).all()
             agent_id = guild_config.get("agent_id")
+            event_role = (
+                "user"
+                if guild_config.get("events_as_user_messages", False)
+                else "system"
+            )
             if not agent_id:
                 log.warning(
                     "Agent ID not configured for guild %d. Stopping synthesis task.",
@@ -356,7 +379,9 @@ class Aurora(commands.Cog):
             ]
             success, attached = await attach_blocks(self.letta, agent_id, block_names)
             if not success:
-                log.warning("Failed to attach blocks for guild %d during synthesis.", guild_id)
+                log.warning(
+                    "Failed to attach blocks for guild %d during synthesis.", guild_id
+                )
 
             # Send the synthesis prompt to the agent with retry logic
             async def send_synthesis_message():
@@ -364,7 +389,7 @@ class Aurora(commands.Cog):
                     agent_id=agent_id,
                     messages=[
                         {
-                            "role": "system",
+                            "role": event_role,
                             "content": heatbeat_prompt,
                         }
                     ],
@@ -381,7 +406,9 @@ class Aurora(commands.Cog):
                 self.circuit_breaker,
             )
         except Exception as e:
-            log.exception("Exception during synthesis for guild %d: %s", guild_id, str(e))
+            log.exception(
+                "Exception during synthesis for guild %d: %s", guild_id, str(e)
+            )
         finally:
             # Update last synthesis time (even on error, to prevent rapid retries)
             event_type = EventType.SYNTHESIS.format(guild_id=guild_id)
@@ -429,16 +456,22 @@ class Aurora(commands.Cog):
 
         # Get last synthesis time from queue
         event_type = EventType.SYNTHESIS.format(guild_id=guild_id)
-        last_synthesis_dt = self.queue.last_processed.get(event_type, datetime.min) if self.queue else datetime.min
+        last_synthesis_dt = (
+            self.queue.last_processed.get(event_type, datetime.min)
+            if self.queue
+            else datetime.min
+        )
 
         if last_synthesis_dt != datetime.min:
             time_since_last = (
-                datetime.now(timezone.utc) - last_synthesis_dt.replace(tzinfo=timezone.utc)
+                datetime.now(timezone.utc)
+                - last_synthesis_dt.replace(tzinfo=timezone.utc)
             ).total_seconds()
             if time_since_last < synthesis_interval:
                 wait_time: float = synthesis_interval - time_since_last
                 log.info(
-                    "Not enough time since last synthesis for guild %d. " "Waiting %.1f seconds.",
+                    "Not enough time since last synthesis for guild %d. "
+                    "Waiting %.1f seconds.",
                     guild_id,
                     wait_time,
                 )
@@ -463,12 +496,19 @@ class Aurora(commands.Cog):
         try:
             guild = self.bot.get_guild(guild_id)
             if not guild:
-                log.warning("Guild %d not found. Stopping channel activity task.", guild_id)
+                log.warning(
+                    "Guild %d not found. Stopping channel activity task.", guild_id
+                )
                 self._remove_task(self.track_server_activity, guild_id)  # type: ignore
                 return
 
             guild_config = await self.config.guild(guild).all()
             agent_id = guild_config.get("agent_id")
+            event_role = (
+                "user"
+                if guild_config.get("events_as_user_messages", False)
+                else "system"
+            )
             if not agent_id:
                 log.warning(
                     "Agent ID not configured for guild %d. Stopping channel activity task.",
@@ -488,7 +528,9 @@ class Aurora(commands.Cog):
             activity_summary, events_to_reenqueue = await self.build_activity_summary(
                 events, threshold=guild_config.get("activity_threshold", 1)
             )
-            log.info("Built activity summary for guild %d: %s", guild_id, activity_summary)
+            log.info(
+                "Built activity summary for guild %d: %s", guild_id, activity_summary
+            )
 
             # Re-enqueue events from channels that didn't meet the threshold
             if events_to_reenqueue:
@@ -501,7 +543,9 @@ class Aurora(commands.Cog):
                     await self.queue.enqueue(event, allow_duplicates=True)
 
             if not activity_summary:
-                log.info("No channels met the activity threshold for guild %d.", guild_id)
+                log.info(
+                    "No channels met the activity threshold for guild %d.", guild_id
+                )
                 return
 
             # Send the activity summary to the agent with retry logic
@@ -510,7 +554,7 @@ class Aurora(commands.Cog):
                     agent_id=agent_id,
                     messages=[
                         {
-                            "role": "system",
+                            "role": event_role,
                             "content": (
                                 "[Server Activity Notification]\n\n"
                                 f"```json\n{json.dumps(activity_summary, indent=2)}\n```\n\n"
@@ -588,7 +632,8 @@ class Aurora(commands.Cog):
                 if time_since_last < activity_interval:
                     wait_time: float = activity_interval - time_since_last
                     log.info(
-                        "Not enough time since last activity tracking for guild %d. " "Waiting %.1f seconds.",
+                        "Not enough time since last activity tracking for guild %d. "
+                        "Waiting %.1f seconds.",
                         guild_id,
                         wait_time,
                     )
@@ -596,7 +641,9 @@ class Aurora(commands.Cog):
                     await asyncio.sleep(wait_time)
         return True
 
-    async def build_activity_summary(self, events: list[Event], threshold: int) -> tuple[dict, list[Event]]:
+    async def build_activity_summary(
+        self, events: list[Event], threshold: int
+    ) -> tuple[dict, list[Event]]:
         """Build a summary of server activity from the list of events.
 
         Don't need content, just who said stuff in which channel.
@@ -635,7 +682,9 @@ class Aurora(commands.Cog):
             except discord.NotFound:
                 continue
             except discord.DiscordException:
-                log.warning("Could not fetch message %d to build activity summary.", message_id)
+                log.warning(
+                    "Could not fetch message %d to build activity summary.", message_id
+                )
                 continue
             except Exception as e:
                 log.exception(
@@ -667,12 +716,16 @@ class Aurora(commands.Cog):
             # Update channel activity summary
             author = message.author
             channel_summary["total_messages"] += 1
-            channel_summary["active_users"][f"{author.id=} ({author.display_name=} | {author.global_name=})"] += 1
+            channel_summary["active_users"][
+                f"{author.id=} ({author.display_name=} | {author.global_name=})"
+            ] += 1
             # Ensure comparison is done with datetime objects
             prev_time = channel_summary["last_message_time"]
             latest_time = self.compare_message_timestamps(message.created_at, prev_time)
             channel_summary["last_message_time"] = latest_time.isoformat()
-            channel_summary["last_message_user"] = f"{author.id=} ({author.display_name=} | {author.global_name=})"
+            channel_summary["last_message_user"] = (
+                f"{author.id=} ({author.display_name=} | {author.global_name=})"
+            )
 
         # Separate channels that meet threshold from those that don't
         channels_below_threshold = [
@@ -698,7 +751,9 @@ class Aurora(commands.Cog):
             return {}, events_to_reenqueue
         return summary, events_to_reenqueue
 
-    def compare_message_timestamps(self, message_created_at: datetime, prev_time: datetime | str | None) -> datetime:
+    def compare_message_timestamps(
+        self, message_created_at: datetime, prev_time: datetime | str | None
+    ) -> datetime:
         """Compare a message timestamp with a previous timestamp and return the later datetime.
 
         Args:
@@ -735,6 +790,7 @@ class Aurora(commands.Cog):
         """Manage Aurora agent and event system."""
         pass
 
+    # region: Queue Management Commands
     @aurora.group(name="queue")
     @commands.is_owner()
     async def aurora_queue(self, ctx: commands.Context):
@@ -822,7 +878,9 @@ class Aurora(commands.Cog):
         if total_pending == 0:
             embed.description = "✨ All queues empty - all events processed!"
         else:
-            embed.description = f"⚠️ {total_pending} event(s) waiting to be processed across all queues."
+            embed.description = (
+                f"⚠️ {total_pending} event(s) waiting to be processed across all queues."
+            )
 
         await ctx.send(embed=embed)
 
@@ -839,6 +897,9 @@ class Aurora(commands.Cog):
         await ctx.send(f"✅ Cleared {initial_size} message(s) from the queue.")
         log.info(f"Queue cleared by {ctx.author}")
 
+    # endregion
+
+    # region: Event System Commands
     @aurora.group(name="events")
     @commands.is_owner()
     async def aurora_events(self, ctx: commands.Context):
@@ -867,7 +928,9 @@ class Aurora(commands.Cog):
             return
 
         self._events_paused = False
-        await ctx.send("▶️ **Global event processing resumed.** The bot will now respond to mentions and DMs.")
+        await ctx.send(
+            "▶️ **Global event processing resumed.** The bot will now respond to mentions and DMs."
+        )
         log.info(f"Event processing resumed globally by {ctx.author}")
 
     @aurora_events.command(name="status")
@@ -986,7 +1049,9 @@ class Aurora(commands.Cog):
 
         embed = discord.Embed(
             title="📊 Error Statistics",
-            color=discord.Color.red() if circuit_status["state"] != "closed" else discord.Color.green(),
+            color=discord.Color.red()
+            if circuit_status["state"] != "closed"
+            else discord.Color.green(),
         )
 
         # Overall stats
@@ -1035,9 +1100,9 @@ class Aurora(commands.Cog):
             error_breakdown = "\n".join(
                 [
                     f"**{error_type}:** {count}"
-                    for error_type, count in sorted(stats["error_by_type"].items(), key=lambda x: x[1], reverse=True)[
-                        :5
-                    ]  # Top 5 error types
+                    for error_type, count in sorted(
+                        stats["error_by_type"].items(), key=lambda x: x[1], reverse=True
+                    )[:5]  # Top 5 error types
                 ]
             )
             embed.add_field(
@@ -1070,6 +1135,9 @@ class Aurora(commands.Cog):
         )
         log.warning(f"Circuit breaker manually reset by {ctx.author} (was {old_state})")
 
+    # endregion
+
+    # region: Configuration Commands
     @aurora.group(name="config")
     async def aurora_config(self, ctx: commands.Context):
         """Configure event system settings."""
@@ -1090,7 +1158,9 @@ class Aurora(commands.Cog):
             return
         await self.config.guild(ctx.guild).reply_thread_depth.set(depth)  # type: ignore
         await ctx.send(f"✅ Reply thread depth set to {depth} messages.")
-        log.info(f"Reply depth set to {depth} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})")
+        log.info(
+            f"Reply depth set to {depth} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
 
     @aurora_config.command(name="typing")
     async def config_typing(self, ctx: commands.Context, enabled: bool):
@@ -1105,7 +1175,9 @@ class Aurora(commands.Cog):
         await self.config.guild(ctx.guild).enable_typing_indicator.set(enabled)
         status = "enabled" if enabled else "disabled"
         await ctx.send(f"✅ Typing indicator {status}.")
-        log.info(f"Typing indicator {status} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})")
+        log.info(
+            f"Typing indicator {status} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
 
     @aurora_config.command(name="ratelimit")
     async def config_rate_limit(self, ctx: commands.Context, seconds: float):
@@ -1134,7 +1206,9 @@ class Aurora(commands.Cog):
                 log.exception("Error updating queue rate limits")
 
         await ctx.send(f"✅ Rate limit set to {seconds} seconds per channel.")
-        log.info(f"Rate limit set to {seconds}s by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})")
+        log.info(
+            f"Rate limit set to {seconds}s by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
 
     @aurora_config.command(name="queuesize")
     async def config_queue_size(self, ctx: commands.Context, size: int):
@@ -1151,9 +1225,12 @@ class Aurora(commands.Cog):
             return
         await self.config.guild(ctx.guild).max_queue_size.set(size)
         await ctx.send(
-            f"✅ Maximum queue size set to {size}.\n" f"⚠️ Note: Queue size change requires cog reload to take effect."
+            f"✅ Maximum queue size set to {size}.\n"
+            f"⚠️ Note: Queue size change requires cog reload to take effect."
         )
-        log.info(f"Queue size set to {size} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})")
+        log.info(
+            f"Queue size set to {size} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
 
     @aurora_config.command(name="timeout")
     async def config_timeout(self, ctx: commands.Context, seconds: int):
@@ -1170,7 +1247,9 @@ class Aurora(commands.Cog):
             return
         await self.config.guild(ctx.guild).agent_timeout.set(seconds)
         await ctx.send(f"✅ Agent timeout set to {seconds} seconds.")
-        log.info(f"Agent timeout set to {seconds}s by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})")
+        log.info(
+            f"Agent timeout set to {seconds}s by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
 
     @aurora_config.command(name="mcpguidance")
     async def config_mcp_guidance(self, ctx: commands.Context, enabled: bool):
@@ -1188,7 +1267,31 @@ class Aurora(commands.Cog):
             f"✅ MCP tool guidance {status}.\n"
             f"ℹ️ When enabled, prompts include hints about using discord_read_messages() and discord_send() tools."
         )
-        log.info(f"MCP guidance {status} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})")
+        log.info(
+            f"MCP guidance {status} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
+
+    @aurora_config.command(name="user_messages")
+    async def config_user_messages(self, ctx: commands.Context):
+        """Toggle whether events are sent as system messages or user messages."""
+        if not ctx.guild:
+            await ctx.send("❌ This command can only be used in a guild.")
+            return
+        current = await self.config.guild(ctx.guild).events_as_user_messages()
+        new_value = not current
+        await self.config.guild(ctx.guild).events_as_user_messages.set(new_value)
+        status = "now" if new_value else "no longer"
+        if new_value:
+            await ctx.send(
+                f"✅ Events will {status} be sent as 'user' messages to the agent."
+            )
+        else:
+            await ctx.send(
+                f"✅ Events will {status} be sent as 'system' messages to the agent."
+            )
+        log.info(
+            f"User message setting changed to {new_value} by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
 
     @aurora_config.command(name="show")
     async def config_show(self, ctx: commands.Context, guild_id: int | None = None):
@@ -1199,18 +1302,24 @@ class Aurora(commands.Cog):
         """
         # If guild_id is provided, only owner can use it
         if guild_id is not None and not await self.bot.is_owner(ctx.author):
-            await ctx.send("❌ Only the bot owner can view other guilds' configurations.")
+            await ctx.send(
+                "❌ Only the bot owner can view other guilds' configurations."
+            )
             return
 
         # Determine which guild to show config for
         if guild_id:
             guild = self.bot.get_guild(guild_id)
             if not guild:
-                await ctx.send(f"❌ Guild with ID {guild_id} not found or bot not in that guild.")
+                await ctx.send(
+                    f"❌ Guild with ID {guild_id} not found or bot not in that guild."
+                )
                 return
         else:
             if not ctx.guild:
-                await ctx.send("❌ This command must be used in a guild or with a guild_id parameter.")
+                await ctx.send(
+                    "❌ This command must be used in a guild or with a guild_id parameter."
+                )
                 return
             guild = ctx.guild
 
@@ -1236,15 +1345,23 @@ class Aurora(commands.Cog):
         # Get last synthesis timestamp from queue
         synthesis_event_type = EventType.SYNTHESIS.format(guild_id=guild.id)
         last_synthesis_dt = (
-            self.queue.last_processed.get(synthesis_event_type, datetime.min) if self.queue else datetime.min
+            self.queue.last_processed.get(synthesis_event_type, datetime.min)
+            if self.queue
+            else datetime.min
         )
-        last_synthesis_ts = last_synthesis_dt.timestamp() if last_synthesis_dt != datetime.min else 0
+        last_synthesis_ts = (
+            last_synthesis_dt.timestamp() if last_synthesis_dt != datetime.min else 0
+        )
         # Get last activity tracking timestamp from queue
         activity_event_type = EventType.SERVER_ACTIVITY.format(guild_id=guild.id)
         last_activity_dt = (
-            self.queue.last_processed.get(activity_event_type, datetime.min) if self.queue else datetime.min
+            self.queue.last_processed.get(activity_event_type, datetime.min)
+            if self.queue
+            else datetime.min
         )
-        last_activity_ts = last_activity_dt.timestamp() if last_activity_dt != datetime.min else 0
+        last_activity_ts = (
+            last_activity_dt.timestamp() if last_activity_dt != datetime.min else 0
+        )
         agent_status = (
             (
                 f"✅ Enabled\nAgent ID: `{agent_id}`\n"
@@ -1295,7 +1412,9 @@ class Aurora(commands.Cog):
         # Global settings (owner only)
         if await self.bot.is_owner(ctx.author):
             global_config = await self.config.all()
-            global_settings = f"**Letta Base URL:** {global_config.get('letta_base_url', 'Not set')}"
+            global_settings = (
+                f"**Letta Base URL:** {global_config.get('letta_base_url', 'Not set')}"
+            )
             embed.add_field(
                 name="Global Settings (Owner)",
                 value=global_settings,
@@ -1305,6 +1424,9 @@ class Aurora(commands.Cog):
         embed.set_footer(text=f"Guild ID: {guild.id}")
         await ctx.send(embed=embed)
 
+    # endregion
+
+    # region: Enable/Disable Commands
     @aurora.command(name="enable")
     async def enable_agent(self, ctx: commands.Context, agent_id: str):
         """Enable Aurora agent for this guild.
@@ -1318,7 +1440,9 @@ class Aurora(commands.Cog):
 
         # Validate agent_id format (basic check)
         if not agent_id or len(agent_id) < 8:
-            await ctx.send("❌ Invalid agent ID. Please provide a valid Letta agent ID.")
+            await ctx.send(
+                "❌ Invalid agent ID. Please provide a valid Letta agent ID."
+            )
             return
 
         await self.config.guild(ctx.guild).agent_id.set(agent_id)
@@ -1329,7 +1453,9 @@ class Aurora(commands.Cog):
             f"Agent ID: `{agent_id}`\n\n"
             f"The bot will now respond to mentions and DMs (if configured)."
         )
-        log.info(f"Agent {agent_id} enabled for guild {ctx.guild.name} ({ctx.guild.id}) by {ctx.author}")
+        log.info(
+            f"Agent {agent_id} enabled for guild {ctx.guild.name} ({ctx.guild.id}) by {ctx.author}"
+        )
 
         # Start synthesis tasks if Letta is initialized
         if self.letta:
@@ -1370,9 +1496,12 @@ class Aurora(commands.Cog):
         self._remove_task(self.track_server_activity, ctx.guild.id)
 
         await ctx.send(
-            f"✅ Aurora agent disabled for {ctx.guild.name}.\n" f"The bot will no longer respond to mentions or DMs."
+            f"✅ Aurora agent disabled for {ctx.guild.name}.\n"
+            f"The bot will no longer respond to mentions or DMs."
         )
-        log.info(f"Agent disabled for guild {ctx.guild.name} ({ctx.guild.id}) by {ctx.author}")
+        log.info(
+            f"Agent disabled for guild {ctx.guild.name} ({ctx.guild.id}) by {ctx.author}"
+        )
 
     @aurora.command(name="setsynthesisinterval")
     async def set_synthesis_interval(self, ctx: commands.Context, seconds: int):
@@ -1386,7 +1515,9 @@ class Aurora(commands.Cog):
             return
 
         if not 600 <= seconds <= 86400:
-            await ctx.send("❌ Interval must be between 600 and 86400 seconds (10s to 24h).")
+            await ctx.send(
+                "❌ Interval must be between 600 and 86400 seconds (10s to 24h)."
+            )
             return
 
         await self.config.guild(ctx.guild).synthesis_interval.set(seconds)
@@ -1398,13 +1529,19 @@ class Aurora(commands.Cog):
             task = self._get_task(self.synthesis, ctx.guild.id)
             if task:
                 task.change_interval(seconds=seconds)
-                log.info(f"Synthesis task interval updated to {seconds}s for guild {ctx.guild.name} ({ctx.guild.id})")
+                log.info(
+                    f"Synthesis task interval updated to {seconds}s for guild {ctx.guild.name} ({ctx.guild.id})"
+                )
 
         await ctx.send(f"✅ Synthesis interval set to {seconds} seconds.")
-        log.info(f"Synthesis interval set to {seconds}s by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})")
+        log.info(
+            f"Synthesis interval set to {seconds}s by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id})"
+        )
 
     @aurora.command(name="setactivity")
-    async def set_activity(self, ctx: commands.Context, seconds: int, threshold: int = 1):
+    async def set_activity(
+        self, ctx: commands.Context, seconds: int, threshold: int = 1
+    ):
         """Set activity tracking interval in seconds.
 
         Parameters:
@@ -1416,7 +1553,9 @@ class Aurora(commands.Cog):
             return
 
         if not 600 <= seconds <= 86400:
-            await ctx.send("❌ Interval must be between 600 and 86400 seconds (10s to 24h).")
+            await ctx.send(
+                "❌ Interval must be between 600 and 86400 seconds (10s to 24h)."
+            )
             return
 
         await self.config.guild(ctx.guild).server_activity_interval.set(seconds)
@@ -1433,7 +1572,9 @@ class Aurora(commands.Cog):
                     f"Activity tracking task interval updated to {seconds}s for guild {ctx.guild.name} ({ctx.guild.id})"
                 )
 
-        await ctx.send(f"✅ Activity tracking interval set to {seconds} seconds, threshold {threshold} messages.")
+        await ctx.send(
+            f"✅ Activity tracking interval set to {seconds} seconds, threshold {threshold} messages."
+        )
         log.info(
             f"Activity tracking interval set to {seconds}s, threshold {threshold} messages by {ctx.author} in guild {ctx.guild.name} ({ctx.guild.id}"
         )
@@ -1451,7 +1592,9 @@ class Aurora(commands.Cog):
 
         # Validate agent_id format (basic check)
         if not agent_id or len(agent_id) < 8:
-            await ctx.send("❌ Invalid agent ID. Please provide a valid Letta agent ID.")
+            await ctx.send(
+                "❌ Invalid agent ID. Please provide a valid Letta agent ID."
+            )
             return
 
         old_agent_id = await self.config.guild(ctx.guild).agent_id()
@@ -1464,7 +1607,9 @@ class Aurora(commands.Cog):
             synthesis_task = self._get_task(self.synthesis, ctx.guild.id)
             if synthesis_task:
                 synthesis_task.restart()
-                log.info(f"Synthesis task restarted for guild {ctx.guild.name} ({ctx.guild.id})")
+                log.info(
+                    f"Synthesis task restarted for guild {ctx.guild.name} ({ctx.guild.id})"
+                )
 
             activity_task = self._get_or_create_task(
                 self.track_server_activity,
@@ -1473,15 +1618,22 @@ class Aurora(commands.Cog):
             )
             if activity_task:
                 activity_task.restart()
-                log.info(f"Activity tracking task restarted for guild {ctx.guild.name} ({ctx.guild.id})")
+                log.info(
+                    f"Activity tracking task restarted for guild {ctx.guild.name} ({ctx.guild.id})"
+                )
 
         await ctx.send(
-            f"✅ Agent ID updated for {ctx.guild.name}!\n" f"Old: `{old_agent_id or 'None'}`\n" f"New: `{agent_id}`"
+            f"✅ Agent ID updated for {ctx.guild.name}!\n"
+            f"Old: `{old_agent_id or 'None'}`\n"
+            f"New: `{agent_id}`"
         )
         log.info(
             f"Agent ID changed from {old_agent_id} to {agent_id} for guild {ctx.guild.name} ({ctx.guild.id}) by {ctx.author}"
         )
 
+    # endregion
+
+    # region: Global Configuration Commands
     @aurora.group(name="global")
     @commands.is_owner()
     async def aurora_global(self, ctx: commands.Context):
@@ -1566,6 +1718,9 @@ class Aurora(commands.Cog):
 
         await ctx.send(embed=embed)
 
+    # endregion
+
+    # region: Context Preview Command
     @aurora.command(name="context")
     async def context_preview(self, ctx: commands.Context, message_id: str):
         """Preview what context would be sent to the agent for a message.
@@ -1577,7 +1732,9 @@ class Aurora(commands.Cog):
             # Try to find the message in the current channel first
             message = await ctx.channel.fetch_message(int(message_id))
         except (discord.NotFound, discord.HTTPException, ValueError):
-            await ctx.send("❌ Message not found in this channel. Make sure the ID is correct.")
+            await ctx.send(
+                "❌ Message not found in this channel. Make sure the ID is correct."
+            )
             return
 
         if not ctx.guild:
@@ -1589,7 +1746,9 @@ class Aurora(commands.Cog):
             max_reply_depth = guild_config.get("reply_thread_depth", 5)
 
             # Extract context
-            context = await build_event_context(message, max_reply_depth=max_reply_depth)
+            context = await build_event_context(
+                message, max_reply_depth=max_reply_depth
+            )
 
             # Build prompt
             event_type = "mention"  # Assume mention for preview
@@ -1630,7 +1789,9 @@ class Aurora(commands.Cog):
             reply_chain = context[1]
             embed.add_field(
                 name="Reply Chain",
-                value=f"{len(reply_chain)} parent message(s)" if reply_chain else "No reply chain",
+                value=f"{len(reply_chain)} parent message(s)"
+                if reply_chain
+                else "No reply chain",
                 inline=False,
             )
 
@@ -1650,6 +1811,7 @@ class Aurora(commands.Cog):
             await ctx.send(f"❌ Error generating context preview: {str(e)}")
             log.exception(f"Error in context preview for message {message_id}: {e}")
 
+    # endregion
     # endregion
 
     # region: Event listeners
@@ -1716,7 +1878,9 @@ class Aurora(commands.Cog):
 
             # Enqueue guild activity event
             event = {
-                "event_type": EventType.SERVER_ACTIVITY.format(guild_id=message.guild.id if message.guild else "dm"),
+                "event_type": EventType.SERVER_ACTIVITY.format(
+                    guild_id=message.guild.id if message.guild else "dm"
+                ),
                 "channel_id": message.channel.id,
                 "message_id": message.id,
             }
@@ -1756,12 +1920,19 @@ class Aurora(commands.Cog):
 
             # Extract context
             max_reply_depth = guild_config.get("reply_thread_depth", 5)
-            context = await build_event_context(message, max_reply_depth=max_reply_depth)
+            context = await build_event_context(
+                message, max_reply_depth=max_reply_depth
+            )
 
             # If we're in a thread, include the thread starter message in context if we're not over max depth
-            if isinstance(message.channel, discord.Thread) and len(context[1]) < max_reply_depth:
+            if (
+                isinstance(message.channel, discord.Thread)
+                and len(context[1]) < max_reply_depth
+            ):
                 try:
-                    thread_starter_msg = await message.channel.parent.fetch_message(message.channel.id)  # type: ignore
+                    thread_starter_msg = await message.channel.parent.fetch_message(
+                        message.channel.id
+                    )  # type: ignore
                     context[1].insert(thread_starter_msg)
                 except Exception as e:
                     log.exception(f"Error fetching thread starter message: {e}")
@@ -1801,9 +1972,12 @@ class Aurora(commands.Cog):
             # Enqueue for processing
             success = await self.queue.enqueue(event)
             if success:
-                channel_name = "DM" if is_dm else getattr(message.channel, "name", "Unknown")
+                channel_name = (
+                    "DM" if is_dm else getattr(message.channel, "name", "Unknown")
+                )
                 log.info(
-                    f"Queued {interaction_type} from {message.author} in " f"{'DM' if is_dm else f'#{channel_name}'}"
+                    f"Queued {interaction_type} from {message.author} in "
+                    f"{'DM' if is_dm else f'#{channel_name}'}"
                 )
             else:
                 log.warning(f"Failed to queue message {message.id} - queue full")
@@ -1813,11 +1987,15 @@ class Aurora(commands.Cog):
 
     async def is_bot_thread_starter(self, message):
         try:
-            return (await message.channel.parent.fetch_message(message.channel.id)).author == self.bot.user
+            return (
+                await message.channel.parent.fetch_message(message.channel.id)
+            ).author == self.bot.user
         except discord.NotFound:
             return False
         except Exception as e:
-            log.exception(f"Error checking if bot is thread starter for message {message.id}: {e}")
+            log.exception(
+                f"Error checking if bot is thread starter for message {message.id}: {e}"
+            )
             return False
 
     # endregion
@@ -1835,7 +2013,9 @@ class Aurora(commands.Cog):
 
             agent_id = event.data.get("agent_id")
             if not agent_id:
-                log.warning(f"No agent ID in event for message {event.data.get('message_id')}")
+                log.warning(
+                    f"No agent ID in event for message {event.data.get('message_id')}"
+                )
                 return
 
             # Rate limiting check
@@ -1901,7 +2081,9 @@ class Aurora(commands.Cog):
         finally:
             pass
 
-    async def send_to_agent(self, agent_id: str, prompt: str, guild_id: int | None = None):
+    async def send_to_agent(
+        self, agent_id: str, prompt: str, guild_id: int | None = None
+    ):
         """Send enriched prompt to Letta agent and monitor execution.
 
         The agent will use discord_send() MCP tool to respond directly.
@@ -1925,13 +2107,17 @@ class Aurora(commands.Cog):
                 # Reset run tracking for this attempt
                 run_tracker["run_id"] = None
 
-                task = asyncio.create_task(self._execute_agent_call(aid, prm, run_tracker))
+                task = asyncio.create_task(
+                    self._execute_agent_call(aid, prm, run_tracker)
+                )
                 run_tracker["task"] = task
 
                 try:
                     await asyncio.wait_for(task, timeout=timeout)
                 except asyncio.TimeoutError as exc:
-                    raise TimeoutError("Agent execution timed out after configured timeout") from exc
+                    raise TimeoutError(
+                        "Agent execution timed out after configured timeout"
+                    ) from exc
                 finally:
                     run_tracker["task"] = None
 
@@ -1947,7 +2133,9 @@ class Aurora(commands.Cog):
                 run_id = run_tracker.get("run_id")
                 if run_id and self.letta:
                     try:
-                        await self.letta.agents.messages.cancel(agent_id, run_ids=[run_id])
+                        await self.letta.agents.messages.cancel(
+                            agent_id, run_ids=[run_id]
+                        )
                         log.info(
                             "Cancelled Letta run %s for agent %s before retry",
                             run_id,
@@ -1976,7 +2164,9 @@ class Aurora(commands.Cog):
         except Exception as e:
             # Record error for stats
             await self.error_stats.record_error(e)
-            log.exception(f"Fatal error during agent execution for agent {agent_id}: {e}")
+            log.exception(
+                f"Fatal error during agent execution for agent {agent_id}: {e}"
+            )
 
             # Check if we should alert
             if await self.error_stats.should_alert(threshold=50.0):
@@ -2000,7 +2190,13 @@ class Aurora(commands.Cog):
 
             raise
 
-    async def _execute_agent_call(self, agent_id: str, prompt: str, run_tracker: RunTracker | None = None) -> None:
+    async def _execute_agent_call(
+        self,
+        agent_id: str,
+        prompt: str,
+        run_tracker: RunTracker | None = None,
+        event_role: Literal["user", "system"] = "user",
+    ) -> None:
         """Internal method to execute the actual Letta agent call.
 
         This is separated out so it can be wrapped with retry logic.
@@ -2027,7 +2223,7 @@ class Aurora(commands.Cog):
                 agent_id=agent_id,
                 messages=[
                     {
-                        "role": "system",
+                        "role": event_role,
                         "content": prompt,
                     }
                 ],
@@ -2118,7 +2314,9 @@ class Aurora(commands.Cog):
                 case "stop_reason":
                     log.info(f"Agent execution stopped: {chunk.stop_reason}")
                     if tool_calls:
-                        log.info(f"Agent used tools during execution: {', '.join(tool_calls)}")
+                        log.info(
+                            f"Agent used tools during execution: {', '.join(tool_calls)}"
+                        )
                     else:
                         log.info("Agent did not use any tools during execution")
                 case "usage_statistics":
@@ -2153,20 +2351,27 @@ class Aurora(commands.Cog):
                     "Competing": discord.ActivityType.competing,
                     "Custom": discord.ActivityType.custom,
                 }
-                discord_activity_type = activity_mapping.get(activity_type.capitalize(), discord.ActivityType.playing)
+                discord_activity_type = activity_mapping.get(
+                    activity_type.capitalize(), discord.ActivityType.playing
+                )
                 activity = discord.Activity(
                     type=discord_activity_type,
                     name=activity_name,
                 )
             else:
                 activity = None
-            discord_status = getattr(discord.Status, status.lower(), discord.Status.online)
+            discord_status = getattr(
+                discord.Status, status.lower(), discord.Status.online
+            )
 
             await self.bot.change_presence(
                 status=discord_status,
                 activity=activity,
             )
-            log.info(f"Set bot presence to status: {status}, activity: " f"{activity_type} {activity_name}")
+            log.info(
+                f"Set bot presence to status: {status}, activity: "
+                f"{activity_type} {activity_name}"
+            )
 
         except Exception as e:
             log.error(f"Error handling discord_set_presence tool call: {e}")
