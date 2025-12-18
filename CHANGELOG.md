@@ -1,3 +1,9 @@
+## 0.7.3 (2025-12-18)
+
+### Fix
+
+- **dependencies**: pin openai version to 2.8.1
+
 ## 0.7.2 (2025-12-18)
 
 ### Fix
