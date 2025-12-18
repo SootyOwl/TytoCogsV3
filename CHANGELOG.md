@@ -1,3 +1,9 @@
+## 0.7.2 (2025-12-18)
+
+### Fix
+
+- **tldw**: pin openai version to 2.8.1
+
 ## 0.7.1 (2025-12-04)
 
 ### Refactor
