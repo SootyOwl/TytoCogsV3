@@ -552,7 +552,7 @@ name = "exceptiongroup"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0b/9f/a65090624ecf468cdca03533906e7c69ed7588582240cfe7cc9e770b50eb/exceptiongroup-1.3.0.tar.gz", hash = "sha256:b241f5885f560bc56a59ee63ca4c6a8bfa46ae4ad651af316d4e81817bb9fd88", size = 29749, upload-time = "2025-05-10T17:42:51.123Z" }
 wheels = [
@@ -872,23 +872,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/02/49/9d1284d0dc65e2c757b74c6687b6d319b02f822ad039e5c512df9194d9dd/jupyter_core-5.9.1.tar.gz", hash = "sha256:4d09aaff303b9566c3ce657f580bd089ff5c91f5f89cf7d8846c3cdf465b5508", size = 89814, upload-time = "2025-10-16T19:19:18.444Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e7/e7/80988e32bf6f73919a113473a604f5a8f09094de312b9d52b79c2df7612b/jupyter_core-5.9.1-py3-none-any.whl", hash = "sha256:ebf87fdc6073d142e114c72c9e29a9d7ca03fad818c5d300ce2adc1fb0743407", size = 29032, upload-time = "2025-10-16T19:19:16.783Z" },
-]
-
-[[package]]
-name = "letta-client"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "distro" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "sniffio" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/bf/760a6bf7475c59e1927ef90ee6392a2641cfb7a937a126e6ca7f4314da97/letta_client-1.0.0.tar.gz", hash = "sha256:cddee936d30fe20c167c14b8ef0704ee55e820cd3254f607cc1d7748daab9ab4", size = 233161, upload-time = "2025-11-19T06:13:30.742Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/b2/9e72b5c38a68dc7123d056cf1c1e536097dab804a7cc0ee5fd201df7370b/letta_client-1.0.0-py3-none-any.whl", hash = "sha256:fe06c663b168c5768dd8bd66c59b15523ce2fc59b256d33f50f3d76f6756800b", size = 357819, upload-time = "2025-11-19T06:13:28.632Z" },
 ]
 
 [[package]]
@@ -1820,7 +1803,6 @@ dependencies = [
     { name = "anthropic" },
     { name = "beautifulsoup4" },
     { name = "html2image" },
-    { name = "letta-client" },
     { name = "mcstatus" },
     { name = "openai" },
     { name = "pip" },
@@ -1849,9 +1831,8 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.51.0,<0.52" },
     { name = "beautifulsoup4", specifier = ">=4.12.3,<5" },
     { name = "html2image", specifier = ">=2.0.6,<3" },
-    { name = "letta-client", specifier = ">=0.1.268" },
     { name = "mcstatus", specifier = ">=11.1.1,<12" },
-    { name = "openai", specifier = ">=2" },
+    { name = "openai", specifier = ">=2.8.1,<3" },
     { name = "pip", specifier = ">=25.1.1" },
     { name = "red-discordbot", specifier = ">=3.5.20,<4" },
     { name = "redvid", specifier = ">=2.0.5,<3" },
