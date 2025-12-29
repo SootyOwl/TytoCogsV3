@@ -186,18 +186,18 @@ def funnyjunk_credentials():
         (
             "Crose Rid",
             "https://funnyjunk.com/Crose+rid/wrrcTje/",
-            "https://vibes.funnyjunk.com/movies/Crose+rid_5be80c_12352736.mp4",
+            "https://vibes4.funnyjunk.com/movies/Crose+rid_5be80c_12352736.mp4",
         ),
         # TODO: Add more real URLs to test the various extraction methods
         (  # normal video URL
             "How dreaming feels like",
             "https://funnyjunk.com/How+dreaming+feels+like/vttzRig/",
-            "https://vibes.funnyjunk.com/hdgifs/How+dreaming+feels+like_247d10_11748871.mp4",
+            "https://vibes2.funnyjunk.com/hdgifs/How+dreaming+feels+like_247d10_11748871.mp4",
         ),
         (  # spaces in the video URL are replaced with '+'
             "Unkempt luckless rapidfire",
             "https://funnyjunk.com/Unkempt+luckless+rapidfire/GivzRTv/",
-            "https://anime.funnyjunk.com/hdgifs/Unkempt+luckless+rapgym+boyzire_4c3d1f_11751038.mp4",
+            "https://anime2.funnyjunk.com/hdgifs/Unkempt+luckless+rapgym+boyzire_4c3d1f_11751038.mp4",
         ),
     ],
 )
@@ -212,7 +212,7 @@ async def test_get_video_url_login_required(funnyjunk_credentials, cog, mocker):
     """Test the get_video_url method with login required."""
     url = "https://funnyjunk.com/White+people+things/jcveTwp/"
     expected = (
-        "https://anime.funnyjunk.com/hdgifs/White+people+things_5635e1_12450679.mp4"
+        "https://anime3.funnyjunk.com/hdgifs/White+people+things_5635e1_12450679.mp4"
     )
 
     # login to the site and wait for the session to be established
