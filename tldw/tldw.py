@@ -911,6 +911,7 @@ async def get_llm_response(
                     "Begin the summary with a markdown header starting with '# ' followed by a concise title.\n"
                     "Use bullet points, numbered lists, and subheadings as appropriate.\n"
                     "Do not include any introductory or closing remarks.\n"
+                    "Ignore any advertisements or content irrelevant to the main topic of the video that may be present in the transcript.\n"
                 ),
             },
             {
