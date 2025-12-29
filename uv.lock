@@ -1837,7 +1837,7 @@ requires-dist = [
     { name = "red-discordbot", specifier = ">=3.5.20,<4" },
     { name = "redvid", specifier = ">=2.0.5,<3" },
     { name = "wand", specifier = ">=0.6.13,<0.7" },
-    { name = "yt-transcript-fetcher", specifier = ">=1.1.1,<2" },
+    { name = "yt-transcript-fetcher", specifier = ">=1.2.1,<2" },
 ]
 
 [package.metadata.requires-dev]
@@ -1973,15 +1973,15 @@ wheels = [
 
 [[package]]
 name = "yt-transcript-fetcher"
-version = "1.2.0"
+version = "1.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "argcomplete" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c3/83/5928687922fb1f06327bdcf07e866b1849439f918d57769f55a71a6ad500/yt_transcript_fetcher-1.2.0.tar.gz", hash = "sha256:4fe3cf95dd664a4e25ba1ce84280c940e92b32a9a2bc3e407724b587de6eb97f", size = 40652, upload-time = "2025-09-04T18:01:56.755Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/61/0a7d0d99a2414f19d63bf4bbe69dc406397816718b80f151309e3871fc1b/yt_transcript_fetcher-1.2.1.tar.gz", hash = "sha256:27587c0fec831adf5e2e155277566a2919a94deb256b0c334d5c2346632a4523", size = 112861, upload-time = "2025-12-29T16:22:04.661Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/47/55/84947272f5dfc1236cef69f967424bbb8a723a620ef0d87d447407320c46/yt_transcript_fetcher-1.2.0-py3-none-any.whl", hash = "sha256:3aab07f4c5a7b81e9b2b1757dd65186d25331620f4414b2845476ed8dbeb8fb5", size = 12384, upload-time = "2025-09-04T18:01:55.479Z" },
+    { url = "https://files.pythonhosted.org/packages/11/89/8c70688bd49d8cea5d14e41a312e78f40417d2e2fc7890f09f161ca8bf65/yt_transcript_fetcher-1.2.1-py3-none-any.whl", hash = "sha256:36666562539e3660f0c4b019ffa107a50b7d7e03effe95bae4f0de1959f5b629", size = 15395, upload-time = "2025-12-29T16:22:03.517Z" },
 ]
 
 [[package]]
