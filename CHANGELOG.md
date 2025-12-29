@@ -1,3 +1,10 @@
+## 0.7.4 (2025-12-29)
+
+### Fix
+
+- **tests**: update video URLs in test cases
+- **tldw**: refine LLM response instructions
+
 ## 0.7.3 (2025-12-18)
 
 ### Fix
