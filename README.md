@@ -1,3 +1,3 @@
 # TytoCogsV3
 
-TODO: Add README
+TODO: Remove README
