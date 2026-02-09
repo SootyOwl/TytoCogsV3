@@ -3,7 +3,7 @@
 A collection of custom cogs for [Red-DiscordBot V3](https://github.com/Cog-Creators/Red-DiscordBot), featuring AI-powered content summarization, media link conversion, and utility tools.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10-3.11](https://img.shields.io/badge/python-3.10--3.11-blue.svg)](https://www.python.org/downloads/)
 [![Red-DiscordBot](https://img.shields.io/badge/Red--DiscordBot-V3-red.svg)](https://github.com/Cog-Creators/Red-DiscordBot)
 
 ## 📦 Available Cogs
