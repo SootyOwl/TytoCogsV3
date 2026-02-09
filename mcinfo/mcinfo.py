@@ -375,9 +375,11 @@ class McInfo(commands.Cog):
                 response = await self.bot.wait_for(
                     "message",
                     timeout=60.0,
-                    check=lambda m: m.author == ctx.author
-                    and m.channel == ctx.channel
-                    and m.content.lower() in ["yes", "no"],
+                    check=lambda m: (
+                        m.author == ctx.author
+                        and m.channel == ctx.channel
+                        and m.content.lower() in ["yes", "no"]
+                    ),
                 )
             except asyncio.TimeoutError:
                 await ctx.send("Timed out waiting for confirmation.")
