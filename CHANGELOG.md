@@ -1,3 +1,9 @@
+## 0.7.5 (2026-02-18)
+
+### Fix
+
+- **redvids**: Run blocking download operations in thread pool (#112)
+
 ## 0.7.4 (2025-12-29)
 
 ### Fix
