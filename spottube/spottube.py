@@ -1,5 +1,5 @@
 from typing import List, Optional, Tuple
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 
 import discord
 import pyyoutube
@@ -184,11 +184,14 @@ class SpotTube(commands.Cog):
         await ctx.bot.wait_for("reaction_add", check=pred)
         if pred.result is True:
             await self.config.channel(ctx.channel).autowatch.set(True)
-            await ctx.send("Setting updated: automatic link watching **enabled** for this channel.")
+            await ctx.send(
+                "Setting updated: automatic link watching **enabled** for this channel."
+            )
         else:
             await self.config.channel(ctx.channel).autowatch.set(False)
-            await ctx.send("Setting updated: automatic link watching **disabled** for this channel.")
-
+            await ctx.send(
+                "Setting updated: automatic link watching **disabled** for this channel."
+            )
 
     @commands.Cog.listener("on_message")
     async def _message_listener(self, message: discord.Message):
@@ -231,11 +234,8 @@ class SpotTube(commands.Cog):
         if links:
             # Reply with the first YouTube link
             await message.reply(
-                f"🎵 Found on YouTube: {links[0]}",
-                mention_author=False
+                f"🎵 Found on YouTube: {links[0]}", mention_author=False
             )
-
-
 
     async def _get_spotify_api_keys(self) -> Tuple[str, str]:
         spotify_api = await self.bot.get_shared_api_tokens("spotify")

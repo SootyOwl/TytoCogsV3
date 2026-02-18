@@ -7,10 +7,22 @@ from spottube import spottube
 @pytest.mark.parametrize(
     "link, expected_track_id",
     [
-        ("https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35", "65ShmiE5aLBdcIGr7tHX35"),
-        ("https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35?si=d2e8de8114f5422b", "65ShmiE5aLBdcIGr7tHX35"),
-        ("http://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp", "3n3Ppam7vgaVa1iaRUc9Lp"),
-        ("https://open.spotify.com/track/7qiZfU4dY1lWllzX7mPBI?si=xyz123", "7qiZfU4dY1lWllzX7mPBI"),
+        (
+            "https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35",
+            "65ShmiE5aLBdcIGr7tHX35",
+        ),
+        (
+            "https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35?si=d2e8de8114f5422b",
+            "65ShmiE5aLBdcIGr7tHX35",
+        ),
+        (
+            "http://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp",
+            "3n3Ppam7vgaVa1iaRUc9Lp",
+        ),
+        (
+            "https://open.spotify.com/track/7qiZfU4dY1lWllzX7mPBI?si=xyz123",
+            "7qiZfU4dY1lWllzX7mPBI",
+        ),
     ],
 )
 def test_extract_spotify_track_id(link, expected_track_id):
@@ -97,4 +109,3 @@ def test_find_spotify_track_urls_ignores_non_url_text():
     urls = spottube.find_spotify_track_urls(text)
     # Should return empty because they don't start with http:// or https://
     assert len(urls) == 0
-
