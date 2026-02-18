@@ -109,3 +109,27 @@ def test_find_spotify_track_urls_ignores_non_url_text():
     urls = spottube.find_spotify_track_urls(text)
     # Should return empty because they don't start with http:// or https://
     assert len(urls) == 0
+
+
+# Test Discord angle bracket formatting
+def test_find_spotify_track_urls_handles_discord_brackets():
+    """Test that Discord's angle bracket URL formatting is handled correctly."""
+    text = "Check this: <https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35>"
+    urls = spottube.find_spotify_track_urls(text)
+    assert len(urls) == 1
+    assert urls[0] == "https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35"
+
+
+# Test trailing punctuation
+def test_find_spotify_track_urls_handles_trailing_punctuation():
+    """Test that trailing punctuation is stripped from URLs."""
+    text = (
+        "Check https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35. "
+        "Also https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp) "
+        "And (https://open.spotify.com/track/7qiZfU4dY1lWllzX7mPBI)!"
+    )
+    urls = spottube.find_spotify_track_urls(text)
+    assert len(urls) == 3
+    assert urls[0] == "https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35"
+    assert urls[1] == "https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp"
+    assert urls[2] == "https://open.spotify.com/track/7qiZfU4dY1lWllzX7mPBI"
