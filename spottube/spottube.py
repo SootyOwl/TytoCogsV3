@@ -51,8 +51,8 @@ def find_spotify_track_urls(text: str) -> List[str]:
     track_urls = []
 
     for word in words:
-        # Check if this word looks like a URL
-        if "spotify.com" in word.lower():
+        # Check if this word looks like a URL (starts with http:// or https://)
+        if word.lower().startswith(("http://", "https://")):
             track_id = extract_spotify_track_id(word)
             if track_id:
                 # Reconstruct clean URL

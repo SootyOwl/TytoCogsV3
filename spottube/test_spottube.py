@@ -76,3 +76,25 @@ def test_find_spotify_track_urls_ignores_non_tracks():
     urls = spottube.find_spotify_track_urls(text)
     assert len(urls) == 0
 
+
+# Test that malicious URLs with spotify.com substring are rejected (security)
+def test_find_spotify_track_urls_rejects_malicious_substrings():
+    """Test that URLs with spotify.com as substring but wrong domain are rejected."""
+    text = (
+        "Phishing: https://evil-spotify.com/track/fakeid123 "
+        "Or: https://notspotify.com/malware "
+        "Or: https://spotify.com.evil.com/track/fakeid456"
+    )
+    urls = spottube.find_spotify_track_urls(text)
+    # Should return empty because none of these have the correct netloc
+    assert len(urls) == 0
+
+
+# Test that non-URL text with spotify.com is ignored
+def test_find_spotify_track_urls_ignores_non_url_text():
+    """Test that text containing spotify.com without http:// prefix is ignored."""
+    text = "Visit spotify.com or open.spotify.com for music"
+    urls = spottube.find_spotify_track_urls(text)
+    # Should return empty because they don't start with http:// or https://
+    assert len(urls) == 0
+
