@@ -190,7 +190,7 @@ class SpotTube(commands.Cog):
             await ctx.send("Setting updated: automatic link watching **disabled** for this channel.")
 
 
-    @commands.Cog.listener("on_message_without_command")
+    @commands.Cog.listener("on_message")
     async def _message_listener(self, message: discord.Message):
         """Listen for Spotify links in messages and automatically convert them."""
         # Ignore messages from bots
@@ -199,6 +199,11 @@ class SpotTube(commands.Cog):
 
         # Only process guild messages
         if not message.guild:
+            return
+
+        # Check if this message would trigger a command - if so, ignore it
+        ctx = await self.bot.get_context(message)
+        if ctx.valid:
             return
 
         # Check if autowatch is enabled for this channel
