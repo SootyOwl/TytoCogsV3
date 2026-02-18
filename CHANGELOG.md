@@ -1,3 +1,9 @@
+## 0.8.0 (2026-02-18)
+
+### Feat
+
+- convert spottube to hybrid command and add autowatch toggle (#115)
+
 ## 0.7.5 (2026-02-18)
 
 ### Fix
