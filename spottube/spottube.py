@@ -1,5 +1,5 @@
-import re
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
+from urllib.parse import urlparse, parse_qs
 
 import discord
 import pyyoutube
@@ -13,7 +13,52 @@ from spotify import Client
 from spotify.utils import to_id
 
 YT_STRING = "https://www.youtube.com/watch?v="
-SPOTIFY_TRACK_REGEX = re.compile(r"https?://open\.spotify\.com/track/([a-zA-Z0-9]+)")
+
+
+def extract_spotify_track_id(url: str) -> Optional[str]:
+    """Extract Spotify track ID from a URL using urlparse.
+
+    Args:
+        url: Spotify URL to parse
+
+    Returns:
+        Track ID if found, None otherwise
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.netloc not in ("open.spotify.com", "spotify.com"):
+            return None
+
+        path_parts = parsed.path.strip("/").split("/")
+        if len(path_parts) >= 2 and path_parts[0] == "track":
+            return path_parts[1]
+
+        return None
+    except Exception:
+        return None
+
+
+def find_spotify_track_urls(text: str) -> List[str]:
+    """Find all Spotify track URLs in text.
+
+    Args:
+        text: Text to search for Spotify URLs
+
+    Returns:
+        List of Spotify track URLs found
+    """
+    words = text.split()
+    track_urls = []
+
+    for word in words:
+        # Check if this word looks like a URL
+        if "spotify.com" in word.lower():
+            track_id = extract_spotify_track_id(word)
+            if track_id:
+                # Reconstruct clean URL
+                track_urls.append(f"https://open.spotify.com/track/{track_id}")
+
+    return track_urls
 
 
 class APIKeyNotFoundError(KeyError):
@@ -63,11 +108,11 @@ class SpotTube(commands.Cog):
             self, identifier=250390443
         )  # randomly generated identifier
 
-        # Register guild-level settings for automatic link watching
-        default_guild = {
+        # Register channel-level settings for automatic link watching
+        default_channel = {
             "autowatch": False,  # Whether to automatically watch for Spotify links
         }
-        self.config.register_guild(**default_guild)
+        self.config.register_channel(**default_channel)
 
     @commands.hybrid_command(name="spotify")
     async def spotify(self, ctx: commands.Context, link: str):
@@ -75,34 +120,45 @@ class SpotTube(commands.Cog):
 
         Example: https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35?si=d2e8de8114f5422b
         """
-        await self._convert_spotify_link(ctx, link)
-
-    async def _convert_spotify_link(self, ctx: commands.Context, link: str):
-        """Internal method to convert a Spotify track link to YouTube links."""
         try:
-            async with (
-                ctx.typing(),
-                Client(*await self._get_spotify_api_keys()) as spoticlient,
-            ):
-                track_id = to_id(value=link.split(sep="?si=")[0])
-                track = await spoticlient.get_track(track_id)
-
-                ytapi = pyyoutube.Api(api_key=await self._get_youtube_api_key())
-                result: list = ytapi.search(
-                    search_type="video",
-                    q=f"{track.artist.name} - {track.name}",
-                    count=5,
-                    limit=5,
-                ).items
+            async with ctx.typing():
+                links = await self._convert_spotify_to_youtube(link)
         except APIKeyNotFoundError as e:
             return await ctx.reply(e)
         except spotify.errors.HTTPException as e:
             return await ctx.reply(f"`{e}`")
 
-        links = [YT_STRING + vid.id.videoId for vid in result if vid.id.videoId]
         if not links:
             return await ctx.reply("No valid YouTube video links found.")
         return await menu(ctx=ctx, pages=links, controls=DEFAULT_CONTROLS)
+
+    async def _convert_spotify_to_youtube(self, spotify_link: str) -> List[str]:
+        """Convert a Spotify track link to YouTube video links.
+
+        Args:
+            spotify_link: Spotify track URL
+
+        Returns:
+            List of YouTube video URLs
+
+        Raises:
+            APIKeyNotFoundError: If Spotify or YouTube API keys are not set
+            spotify.errors.HTTPException: If there's an error fetching from Spotify
+        """
+        async with Client(*await self._get_spotify_api_keys()) as spoticlient:
+            track_id = to_id(value=spotify_link.split(sep="?si=")[0])
+            track = await spoticlient.get_track(track_id)
+
+            ytapi = pyyoutube.Api(api_key=await self._get_youtube_api_key())
+            result: list = ytapi.search(
+                search_type="video",
+                q=f"{track.artist.name} - {track.name}",
+                count=5,
+                limit=5,
+            ).items
+
+        links = [YT_STRING + vid.id.videoId for vid in result if vid.id.videoId]
+        return links
 
     @commands.group()
     async def spotset(self, ctx: commands.Context) -> None:
@@ -113,25 +169,26 @@ class SpotTube(commands.Cog):
     @commands.admin_or_permissions(manage_guild=True)
     @spotset.command(name="autowatch")
     async def set_autowatch(self, ctx: commands.Context) -> None:
-        """Toggle automatic watching for Spotify links in this server.
+        """Toggle automatic watching for Spotify links in this channel.
 
         When enabled, the bot will automatically reply to messages containing
         Spotify track links with the YouTube version of the song.
         """
-        current_setting = await self.config.guild(ctx.guild).autowatch()
+        current_setting = await self.config.channel(ctx.channel).autowatch()
         msg = await ctx.reply(
-            f"Current setting: automatic link watching is **{'enabled' if current_setting else 'disabled'}**.\n\n"
-            "Should I automatically reply to Spotify links with YouTube versions? (react with ✅ or ❌)"
+            f"Current setting: automatic link watching is **{'enabled' if current_setting else 'disabled'}** in this channel.\n\n"
+            "Should I automatically reply to Spotify links with YouTube versions in this channel? (react with ✅ or ❌)"
         )
         start_adding_reactions(msg, ReactionPredicate.YES_OR_NO_EMOJIS)
         pred = ReactionPredicate.yes_or_no(msg, ctx.author)
         await ctx.bot.wait_for("reaction_add", check=pred)
         if pred.result is True:
-            await self.config.guild(ctx.guild).autowatch.set(True)
-            await ctx.send("Setting updated: automatic link watching **enabled**.")
+            await self.config.channel(ctx.channel).autowatch.set(True)
+            await ctx.send("Setting updated: automatic link watching **enabled** for this channel.")
         else:
-            await self.config.guild(ctx.guild).autowatch.set(False)
-            await ctx.send("Setting updated: automatic link watching **disabled**.")
+            await self.config.channel(ctx.channel).autowatch.set(False)
+            await ctx.send("Setting updated: automatic link watching **disabled** for this channel.")
+
 
     @commands.Cog.listener("on_message_without_command")
     async def _message_listener(self, message: discord.Message):
@@ -144,33 +201,21 @@ class SpotTube(commands.Cog):
         if not message.guild:
             return
 
-        # Check if autowatch is enabled for this guild
-        if not await self.config.guild(message.guild).autowatch():
+        # Check if autowatch is enabled for this channel
+        if not await self.config.channel(message.channel).autowatch():
             return
 
         # Search for Spotify track links in the message
-        matches = SPOTIFY_TRACK_REGEX.findall(message.content)
-        if not matches:
+        spotify_urls = find_spotify_track_urls(message.content)
+        if not spotify_urls:
             return
 
         # Convert the first Spotify link found
-        spotify_link = f"https://open.spotify.com/track/{matches[0]}"
+        spotify_link = spotify_urls[0]
 
-        # Create a fake context for the conversion
-        # We need to simulate a context to use the existing conversion logic
         try:
             async with message.channel.typing():
-                async with Client(*await self._get_spotify_api_keys()) as spoticlient:
-                    track_id = to_id(value=spotify_link.split(sep="?si=")[0])
-                    track = await spoticlient.get_track(track_id)
-
-                    ytapi = pyyoutube.Api(api_key=await self._get_youtube_api_key())
-                    result: list = ytapi.search(
-                        search_type="video",
-                        q=f"{track.artist.name} - {track.name}",
-                        count=5,
-                        limit=5,
-                    ).items
+                links = await self._convert_spotify_to_youtube(spotify_link)
         except APIKeyNotFoundError:
             # Silently fail if API keys are not set
             return
@@ -178,13 +223,13 @@ class SpotTube(commands.Cog):
             # Silently fail if there's an error fetching from Spotify
             return
 
-        links = [YT_STRING + vid.id.videoId for vid in result if vid.id.videoId]
         if links:
             # Reply with the first YouTube link
             await message.reply(
                 f"🎵 Found on YouTube: {links[0]}",
                 mention_author=False
             )
+
 
 
     async def _get_spotify_api_keys(self) -> Tuple[str, str]:
