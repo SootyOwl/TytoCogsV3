@@ -1,0 +1,135 @@
+import pytest
+
+from spottube import spottube
+
+
+# Test Spotify track ID extraction using urlparse
+@pytest.mark.parametrize(
+    "link, expected_track_id",
+    [
+        (
+            "https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35",
+            "65ShmiE5aLBdcIGr7tHX35",
+        ),
+        (
+            "https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35?si=d2e8de8114f5422b",
+            "65ShmiE5aLBdcIGr7tHX35",
+        ),
+        (
+            "http://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp",
+            "3n3Ppam7vgaVa1iaRUc9Lp",
+        ),
+        (
+            "https://open.spotify.com/track/7qiZfU4dY1lWllzX7mPBI?si=xyz123",
+            "7qiZfU4dY1lWllzX7mPBI",
+        ),
+    ],
+)
+def test_extract_spotify_track_id(link, expected_track_id):
+    """Test that the urlparse-based function correctly extracts track IDs."""
+    track_id = spottube.extract_spotify_track_id(link)
+    assert track_id == expected_track_id
+
+
+# Test that non-Spotify links don't match
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M",
+        "https://open.spotify.com/album/4aawyAB9vmqN3uQ7FjRGTy",
+        "https://example.com/track/12345",
+        "Just some random text",
+    ],
+)
+def test_extract_spotify_track_id_no_match(link):
+    """Test that non-track Spotify links don't return a track ID."""
+    track_id = spottube.extract_spotify_track_id(link)
+    assert track_id is None
+
+
+# Test finding Spotify URLs in text
+def test_find_spotify_track_urls_single():
+    """Test finding a single Spotify track URL in text."""
+    text = "Check this out: https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35?si=abc123"
+    urls = spottube.find_spotify_track_urls(text)
+    assert len(urls) == 1
+    assert urls[0] == "https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35"
+
+
+# Test that multiple Spotify links are detected
+def test_find_spotify_track_urls_multiple():
+    """Test that multiple Spotify links in a message are detected."""
+    text = (
+        "Check these out: https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35 "
+        "and https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp"
+    )
+    urls = spottube.find_spotify_track_urls(text)
+    assert len(urls) == 2
+    assert urls[0] == "https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35"
+    assert urls[1] == "https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp"
+
+
+# Test that no Spotify links returns empty list
+def test_find_spotify_track_urls_none():
+    """Test that text without Spotify links returns empty list."""
+    text = "Just some random text without any links"
+    urls = spottube.find_spotify_track_urls(text)
+    assert len(urls) == 0
+
+
+# Test that playlist/album links are not detected
+def test_find_spotify_track_urls_ignores_non_tracks():
+    """Test that playlist and album links are ignored."""
+    text = (
+        "Playlist: https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M "
+        "Album: https://open.spotify.com/album/4aawyAB9vmqN3uQ7FjRGTy"
+    )
+    urls = spottube.find_spotify_track_urls(text)
+    assert len(urls) == 0
+
+
+# Test that malicious URLs with spotify.com substring are rejected (security)
+def test_find_spotify_track_urls_rejects_malicious_substrings():
+    """Test that URLs with spotify.com as substring but wrong domain are rejected."""
+    text = (
+        "Phishing: https://evil-spotify.com/track/fakeid123 "
+        "Or: https://notspotify.com/malware "
+        "Or: https://spotify.com.evil.com/track/fakeid456"
+    )
+    urls = spottube.find_spotify_track_urls(text)
+    # Should return empty because none of these have the correct netloc
+    assert len(urls) == 0
+
+
+# Test that non-URL text with spotify.com is ignored
+def test_find_spotify_track_urls_ignores_non_url_text():
+    """Test that text containing spotify.com without http:// prefix is ignored."""
+    text = "Visit spotify.com or open.spotify.com for music"
+    urls = spottube.find_spotify_track_urls(text)
+    # Should return empty because they don't start with http:// or https://
+    assert len(urls) == 0
+
+
+# Test Discord angle bracket formatting
+def test_find_spotify_track_urls_handles_discord_brackets():
+    """Test that Discord's angle bracket URL formatting is handled correctly."""
+    text = "Check this: <https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35>"
+    urls = spottube.find_spotify_track_urls(text)
+    assert len(urls) == 1
+    assert urls[0] == "https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35"
+
+
+# Test trailing punctuation
+def test_find_spotify_track_urls_handles_trailing_punctuation():
+    """Test that trailing punctuation is stripped from URLs."""
+    text = (
+        "Check https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35. "
+        "Also https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp) "
+        "And (https://open.spotify.com/track/7qiZfU4dY1lWllzX7mPBI)!"
+    )
+    urls = spottube.find_spotify_track_urls(text)
+    assert len(urls) == 3
+    assert urls[0] == "https://open.spotify.com/track/65ShmiE5aLBdcIGr7tHX35"
+    assert urls[1] == "https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp"
+    assert urls[2] == "https://open.spotify.com/track/7qiZfU4dY1lWllzX7mPBI"

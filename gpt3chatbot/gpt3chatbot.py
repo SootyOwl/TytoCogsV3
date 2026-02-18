@@ -69,9 +69,14 @@ class GPT3ChatBot(commands.Cog):
             return None
         return filtered
 
-    @commands.Cog.listener("on_message_without_command")
+    @commands.Cog.listener("on_message")
     async def _message_listener(self, message: discord.Message):
         """This does stuff!"""
+        # Check if this message would trigger a command - if so, ignore it
+        ctx = await self.bot.get_context(message)
+        if ctx.valid:
+            return
+
         if not await self._should_respond(message=message):
             return
 
