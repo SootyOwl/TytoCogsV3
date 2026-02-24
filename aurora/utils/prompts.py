@@ -82,7 +82,7 @@ def build_mention_prompt(
                 f'- discord_read_messages(channelId="{channel_id}", limit=20): Read recent channel messages to gather context',
                 f'- discord_search_messages(guildId="{guild_id}", ...): Search server-wide messages for relevant info, if needed',
                 f'- discord_send(channelId="{channel_id}", message="your response", replyToMessageId="{message_id}"): Send your response',
-                f"- discord_add_reaction(channelId={channel_id}, messageId={message_id}, emoji='👍'): React to messages",
+                f'- discord_add_reaction(channelId="{channel_id}", messageId="{message_id}", emoji="👍"): React to messages',
                 "...and more.",
                 "",
                 "You also have access to web search and browsing tools to gather external information if needed, as well as the ability to run code.",

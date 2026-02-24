@@ -94,9 +94,9 @@ class MessageRecord:
     def to_dict(self) -> dict:
         """Convert message record to dictionary for YAML serialization."""
         return {
-            "message_id": self.message_id,
+            "message_id": str(self.message_id),
             "author": self.author,
-            "author_id": self.author_id,
+            "author_id": str(self.author_id),
             "content": self.clean_content,
             "timestamp": self.timestamp,
             "is_bot": self.is_bot,
@@ -188,7 +188,7 @@ class AuthorMetadata:
 
     def format(self) -> str:
         """Format author metadata into human-readable text."""
-        return f"- From: {self.display_name}{' | ' + self.global_name if self.global_name != self.display_name else ''} (ID: {self.id})"
+        return f"- From: {self.display_name}{' | ' + self.global_name if self.global_name != self.display_name else ''} (ID: \"{self.id}\")"
 
 
 @dataclass
@@ -207,7 +207,7 @@ class ChannelMetadata:
 
     def format(self) -> str:
         """Format channel metadata into human-readable text."""
-        return f"- Channel: {self.name} (ID: {self.id}, Type: {self.type})"
+        return f"- Channel: {self.name} (ID: \"{self.id}\", Type: {self.type})"
 
 
 @dataclass
@@ -224,7 +224,7 @@ class GuildMetadata:
 
     def format(self) -> str:
         """Format guild metadata into human-readable text."""
-        return f"- Server: {self.name} (ID: {self.id})"
+        return f"- Server: {self.name} (ID: \"{self.id}\")"
 
 
 @dataclass
@@ -288,5 +288,5 @@ class MessageMetadata:
         except (ValueError, KeyError):
             lines.append(f"- Message Time: {self.timestamp}")
         # Message ID
-        lines.append(f"- Message ID: {self.message_id}")
+        lines.append(f"- Message ID: \"{self.message_id}\"")
         return "\n".join(lines)
