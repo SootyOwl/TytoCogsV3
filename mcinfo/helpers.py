@@ -1,10 +1,11 @@
 """Helpers for mcinfo cog."""
 
 import socket
+
 import discord
-from redbot.core.utils import bounded_gather
 from mcstatus import JavaServer
 from mcstatus.status_response import JavaStatusResponse
+from redbot.core.utils import bounded_gather
 
 
 async def fetch_server_status(address: str) -> JavaStatusResponse:
@@ -41,9 +42,7 @@ async def format_channel_desc(address, status: JavaStatusResponse | None) -> str
     """Format the server status for channel description."""
     # if status is None, return a message indicating the server is offline
     if status is None:
-        description = ("Server info for {address}:\n\nOnline: No").format(
-            address=address
-        )
+        description = f"Server info for {address}:\n\nOnline: No"
         return description
 
     # format the server status

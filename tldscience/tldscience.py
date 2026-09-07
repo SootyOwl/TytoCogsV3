@@ -1,11 +1,11 @@
 import base64
-from anthropic.types.text_block import TextBlock
-import httpx
-from redbot.core import commands, Config
-from redbot.core.bot import Red
-from anthropic import AsyncAnthropic
+
 import discord
-from typing import List, Optional
+import httpx
+from anthropic import AsyncAnthropic
+from anthropic.types.text_block import TextBlock
+from redbot.core import Config, commands
+from redbot.core.bot import Red
 
 
 class TLDScience(commands.Cog):
@@ -44,7 +44,6 @@ class TLDScience(commands.Cog):
     @commands.group()
     async def tldscience(self, ctx: commands.Context) -> None:
         """Commands for the Claude article summarizer"""
-        pass
 
     @commands.is_owner()
     @tldscience.command(name="setapikey")
@@ -102,9 +101,7 @@ class TLDScience(commands.Cog):
     #     await ctx.send("Model has been updated successfully!")
 
     @tldscience.command(name="summarize")
-    async def summarize(
-        self, ctx: commands.Context, *, url: Optional[str] = None
-    ) -> None:
+    async def summarize(self, ctx: commands.Context, *, url: str | None = None) -> None:
         """Summarize provided text or attached file using Claude"""
         if not await self.bot.is_owner(ctx.author):
             # Check if the command is used in the proper channel
@@ -157,7 +154,7 @@ class TLDScience(commands.Cog):
                 await ctx.send(str(e))
                 return
             except Exception as e:
-                await ctx.send(f"An unexpected error occurred: {str(e)}")
+                await ctx.send(f"An unexpected error occurred: {e!s}")
                 return
 
             # Send the output
@@ -166,7 +163,7 @@ class TLDScience(commands.Cog):
                 return
             await ctx.send(output)
 
-    async def generate_summary(self, pdf_data) -> List[TextBlock]:
+    async def generate_summary(self, pdf_data) -> list[TextBlock]:
         # get the response
         response = await self.anthropic_client.messages.create(
             model=await self.config.model(),
@@ -201,7 +198,7 @@ class TLDScience(commands.Cog):
 
         return response.content
 
-    async def extract_summary(self, text: List[TextBlock]) -> str:
+    async def extract_summary(self, text: list[TextBlock]) -> str:
         """Extract the summary from the response"""
         if not text:
             return ""
