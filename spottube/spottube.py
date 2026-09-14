@@ -1,21 +1,19 @@
-from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
 import discord
 import pyyoutube
 import spotify
-from redbot.core import commands, Config
+from redbot.core import Config, commands
 from redbot.core.bot import Red
-from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
+from redbot.core.utils.menus import DEFAULT_CONTROLS, menu, start_adding_reactions
 from redbot.core.utils.predicates import ReactionPredicate
-from redbot.core.utils.menus import start_adding_reactions
 from spotify import Client
 from spotify.utils import to_id
 
 YT_STRING = "https://www.youtube.com/watch?v="
 
 
-def extract_spotify_track_id(url: str) -> Optional[str]:
+def extract_spotify_track_id(url: str) -> str | None:
     """Extract Spotify track ID from a URL using urlparse.
 
     Args:
@@ -38,7 +36,7 @@ def extract_spotify_track_id(url: str) -> Optional[str]:
         return None
 
 
-def find_spotify_track_urls(text: str) -> List[str]:
+def find_spotify_track_urls(text: str) -> list[str]:
     """Find all Spotify track URLs in text.
 
     Args:
@@ -53,7 +51,7 @@ def find_spotify_track_urls(text: str) -> List[str]:
     for word in words:
         # Strip common surrounding punctuation and Discord angle brackets
         # Discord often formats URLs as <https://...>
-        cleaned = word.strip('<>()[]{}.,;:!?"\'')
+        cleaned = word.strip("<>()[]{}.,;:!?\"'")
 
         # Check if this word looks like a URL (starts with http:// or https://)
         if cleaned.lower().startswith(("http://", "https://")):
@@ -66,7 +64,7 @@ def find_spotify_track_urls(text: str) -> List[str]:
 
 
 class APIKeyNotFoundError(KeyError):
-    def __init__(self, platform: str, key: str, help_link: Optional[str] = None):
+    def __init__(self, platform: str, key: str, help_link: str | None = None):
         self.platform = platform
         self.key = key
         self.help_link = help_link
@@ -136,7 +134,7 @@ class SpotTube(commands.Cog):
             return await ctx.reply("No valid YouTube video links found.")
         return await menu(ctx=ctx, pages=links, controls=DEFAULT_CONTROLS)
 
-    async def _convert_spotify_to_youtube(self, spotify_link: str) -> List[str]:
+    async def _convert_spotify_to_youtube(self, spotify_link: str) -> list[str]:
         """Convert a Spotify track link to YouTube video links.
 
         Args:
@@ -167,7 +165,6 @@ class SpotTube(commands.Cog):
     @commands.group()
     async def spotset(self, ctx: commands.Context) -> None:
         """Settings for the Spotify to YouTube converter."""
-        pass
 
     @commands.guild_only()
     @commands.admin_or_permissions(manage_guild=True)
@@ -241,7 +238,7 @@ class SpotTube(commands.Cog):
                 f"🎵 Found on YouTube: {links[0]}", mention_author=False
             )
 
-    async def _get_spotify_api_keys(self) -> Tuple[str, str]:
+    async def _get_spotify_api_keys(self) -> tuple[str, str]:
         spotify_api = await self.bot.get_shared_api_tokens("spotify")
         if not (client_id := spotify_api.get("client_id")):
             raise SpotifyKeyNotFoundError("client_id")
