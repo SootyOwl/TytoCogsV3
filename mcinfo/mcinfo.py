@@ -17,20 +17,21 @@ Inspired by palmtree5's `Mcsvr` cog: https://github.com/palmtree5/palmtree5-cogs
 # - format message embed
 
 import asyncio
+import logging
 from enum import StrEnum
-from typing import Optional
+
 import discord
 from discord.ext import tasks
 from redbot.core import Config, commands
 from redbot.core.bot import Red
 from redbot.core.utils import bounded_gather
-from redbot.core.utils.menus import menu, DEFAULT_CONTROLS
-import logging
+from redbot.core.utils.menus import DEFAULT_CONTROLS, menu
+
 from mcinfo.helpers import (
+    JavaStatusResponse,
     fetch_servers,
     format_channel_desc,
     format_message_embed,
-    JavaStatusResponse,
 )
 
 
@@ -207,7 +208,7 @@ class McInfo(commands.Cog):
         self,
         ctx: commands.Context,
         mode: Mode,
-        channel: Optional[discord.TextChannel] = None,
+        channel: discord.TextChannel | None = None,
     ):
         """Set the mode for the specified channel, or the current channel.
 
@@ -288,7 +289,7 @@ class McInfo(commands.Cog):
     @mcinfo.command(name="manageservers")
     @commands.admin_or_can_manage_channel()
     async def manage_servers(
-        self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None
+        self, ctx: commands.Context, channel: discord.TextChannel | None = None
     ):
         """Manage servers for the specified channel, or the current channel.
 
@@ -375,9 +376,11 @@ class McInfo(commands.Cog):
                 response = await self.bot.wait_for(
                     "message",
                     timeout=60.0,
-                    check=lambda m: m.author == ctx.author
-                    and m.channel == ctx.channel
-                    and m.content.lower() in ["yes", "no"],
+                    check=lambda m: (
+                        m.author == ctx.author
+                        and m.channel == ctx.channel
+                        and m.content.lower() in ["yes", "no"]
+                    ),
                 )
             except asyncio.TimeoutError:
                 await ctx.send("Timed out waiting for confirmation.")

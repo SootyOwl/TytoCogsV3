@@ -1,17 +1,19 @@
 "Tests for helpers."
 
 import copy
+
 import pytest
+from mcstatus.status_response import (
+    JavaStatusPlayer,
+    JavaStatusResponse,
+    RawJavaResponse,
+)
+
 from mcinfo.helpers import (
     fetch_server_status,
     fetch_servers,
     format_channel_desc,
     format_message_embed,
-)
-from mcstatus.status_response import (
-    JavaStatusResponse,
-    RawJavaResponse,
-    JavaStatusPlayer,
 )
 
 
