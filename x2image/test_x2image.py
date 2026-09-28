@@ -1,6 +1,7 @@
-from html2image import Html2Image
-from x2image.x2image import get_twitter_embed, convert_html_to_image
 import pytest
+from html2image import Html2Image
+
+from x2image.x2image import convert_html_to_image, get_twitter_embed
 
 
 @pytest.mark.skip(reason="Skipped due to deprecated / disabled cog.")
