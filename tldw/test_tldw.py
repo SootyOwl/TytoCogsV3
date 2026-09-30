@@ -1,8 +1,8 @@
+import json
 from types import SimpleNamespace
 
 import pytest
 from pytest_mock import MockerFixture
-from yt_transcript_fetcher import YouTubeTranscriptFetcher
 
 from tldw import tldw
 
@@ -48,7 +48,7 @@ def test_get_video_id_invalid_input(video_url):
 
 @pytest.fixture
 def ytt_api():
-    return YouTubeTranscriptFetcher()
+    return tldw.YouTubeTranscriptFetcher()
 
 
 @pytest.mark.parametrize(
@@ -209,3 +209,302 @@ async def test_get_llm_response_without_mocker(llm_client):
         model="openai/gpt-oss-safeguard-20b",
     )
     assert response.choices[0].message.content == "Test response"
+
+
+# ---------------------------------------------------------------------------
+# Offline tests for the transcript fetching (no network access needed)
+# ---------------------------------------------------------------------------
+
+WATCH_PAGE_HTML = (
+    '<html><script>var ytcfg = {"INNERTUBE_API_KEY":"AIzaTestKey_123"};</script></html>'
+)
+CONSENT_PAGE_HTML = (
+    '<html><form action="https://consent.youtube.com/s">'
+    '<input type="hidden" name="v" value="cb.20260101-00-p0.en+FX+000" />'
+    "</form></html>"
+)
+TIMEDTEXT_XML = (
+    '<?xml version="1.0" encoding="utf-8" ?><transcript>'
+    '<text start="0" dur="1.5">Hello &amp;#39;world&amp;#39;</text>'
+    '<text start="1.5" dur="1">Second line</text>'
+    "</transcript>"
+)
+JSON3_PAYLOAD = json.dumps(
+    {
+        "events": [
+            {"segs": [{"utf8": "Hello "}, {"utf8": "world\n"}]},
+            {"segs": []},
+            {"segs": [{"utf8": "Second   line"}]},
+        ]
+    }
+)
+TRACK_URL = "https://www.youtube.com/api/timedtext?v=vid&fmt=srv3"
+
+
+class CookieJarStub:
+    """Minimal stand-in for aiohttp's cookie jar."""
+
+    def __init__(self):
+        self.cookies = {}
+
+    def update_cookies(self, cookies, response_url=None):
+        self.cookies.update(cookies)
+
+
+class FakeResponse:
+    def __init__(self, status, body):
+        self.status = status
+        self._body = body
+
+    async def text(self):
+        return self._body
+
+    async def json(self, content_type=None):
+        return json.loads(self._body)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        return False
+
+
+class FakeSession:
+    """A fake aiohttp session that replays scripted responses per request URL."""
+
+    def __init__(self, routes):
+        self.routes = routes
+        self.calls = []
+        self.cookie_jar = CookieJarStub()
+
+    def _response(self, method, url):
+        self.calls.append((method, url))
+        for (route_method, needle), responses in self.routes.items():
+            if route_method == method and needle in url:
+                return responses.pop(0) if len(responses) > 1 else responses[0]
+        raise AssertionError(f"unexpected request: {method} {url}")
+
+    def get(self, url, **kwargs):
+        return self._response("GET", url)
+
+    def post(self, url, **kwargs):
+        return self._response("POST", url)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        return False
+
+
+def caption_track(code, kind=None, base_url=TRACK_URL):
+    """Build a captionTracks entry as YouTube returns it."""
+    track = {
+        "languageCode": code,
+        "name": {"runs": [{"text": code.upper()}]},
+        "baseUrl": base_url,
+    }
+    if kind:
+        track["kind"] = kind
+    return track
+
+
+def player_json(tracks, status="OK", reason=None):
+    """Build a /youtubei/v1/player response."""
+    playability = {"status": status}
+    if reason:
+        playability["reason"] = reason
+    return json.dumps(
+        {
+            "playabilityStatus": playability,
+            "captions": {"playerCaptionsTracklistRenderer": {"captionTracks": tracks}},
+        }
+    )
+
+
+def test_timedtext_url_replaces_format_parameter():
+    url = tldw._timedtext_url("https://x/api/timedtext?v=1&fmt=srv3&lang=en", "json3")
+    assert url == "https://x/api/timedtext?v=1&lang=en&fmt=json3"
+
+
+def test_parse_json3():
+    assert tldw._parse_json3(JSON3_PAYLOAD) == "Hello world Second line"
+
+
+def test_parse_json3_invalid_payload():
+    assert tldw._parse_json3("<html>not json</html>") == ""
+
+
+def test_parse_timedtext_xml_unescapes_entities():
+    assert tldw._parse_timedtext_xml(TIMEDTEXT_XML) == "Hello 'world' Second line"
+
+
+def test_parse_timedtext_xml_invalid_payload():
+    assert tldw._parse_timedtext_xml("not xml") == ""
+
+
+def test_select_caption_track_prefers_manual_captions():
+    tracks = [
+        tldw.CaptionTrack("en", "English", True, "asr-url"),
+        tldw.CaptionTrack("en", "English", False, "manual-url"),
+    ]
+    selected = tldw._select_caption_track(tracks, ["en-US", "en"], "vid")
+    assert selected.base_url == "manual-url"
+    assert selected.is_generated is False
+
+
+def test_select_caption_track_matches_primary_subtag():
+    tracks = [tldw.CaptionTrack("pt-BR", "Portuguese (Brazil)", False, "url")]
+    assert tldw._select_caption_track(tracks, ["pt-PT"], "vid").language_code == "pt-BR"
+
+
+def test_select_caption_track_raises_for_unknown_language():
+    tracks = [tldw.CaptionTrack("de", "German", True, "url")]
+    with pytest.raises(tldw.TranscriptError):
+        tldw._select_caption_track(tracks, ["en"], "vid")
+
+
+@pytest.mark.asyncio
+async def test_list_tracks_uses_api_key_from_watch_page():
+    session = FakeSession(
+        {
+            ("GET", "/watch"): [FakeResponse(200, WATCH_PAGE_HTML)],
+            ("POST", "/youtubei/v1/player"): [
+                FakeResponse(200, player_json([caption_track("en")]))
+            ],
+        }
+    )
+    fetcher = tldw.YouTubeTranscriptFetcher()
+    tracks = await fetcher.list_tracks(session, "vid")
+    assert [track.language_code for track in tracks] == ["en"]
+    assert any(
+        "AIzaTestKey_123" in url for method, url in session.calls if method == "POST"
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_tracks_accepts_consent_wall():
+    session = FakeSession(
+        {
+            ("GET", "/watch"): [
+                FakeResponse(200, CONSENT_PAGE_HTML),
+                FakeResponse(200, WATCH_PAGE_HTML),
+            ],
+            ("POST", "/youtubei/v1/player"): [
+                FakeResponse(200, player_json([caption_track("en")]))
+            ],
+        }
+    )
+    fetcher = tldw.YouTubeTranscriptFetcher()
+    tracks = await fetcher.list_tracks(session, "vid")
+    assert len(tracks) == 1
+    assert session.cookie_jar.cookies["CONSENT"].startswith("YES+")
+
+
+@pytest.mark.asyncio
+async def test_list_tracks_retries_with_the_next_client():
+    rejected = json.dumps({"error": {"code": 400, "status": "FAILED_PRECONDITION"}})
+    session = FakeSession(
+        {
+            ("GET", "/watch"): [FakeResponse(200, WATCH_PAGE_HTML)],
+            ("POST", "/youtubei/v1/player"): [
+                FakeResponse(400, rejected),
+                FakeResponse(200, player_json([caption_track("en")])),
+            ],
+        }
+    )
+    fetcher = tldw.YouTubeTranscriptFetcher()
+    tracks = await fetcher.list_tracks(session, "vid")
+    assert len(tracks) == 1
+    assert sum(1 for method, _ in session.calls if method == "POST") == 2
+
+
+@pytest.mark.asyncio
+async def test_list_tracks_reports_outdated_client_versions():
+    rejected = json.dumps({"error": {"code": 400, "status": "FAILED_PRECONDITION"}})
+    session = FakeSession(
+        {
+            ("GET", "/watch"): [FakeResponse(200, WATCH_PAGE_HTML)],
+            ("POST", "/youtubei/v1/player"): [FakeResponse(400, rejected)],
+        }
+    )
+    fetcher = tldw.YouTubeTranscriptFetcher()
+    with pytest.raises(tldw.YouTubeClientError):
+        await fetcher.list_tracks(session, "vid")
+
+
+@pytest.mark.asyncio
+async def test_list_tracks_reports_ip_block():
+    payload = player_json(
+        [], status="LOGIN_REQUIRED", reason="Sign in to confirm you're not a bot"
+    )
+    session = FakeSession(
+        {
+            ("GET", "/watch"): [FakeResponse(200, WATCH_PAGE_HTML)],
+            ("POST", "/youtubei/v1/player"): [FakeResponse(200, payload)],
+        }
+    )
+    fetcher = tldw.YouTubeTranscriptFetcher()
+    with pytest.raises(tldw.YouTubeBlockedError):
+        await fetcher.list_tracks(session, "vid")
+
+
+@pytest.mark.asyncio
+async def test_list_tracks_reports_missing_captions():
+    session = FakeSession(
+        {
+            ("GET", "/watch"): [FakeResponse(200, WATCH_PAGE_HTML)],
+            ("POST", "/youtubei/v1/player"): [FakeResponse(200, player_json([]))],
+        }
+    )
+    fetcher = tldw.YouTubeTranscriptFetcher()
+    with pytest.raises(tldw.TranscriptsDisabledError):
+        await fetcher.list_tracks(session, "vid")
+
+
+@pytest.mark.asyncio
+async def test_download_track_falls_back_to_xml():
+    track = tldw.CaptionTrack("en", "English", False, TRACK_URL)
+    session = FakeSession(
+        {
+            ("GET", "fmt=json3"): [FakeResponse(200, "{}")],
+            ("GET", "fmt=srv3"): [FakeResponse(200, TIMEDTEXT_XML)],
+        }
+    )
+    fetcher = tldw.YouTubeTranscriptFetcher()
+    assert await fetcher._download_track(session, track, "vid") == (
+        "Hello 'world' Second line"
+    )
+
+
+@pytest.mark.asyncio
+async def test_fetch_returns_transcript_text(monkeypatch):
+    session = FakeSession(
+        {
+            ("GET", "/watch"): [FakeResponse(200, WATCH_PAGE_HTML)],
+            ("POST", "/youtubei/v1/player"): [
+                FakeResponse(
+                    200, player_json([caption_track("en"), caption_track("en", "asr")])
+                )
+            ],
+            ("GET", "fmt=json3"): [FakeResponse(200, JSON3_PAYLOAD)],
+        }
+    )
+    monkeypatch.setattr(tldw.aiohttp, "ClientSession", lambda *args, **kwargs: session)
+    fetcher = tldw.YouTubeTranscriptFetcher()
+    assert await fetcher.fetch("vid", ["en-US", "en"]) == "Hello world Second line"
+
+
+@pytest.mark.asyncio
+async def test_get_transcript_wraps_errors_in_value_error(monkeypatch):
+    payload = player_json([], status="ERROR", reason="This video is unavailable")
+    session = FakeSession(
+        {
+            ("GET", "/watch"): [FakeResponse(200, WATCH_PAGE_HTML)],
+            ("POST", "/youtubei/v1/player"): [FakeResponse(200, payload)],
+        }
+    )
+    monkeypatch.setattr(tldw.aiohttp, "ClientSession", lambda *args, **kwargs: session)
+    fetcher = tldw.YouTubeTranscriptFetcher()
+    with pytest.raises(ValueError):
+        await tldw.get_transcript(fetcher, "vid")

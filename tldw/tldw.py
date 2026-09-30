@@ -1,9 +1,13 @@
 """Too Long; Didn't Watch (TLDW) - Summarize YouTube videos."""
 
+import html
+import json
 import logging
 import re
 import typing as t
+import xml.etree.ElementTree as ET
 from collections import OrderedDict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import aiohttp
@@ -17,11 +21,7 @@ from redbot.core.utils.embed import randomize_color
 from redbot.core.utils.menus import start_adding_reactions
 from redbot.core.utils.predicates import ReactionPredicate
 from redbot.core.utils.views import ConfirmView, SetApiView
-from yt_transcript_fetcher import (
-    NoTranscriptError,
-    VideoNotFoundError,
-    YouTubeTranscriptFetcher,
-)
+from yarl import URL
 
 MAX_CACHE_SIZE = 100
 
@@ -738,40 +738,389 @@ def markdown_to_embed(markdown: str) -> discord.Embed:
     return embed
 
 
+# region: YouTube transcript fetching
+#
+# Patch note (fixes SootyOwl/TytoCogsV3#116 - "TLDW precondition failed"):
+# The old code used the `yt-transcript-fetcher` package, which talked to
+# YouTube with the Android client 19.09.37 (rejected by YouTube since ~Dec 2025
+# with "400 FAILED_PRECONDITION - Precondition check failed") and downloaded
+# captions from /youtubei/v1/get_transcript using hand-built protobuf `params`
+# (also rejected with 400 FAILED_PRECONDITION, for every client).
+#
+# The transcript is now fetched the same way youtube-transcript-api and yt-dlp
+# do it, which needs no extra dependencies (aiohttp ships with Red):
+#   1. GET the watch page     -> session cookies + Innertube API key
+#   2. POST /youtubei/v1/player?key=<key> with a *supported* client
+#                             -> captions.playerCaptionsTracklistRenderer
+#   3. GET the caption track's own timedtext URL (fmt=json3, XML as fallback)
+#
+# If YouTube ever rejects the client versions in INNERTUBE_CLIENTS again, the
+# error message says so and the versions below are the only thing to bump.
+
+YOUTUBE_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+)
+YOUTUBE_WATCH_URL = "https://www.youtube.com/watch?v={video_id}&hl=en"
+INNERTUBE_PLAYER_URL = (
+    "https://www.youtube.com/youtubei/v1/player?key={api_key}&prettyPrint=false"
+)
+INNERTUBE_API_KEY_RE = re.compile(r'"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"')
+CONSENT_COOKIE_RE = re.compile(r'name="v" value="(.*?)"')
+
+# Clients are tried in order; the first one YouTube answers with "OK" wins.
+INNERTUBE_CLIENTS: tuple[dict, ...] = (
+    {"clientName": "ANDROID", "clientVersion": "20.10.38"},
+    {
+        "clientName": "IOS",
+        "clientVersion": "20.10.4",
+        "deviceMake": "Apple",
+        "deviceModel": "iPhone16,2",
+        "osName": "iPhone",
+        "osVersion": "18.3.2.22D82",
+    },
+)
+
+
+class TranscriptError(Exception):
+    """Base class for every error related to fetching a transcript."""
+
+
+class VideoUnavailableError(TranscriptError):
+    """The video does not exist, is private, age restricted or otherwise unplayable."""
+
+
+class TranscriptsDisabledError(TranscriptError):
+    """The video has no captions at all."""
+
+
+class YouTubeBlockedError(TranscriptError):
+    """YouTube refuses to serve this IP (bot check, captcha, rate limit)."""
+
+
+class YouTubeClientError(TranscriptError):
+    """YouTube rejected the request itself (e.g. an outdated client version)."""
+
+
+@dataclass
+class CaptionTrack:
+    """A single caption track offered by YouTube for a video."""
+
+    language_code: str
+    name: str
+    is_generated: bool
+    base_url: str
+
+    def __str__(self) -> str:
+        suffix = " (auto-generated)" if self.is_generated else ""
+        return f"{self.language_code or self.name}{suffix}"
+
+
+def _timedtext_url(base_url: str, fmt: str) -> str:
+    """Build the download URL for a caption track in the requested format."""
+    # the base URL already carries a `fmt` parameter (usually `srv3`), replace it
+    stripped = re.sub(r"&fmt=[^&]*", "", base_url)
+    return f"{stripped}&fmt={fmt}"
+
+
+def _parse_json3(payload: str) -> str:
+    """Parse the `json3` timedtext format into plain text."""
+    try:
+        data = json.loads(payload)
+    except ValueError:
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    parts = []
+    for event in data.get("events") or []:
+        if not isinstance(event, dict):
+            continue
+        segments = event.get("segs") or []
+        text = "".join(
+            segment.get("utf8", "") for segment in segments if isinstance(segment, dict)
+        )
+        text = " ".join(text.split())
+        if text:
+            parts.append(text)
+    return " ".join(parts)
+
+
+def _parse_timedtext_xml(payload: str) -> str:
+    """Parse the XML timedtext format into plain text (fallback)."""
+    try:
+        root = ET.fromstring(payload)
+    except ET.ParseError:
+        return ""
+    parts = [" ".join("".join(node.itertext()).split()) for node in root]
+    # YouTube escapes the XML twice, e.g. "&amp;#39;" for an apostrophe
+    return html.unescape(" ".join(part for part in parts if part))
+
+
+def _preferred_track(candidates: list[CaptionTrack]) -> t.Optional[CaptionTrack]:
+    """Prefer manually written captions over auto-generated ones."""
+    for is_generated in (False, True):
+        for track in candidates:
+            if track.is_generated is is_generated:
+                return track
+    return None
+
+
+def _select_caption_track(
+    tracks: list[CaptionTrack],
+    languages: list[str],
+    video_id: str,
+) -> CaptionTrack:
+    """Pick the caption track matching the configured language list best.
+
+    Tries an exact language code match first (`en-US`), then a match on the
+    primary subtag (`en-US` matches a track labelled `en` and vice versa).
+    """
+    for language in languages:
+        wanted = (language or "").strip().lower()
+        if not wanted:
+            continue
+        primary = wanted.split("-")[0]
+        exact = [tr for tr in tracks if tr.language_code.lower() == wanted]
+        related = [
+            tr for tr in tracks if tr.language_code.lower().split("-")[0] == primary
+        ]
+        for candidates in (exact, related):
+            track = _preferred_track(candidates)
+            if track:
+                return track
+
+    available = ", ".join(str(track) for track in tracks)
+    raise TranscriptError(
+        f"No transcript for video {video_id} in the configured languages "
+        f"{languages}. Available: {available}. Add one of them with the "
+        "`tldwset languages add <code>` command to summarize this video."
+    )
+
+
+class YouTubeTranscriptFetcher:
+    """Fetch YouTube transcripts through YouTube's own web player."""
+
+    def __init__(self, timeout: float = 20.0) -> None:
+        self._timeout = aiohttp.ClientTimeout(total=timeout)
+        self._tracks_cache: dict[str, list[CaptionTrack]] = {}
+
+    async def fetch(self, video_id: str, languages: list[str]) -> str:
+        """Return the plain text transcript of a video."""
+        async with aiohttp.ClientSession(
+            timeout=self._timeout,
+            headers={
+                "User-Agent": YOUTUBE_USER_AGENT,
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        ) as session:
+            tracks = await self.list_tracks(session, video_id)
+            track = _select_caption_track(tracks, languages, video_id)
+            return await self._download_track(session, track, video_id)
+
+    async def list_tracks(
+        self, session: aiohttp.ClientSession, video_id: str
+    ) -> list[CaptionTrack]:
+        """Return all caption tracks available for a video (cached per video)."""
+        if video_id not in self._tracks_cache:
+            self._tracks_cache[video_id] = await self._fetch_tracks(session, video_id)
+        return self._tracks_cache[video_id]
+
+    async def _fetch_tracks(
+        self, session: aiohttp.ClientSession, video_id: str
+    ) -> list[CaptionTrack]:
+        data = await self._fetch_player_response(session, video_id)
+        captions = (data.get("captions") or {}).get(
+            "playerCaptionsTracklistRenderer"
+        ) or {}
+        tracks = []
+        for item in captions.get("captionTracks") or []:
+            base_url = item.get("baseUrl")
+            if not base_url:
+                continue
+            runs = (item.get("name") or {}).get("runs") or []
+            name = runs[0].get("text") if runs and isinstance(runs[0], dict) else ""
+            tracks.append(
+                CaptionTrack(
+                    language_code=item.get("languageCode") or "",
+                    name=name or item.get("languageCode") or "unknown",
+                    is_generated=(item.get("kind") or "") == "asr",
+                    base_url=base_url,
+                )
+            )
+        if not tracks:
+            raise TranscriptsDisabledError(
+                f"Video {video_id} has no captions/transcript available."
+            )
+        return tracks
+
+    async def _fetch_player_response(
+        self, session: aiohttp.ClientSession, video_id: str
+    ) -> dict:
+        """Ask the YouTube web player for the video's details and captions."""
+        page = await self._fetch_watch_page(session, video_id)
+        match = INNERTUBE_API_KEY_RE.search(page)
+        if not match:
+            if 'class="g-recaptcha"' in page:
+                raise YouTubeBlockedError(
+                    "YouTube is showing a captcha to this IP address, so no "
+                    "transcript can be fetched. Try again later or from another "
+                    "machine/host."
+                )
+            raise TranscriptError(
+                "Could not read the Innertube API key from the YouTube watch "
+                "page. YouTube probably changed its page layout."
+            )
+
+        errors: list[TranscriptError] = []
+        for client in INNERTUBE_CLIENTS:
+            try:
+                data = await self._post_player(
+                    session, match.group(1), video_id, client
+                )
+                self._assert_playable(data, video_id)
+            except TranscriptError as exc:
+                errors.append(exc)
+                continue
+            return data
+
+        raise (
+            errors[0]
+            if errors
+            else TranscriptError(f"Could not fetch video details for {video_id}.")
+        )
+
+    async def _fetch_watch_page(
+        self, session: aiohttp.ClientSession, video_id: str
+    ) -> str:
+        """GET the watch page, handling YouTube's EU consent interstitial."""
+        url = YOUTUBE_WATCH_URL.format(video_id=video_id)
+        page = ""
+        for _ in range(2):
+            async with session.get(url) as response:
+                await self._raise_for_status(response, video_id)
+                page = html.unescape(await response.text())
+
+            if 'action="https://consent.youtube.com/s"' not in page:
+                return page
+
+            match = CONSENT_COOKIE_RE.search(page)
+            if not match:
+                raise TranscriptError(
+                    "YouTube shows the cookie/consent wall and it could not be "
+                    "accepted automatically."
+                )
+            session.cookie_jar.update_cookies(
+                {"CONSENT": "YES+" + match.group(1)},
+                response_url=URL("https://www.youtube.com"),
+            )
+        return page
+
+    async def _post_player(
+        self,
+        session: aiohttp.ClientSession,
+        api_key: str,
+        video_id: str,
+        client: dict,
+    ) -> dict:
+        payload = {
+            "context": {"client": client},
+            "videoId": video_id,
+            "contentCheckOk": True,
+            "racyCheckOk": True,
+            "playbackContext": {
+                "contentPlaybackContext": {"html5Preference": "HTML5_PREF_WANTS"}
+            },
+        }
+        url = INNERTUBE_PLAYER_URL.format(api_key=api_key)
+        async with session.post(url, json=payload) as response:
+            if response.status == 400:
+                body = await response.text()
+                if "FAILED_PRECONDITION" in body:
+                    raise YouTubeClientError(
+                        "YouTube answered 'Precondition check failed' for client "
+                        f"{client.get('clientName')} {client.get('clientVersion')} - "
+                        "that client version is outdated. Update "
+                        "INNERTUBE_CLIENTS in tldw.py."
+                    )
+                raise TranscriptError(
+                    f"YouTube returned HTTP 400 for video {video_id}: {body[:200]}"
+                )
+            await self._raise_for_status(response, video_id)
+            return await response.json(content_type=None)
+
+    def _assert_playable(self, data: dict, video_id: str) -> None:
+        """Turn YouTube's playabilityStatus into a meaningful error."""
+        status = data.get("playabilityStatus") or {}
+        state = status.get("status")
+        reason = status.get("reason") or ""
+        if state in (None, "OK"):
+            return
+        if state == "LOGIN_REQUIRED":
+            if "bot" in reason.lower():
+                raise YouTubeBlockedError(
+                    "YouTube wants a sign-in to prove this is not a bot "
+                    "('Sign in to confirm you're not a bot'). YouTube is "
+                    "blocking this IP address - a proxy or a different host "
+                    "would be needed."
+                )
+            raise YouTubeBlockedError(
+                f"YouTube requires a sign-in for video {video_id}: {reason}"
+            )
+        raise VideoUnavailableError(
+            f"Video {video_id} is not playable: {reason or state}"
+        )
+
+    async def _download_track(
+        self,
+        session: aiohttp.ClientSession,
+        track: CaptionTrack,
+        video_id: str,
+    ) -> str:
+        """Download a caption track and return it as plain text."""
+        for fmt, parser in (("json3", _parse_json3), ("srv3", _parse_timedtext_xml)):
+            url = _timedtext_url(track.base_url, fmt)
+            async with session.get(url) as response:
+                if response.status != 200:
+                    continue
+                body = await response.text()
+            text = parser(body)
+            if text:
+                return text
+
+        hint = ""
+        if "exp=xpe" in track.base_url:
+            hint = (
+                " YouTube requires a PO token for this transcript (exp=xpe), "
+                "which needs a JavaScript runtime - this cannot be fetched here."
+            )
+        raise TranscriptError(
+            f"Could not download the {track} transcript for video {video_id}." + hint
+        )
+
+    async def _raise_for_status(self, response, video_id: str) -> None:
+        if response.status == 429:
+            raise YouTubeBlockedError(
+                f"YouTube is rate limiting this IP (HTTP 429) for video {video_id}."
+            )
+        if response.status >= 400:
+            raise TranscriptError(
+                f"YouTube returned HTTP {response.status} for video {video_id}."
+            )
+
+
 async def get_transcript(
     transcript_fetcher: YouTubeTranscriptFetcher,
     video_id: str,
     languages: list[str] = ["en-US", "en-GB", "en"],
 ) -> str:
     """Get the transcript of a YouTube video."""
-    # get the transcript of the video using the video id
     try:
-        available_languages = transcript_fetcher.list_languages(video_id=video_id)
-        # find the first language in the list of languages that is available for the video
-        language = next(
-            (lang for lang in languages if lang in available_languages), None
-        )
-        if not language:
-            raise ValueError(
-                f"No available transcript for video {video_id} in languages {languages}.\nAvailable languages: {[lang.code for lang in available_languages]}"
-            )
-        # fetch the transcript in the specified language
-        transcript = transcript_fetcher.get_transcript(
-            video_id=video_id, language=language
-        )
-    except NoTranscriptError as e:
-        raise ValueError(
-            f"No transcript available for video {video_id} in language {language}."
-        ) from e
-    except VideoNotFoundError as e:
-        raise ValueError(
-            f"Couldn't find transcript for video {video_id}. Please check the video ID exists and is accessible."
-        ) from e
-    except Exception as e:
-        raise ValueError("Error getting transcript: " + str(e))
+        return await transcript_fetcher.fetch(video_id, languages)
+    except TranscriptError as exc:
+        raise ValueError(str(exc)) from exc
 
-    # return the transcript as text
-    return transcript.text if transcript else ""
+
+# endregion: YouTube transcript fetching
 
 
 def get_video_id(video_url: str) -> str:

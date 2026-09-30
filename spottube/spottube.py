@@ -53,7 +53,7 @@ def find_spotify_track_urls(text: str) -> List[str]:
     for word in words:
         # Strip common surrounding punctuation and Discord angle brackets
         # Discord often formats URLs as <https://...>
-        cleaned = word.strip('<>()[]{}.,;:!?"\'')
+        cleaned = word.strip("<>()[]{}.,;:!?\"'")
 
         # Check if this word looks like a URL (starts with http:// or https://)
         if cleaned.lower().startswith(("http://", "https://")):
