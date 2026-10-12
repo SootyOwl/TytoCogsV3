@@ -55,7 +55,7 @@ class TLDWatch(commands.Cog):
         }
         self.config.register_guild(**default_guild)
 
-        self.llm_client: t.Optional[AsyncOpenAI] = None
+        self.llm_client: AsyncOpenAI | None = None
         self._summary_cache = OrderedDict()
         self.yt_transcript_fetcher = YouTubeTranscriptFetcher()
 
@@ -84,7 +84,7 @@ class TLDWatch(commands.Cog):
 
     @commands.Cog.listener()
     async def on_red_api_tokens_update(
-        self, service_name: str, api_tokens: t.Dict[str, str]
+        self, service_name: str, api_tokens: dict[str, str]
     ) -> None:
         """Update the LLM client when the API tokens are updated."""
         if service_name != "openrouter":
@@ -124,9 +124,9 @@ class TLDWatch(commands.Cog):
                         "You need to update your API key to use OpenRouter:\n"
                         "1. Sign up or log in to OpenRouter at https://openrouter.ai/\n"
                         "2. Get an OpenRouter API key from https://openrouter.ai/settings/keys \n"
-                        "3. Set it using: `{p}set api openrouter api_key,<your_openrouter_key>` or the interface provided by `{p}tldwset apikey`.\n"
+                        f"3. Set it using: `{prefix}set api openrouter api_key,<your_openrouter_key>` or the interface provided by `{prefix}tldwset apikey`.\n"
                         "4. The cog now supports multiple LLM providers through OpenRouter\n"
-                    ).format(p=prefix),
+                    ),
                     inline=False,
                 ).add_field(
                     name="ℹ️ What Changed",
@@ -144,14 +144,12 @@ class TLDWatch(commands.Cog):
                         "1. Obtain and set your OpenRouter API key as described above.\n"
                         "2. Go to https://openrouter.ai/settings/integrations and add your Anthropic key in the list of providers.\n"
                         "3. Set the model to `anthropic/claude-3.5-sonnet` or any [other Claude model](https://openrouter.ai/anthropic) you prefer, using the command:\n"
-                        "\t`{p}tldwset model anthropic/claude-3.5-sonnet`.\n"
+                        f"\t`{prefix}tldwset model anthropic/claude-3.5-sonnet`.\n"
                         "4. Now you can use the TLDW cog with your existing Anthropic key on OpenRouter, which will route requests to Claude models and use existing credits.\n"
-                    ).format(p=prefix),
+                    ),
                     inline=False,
                 ).set_footer(
-                    text="This message will only be sent once. If you need to see it again, use the command `{p}tldwset show_migration`.".format(
-                        p=prefix
-                    )
+                    text=f"This message will only be sent once. If you need to see it again, use the command `{prefix}tldwset show_migration`."
                 )
                 try:
                     await app_info.owner.send(embed=embed)
@@ -186,7 +184,6 @@ class TLDWatch(commands.Cog):
     @commands.group()
     async def tldwset(self, ctx: commands.Context) -> None:
         """Settings for the video summarizer"""
-        pass
 
     @commands.guild_only()
     @commands.admin_or_permissions(manage_guild=True)
@@ -218,9 +215,7 @@ class TLDWatch(commands.Cog):
             await ctx.send("Setting updated: will not reply in a new thread.")
 
     @tldwset.command(name="model")
-    async def set_model(
-        self, ctx: commands.Context, model: t.Optional[str] = None
-    ) -> None:
+    async def set_model(self, ctx: commands.Context, model: str | None = None) -> None:
         """Set the model to use for summarization (owner only)"""
         if not model:
             # send the current model
@@ -268,9 +263,7 @@ class TLDWatch(commands.Cog):
 
     @commands.is_owner()
     @tldwset.command(name="prompt")
-    async def set_prompt(
-        self, ctx: commands.Context, *, prompt: t.Optional[str]
-    ) -> None:
+    async def set_prompt(self, ctx: commands.Context, *, prompt: str | None) -> None:
         """Set the system prompt (owner only)"""
         if not prompt:
             # send the current prompt
@@ -304,7 +297,7 @@ class TLDWatch(commands.Cog):
     @commands.is_owner()
     @languages.command(name="add")
     async def add_language(
-        self, ctx: commands.Context, language: t.Optional[str] = None
+        self, ctx: commands.Context, language: str | None = None
     ) -> None:
         """Add a language to the list of languages for the transcript API"""
 
@@ -341,7 +334,7 @@ class TLDWatch(commands.Cog):
     @commands.is_owner()
     @languages.command(name="remove")
     async def remove_languages(
-        self, ctx: commands.Context, number: t.Optional[int] = None
+        self, ctx: commands.Context, number: int | None = None
     ) -> None:
         """Remove a language from the list of languages for the transcript API by its number."""
         languages = await self.config.languages()

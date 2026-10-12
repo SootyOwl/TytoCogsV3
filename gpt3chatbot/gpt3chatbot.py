@@ -1,15 +1,13 @@
 import logging
 import os
 import re
-from typing import Union
 
 import discord
 import openai
-from redbot.core import Config
-from redbot.core import commands
+from redbot.core import Config, commands
 
-from gpt3chatbot.utils import memoize
 from gpt3chatbot.personalities import personalities_dict
+from gpt3chatbot.utils import memoize
 
 log = logging.getLogger("red.tytocogsv3.gpt3chatbot")
 log.setLevel(os.getenv("TYTOCOGS_LOG_LEVEL", "INFO"))
@@ -227,7 +225,7 @@ class GPT3ChatBot(commands.Cog):
         return persona
 
     async def _get_user_or_member_config_from_message(
-        self, message: Union[discord.Message, commands.Context]
+        self, message: discord.Message | commands.Context
     ):
         return (
             self.config.member(message.author)
@@ -236,7 +234,7 @@ class GPT3ChatBot(commands.Cog):
         )
 
     async def _get_user_or_member_config_from_author(
-        self, author: Union[discord.User, discord.Member]
+        self, author: discord.User | discord.Member
     ):
         try:
             config = self.config.member(
