@@ -4,9 +4,10 @@ import logging
 import re
 import socket
 import time
+from collections.abc import Callable
 from functools import wraps
 from io import BytesIO
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -24,7 +25,7 @@ def exponential_backoff_retry(
     exponential_base: float = 2.0,
     max_delay: float = 60.0,
     retry_on_exceptions: tuple = (aiohttp.ClientError,),
-    retry_condition: Optional[Callable[[Any], bool]] = None,
+    retry_condition: Callable[[Any], bool] | None = None,
 ):
     """
     Exponential backoff retry decorator for async functions.
@@ -246,19 +247,18 @@ class IspyFJ(commands.Cog):
                             video_file.close()
                         except Exception as e:
                             logger.debug(f"Failed to close video file: {e}")
-                            pass
 
             except VideoNotFoundError as e:
                 # Handle video not found error
                 logger.error(f"Video not found: {e}")
                 replied = await ctx.react_quietly("❌")
                 if not replied:
-                    await ctx.reply(f"Error: {str(e)}", ephemeral=True)
+                    await ctx.reply(f"Error: {e!s}", ephemeral=True)
 
             except Exception as e:
                 # Handle general errors
                 logger.error(f"Error processing FunnyJunk link: {e}", exc_info=True)
-                await ctx.reply(f"An error occurred: {str(e)}", ephemeral=True)
+                await ctx.reply(f"An error occurred: {e!s}", ephemeral=True)
 
     async def get_video_url(self, link: str) -> str:
         """Get the video URL from a FunnyJunk link, with caching."""
@@ -319,7 +319,7 @@ class IspyFJ(commands.Cog):
         # check if response is empty or contains "Login"
         return response, response_text
 
-    def _find_video_url(self, html: str) -> Optional[str]:
+    def _find_video_url(self, html: str) -> str | None:
         """Find video URL using multiple strategies."""
         # Try different extraction methods in order of reliability
         video_url = None
@@ -354,7 +354,7 @@ class IspyFJ(commands.Cog):
 
         return None
 
-    def _extract_from_video_tag(self, html: str) -> Optional[str]:
+    def _extract_from_video_tag(self, html: str) -> str | None:
         """Extract video URL from <video> tags."""
         soup = BeautifulSoup(html, "html.parser")
 
@@ -385,7 +385,7 @@ class IspyFJ(commands.Cog):
 
         return None
 
-    def _extract_from_anchor(self, html: str) -> Optional[str]:
+    def _extract_from_anchor(self, html: str) -> str | None:
         """Extract video URL from anchor tags with data-cachedvideosrc."""
         soup = BeautifulSoup(html, "html.parser")
 
@@ -401,7 +401,7 @@ class IspyFJ(commands.Cog):
 
         return None
 
-    def _extract_from_content_div(self, html: str) -> Optional[str]:
+    def _extract_from_content_div(self, html: str) -> str | None:
         """Extract video URL from content divs and containers."""
         soup = BeautifulSoup(html, "html.parser")
 
@@ -435,7 +435,7 @@ class IspyFJ(commands.Cog):
 
         return None
 
-    def _extract_from_json_ld(self, html: str) -> Optional[str]:
+    def _extract_from_json_ld(self, html: str) -> str | None:
         """Extract video URL from JSON-LD data in scripts."""
         soup = BeautifulSoup(html, "html.parser")
 
@@ -473,7 +473,7 @@ class IspyFJ(commands.Cog):
 
         return None
 
-    def _extract_from_scripts(self, html: str) -> Optional[str]:
+    def _extract_from_scripts(self, html: str) -> str | None:
         """Extract video URL from script contents using regex."""
         soup = BeautifulSoup(html, "html.parser")
 
@@ -508,7 +508,7 @@ class IspyFJ(commands.Cog):
 
         return None
 
-    def _extract_from_meta(self, html: str) -> Optional[str]:
+    def _extract_from_meta(self, html: str) -> str | None:
         """Extract video URL from meta tags."""
         soup = BeautifulSoup(html, "html.parser")
 
@@ -561,7 +561,7 @@ class IspyFJ(commands.Cog):
         # Create and return the file
         return File(video_file, filename=filename)
 
-    async def get_settings(self) -> Dict:
+    async def get_settings(self) -> dict:
         """Get the current settings."""
         return {
             "user_agent": await self.config.user_agent(),
@@ -633,10 +633,6 @@ class IspyFJ(commands.Cog):
 class VideoNotFoundError(Exception):
     """Exception raised when a video cannot be found on the page."""
 
-    pass
-
 
 class VideoTooLargeError(Exception):
     """Exception raised when the video is too large to send."""
-
-    pass
