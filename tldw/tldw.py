@@ -1,13 +1,16 @@
 """Too Long; Didn't Watch (TLDW) - Summarize YouTube videos."""
 
+import asyncio
 import logging
 import re
 import typing as t
 from collections import OrderedDict
+from concurrent.futures import Executor, ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import aiohttp
 import discord
+import requests
 from discord import ButtonStyle
 from openai import AsyncOpenAI
 from openai.types.chat.chat_completion import ChatCompletion
@@ -22,6 +25,7 @@ from yt_transcript_fetcher import (
     VideoNotFoundError,
     YouTubeTranscriptFetcher,
 )
+from yt_transcript_fetcher.exceptions import NoLanguageError, NoSegmentsError, YouTubeAPIError
 
 MAX_CACHE_SIZE = 100
 
@@ -58,6 +62,9 @@ class TLDWatch(commands.Cog):
         self.llm_client: AsyncOpenAI | None = None
         self._summary_cache = OrderedDict()
         self.yt_transcript_fetcher = YouTubeTranscriptFetcher()
+        # Requests sessions and the fetcher's language cache stay on one worker.
+        # Cancelling an awaiting Discord command does not stop a running request.
+        self._transcript_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tldw-transcript")
 
         # context menu names must be between 1-32 characters
         self.youtube_summary_context_menu = app_commands.ContextMenu(
@@ -170,6 +177,12 @@ class TLDWatch(commands.Cog):
 
     async def cog_unload(self) -> None:
         """Called when the cog is unloaded"""
+        if self._transcript_executor is not None:
+            executor = self._transcript_executor
+            self._transcript_executor = None
+            # Close after pending requests finish, without blocking Discord's event loop.
+            executor.submit(self.yt_transcript_fetcher.session.close)
+            executor.shutdown(wait=False)
         self.bot.tree.remove_command(
             self.youtube_summary_context_menu.name,
             type=self.youtube_summary_context_menu.type,
@@ -596,13 +609,19 @@ class TLDWatch(commands.Cog):
             return self._summary_cache[video_id]
 
         # get the transcript of the video using the video id
+        languages = await self.config.languages()
+        if self._transcript_executor is None:
+            raise ValueError("The summarizer is reloading. Please try again shortly.")
         transcript = await get_transcript(
             self.yt_transcript_fetcher,
             video_id,
-            languages=await self.config.languages(),
+            languages=languages,
+            executor=self._transcript_executor,
         )
 
         # summarize the transcript using the LLM
+        if self._transcript_executor is None:
+            raise ValueError("The summarizer is reloading. Please try again shortly.")
         response = await self.generate_summary(transcript)
         if not response or not response.choices or not response.choices[0].message:
             raise ValueError("Failed to generate a summary.")
@@ -734,10 +753,22 @@ def markdown_to_embed(markdown: str) -> discord.Embed:
 async def get_transcript(
     transcript_fetcher: YouTubeTranscriptFetcher,
     video_id: str,
-    languages: list[str] = ["en-US", "en-GB", "en"],
+    languages: t.Sequence[str] = ("en-US", "en-GB", "en"),
+    *,
+    executor: Executor | None = None,
 ) -> str:
-    """Get the transcript of a YouTube video."""
-    # get the transcript of the video using the video id
+    """Fetch a transcript without blocking the Discord event loop."""
+    return await asyncio.get_running_loop().run_in_executor(
+        executor, _get_transcript, transcript_fetcher, video_id, tuple(languages)
+    )
+
+
+def _get_transcript(
+    transcript_fetcher: YouTubeTranscriptFetcher,
+    video_id: str,
+    languages: t.Sequence[str],
+) -> str:
+    """Run the synchronous client and translate its failures for Discord users."""
     try:
         available_languages = transcript_fetcher.list_languages(video_id=video_id)
         # find the first language in the list of languages that is available for the video
@@ -752,19 +783,40 @@ async def get_transcript(
         transcript = transcript_fetcher.get_transcript(
             video_id=video_id, language=language
         )
-    except NoTranscriptError as e:
+        if not transcript or not transcript.text.strip():
+            raise NoTranscriptError()
+    except (NoTranscriptError, NoLanguageError, NoSegmentsError) as e:
         raise ValueError(
-            f"No transcript available for video {video_id} in language {language}."
+            f"No transcript is available for video {video_id}."
         ) from e
     except VideoNotFoundError as e:
         raise ValueError(
             f"Couldn't find transcript for video {video_id}. Please check the video ID exists and is accessible."
         ) from e
+    except YouTubeAPIError as e:
+        raise ValueError(
+            "YouTube could not provide a valid transcript response. "
+            "Please try again later; if this persists, contact the bot owner."
+        ) from e
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 429:
+            raise ValueError(
+                "YouTube is rate limiting transcript requests from this bot. Please try again later."
+            ) from e
+        raise ValueError("YouTube rejected the transcript request. Please try again later.") from e
+    except requests.Timeout as e:
+        raise ValueError("The transcript request to YouTube timed out. Please try again later.") from e
+    except requests.ConnectionError as e:
+        raise ValueError("Could not connect to YouTube to fetch the transcript. Please try again later.") from e
+    except requests.RequestException as e:
+        raise ValueError("A network error prevented fetching the transcript. Please try again later.") from e
+    except ValueError:
+        raise
     except Exception as e:
-        raise ValueError("Error getting transcript: " + str(e))
+        raise ValueError("An unexpected error occurred while fetching the transcript.") from e
 
     # return the transcript as text
-    return transcript.text if transcript else ""
+    return transcript.text
 
 
 def get_video_id(video_url: str) -> str:
