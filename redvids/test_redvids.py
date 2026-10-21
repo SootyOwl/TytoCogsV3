@@ -113,4 +113,5 @@ def test_video_path_to_discord_file(tmp_path):
     # Mock discord.File
     with patch("redvids.redvids.discord.File") as mock_file:
         result = video_path_to_discord_file(path)
+        assert result is mock_file.return_value
         mock_file.assert_called_once_with(path, filename="video.mp4")

@@ -1,5 +1,6 @@
 import asyncio
 import io
+import logging
 
 import requests
 from discord import File
@@ -7,6 +8,8 @@ from html2image import Html2Image
 from redbot.core import commands, data_manager
 from redbot.core.bot import Red
 from wand.image import Image
+
+log = logging.getLogger("red.cogs.x2image")
 
 
 class X2Image(commands.Cog):
@@ -61,6 +64,7 @@ class X2Image(commands.Cog):
             # convert the HTML to an image
             image = await convert_html_to_image(self.hti, embed["html"])
         except Exception as e:
+            log.exception("Failed to render the tweet as an image")
             return await ctx.reply(str(e), ephemeral=True)
 
         try:
@@ -75,6 +79,7 @@ class X2Image(commands.Cog):
             # close the file once we're done with it
             image_file.close()
         except Exception as e:
+            log.exception("Failed to send the tweet image")
             return await ctx.reply(str(e), ephemeral=True)
 
     @commands.hybrid_command(name="fixup")
@@ -96,7 +101,7 @@ class X2Image(commands.Cog):
 async def get_twitter_embed(link: str, dark: bool = True) -> dict:
     """Get the Twitter embed for a tweet using the Twitter API."""
     embed_endpoint = f"https://publish.twitter.com/oembed?url={link}&theme={'dark' if dark else 'light'}"
-    response = requests.get(embed_endpoint)
+    response = await asyncio.to_thread(requests.get, embed_endpoint)
     response.raise_for_status()
     return response.json()
 

@@ -19,6 +19,7 @@ Inspired by palmtree5's `Mcsvr` cog: https://github.com/palmtree5/palmtree5-cogs
 import asyncio
 import logging
 from enum import StrEnum
+from typing import ClassVar
 
 import discord
 from discord.ext import tasks
@@ -55,12 +56,12 @@ class McInfo(commands.Cog):
 
     Uses the discord.ext.tasks extension to run the status checks periodically."""
 
-    default_channel = {
+    default_channel: ClassVar[dict] = {
         "mode": Mode.CHANNEL_DESC,
         "servers": [],
         "message_id": None,  # only used if mode is MESSAGE, the id of the bot message to edit
     }
-    default_global = {
+    default_global: ClassVar[dict] = {
         "interval": 5,  # default interval for the server check in minutes
     }
 
@@ -147,12 +148,12 @@ class McInfo(commands.Cog):
                     f"Error updating message in channel {channel_id}: {e}"
                 )
                 await self._remove_channel_from_config(channel_id)
-                raise e
+                raise
             except discord.HTTPException as e:
                 self.logger.error(
                     f"Error updating message in channel {channel_id}: {e}"
                 )
-                raise e
+                raise
 
     async def _handle_message(
         self,
@@ -270,7 +271,9 @@ class McInfo(commands.Cog):
                 # pin the message if we can
                 await message.pin(reason="Initial message for mcinfo cog.")
             except Exception:
-                pass
+                self.logger.debug(
+                    "Could not pin the server status message", exc_info=True
+                )
             # update the config with the message id
             await self.config.channel(channel).message_id.set(message.id)
             await ctx.send(

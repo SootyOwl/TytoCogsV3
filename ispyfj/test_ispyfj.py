@@ -124,7 +124,6 @@ async def test_extraction_methods(html_content, expected_url, extraction_method,
 @pytest.mark.asyncio
 async def test_video_url_to_file(funnyjunk_credentials, cog):
     """Test file creation from video URL."""
-    cog.config.username
     await cog.cog_load()
     await cog.login_to_funnyjunk(**funnyjunk_credentials)
 
