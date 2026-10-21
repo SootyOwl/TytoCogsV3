@@ -1,3 +1,9 @@
+## 0.8.2 (2026-10-21)
+
+### Fix
+
+- **tldw**: keep SDK dependencies compatible with Red (#122)
+
 ## 0.8.1 (2026-10-21)
 
 ### Fix
