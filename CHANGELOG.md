@@ -1,3 +1,9 @@
+## 0.9.0 (2026-10-21)
+
+### Feat
+
+- **tldw**: add configurable reasoning toggle (#135)
+
 ## 0.8.2 (2026-10-21)
 
 ### Fix
