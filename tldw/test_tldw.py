@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 
+import httpx
 import pytest
+from openai import AsyncOpenAI
 from pytest_mock import MockerFixture
 from yt_transcript_fetcher import YouTubeTranscriptFetcher
 
@@ -212,3 +214,84 @@ async def test_get_llm_response_without_mocker(llm_client):
         model="openai/gpt-oss-safeguard-20b",
     )
     assert response.choices[0].message.content == "Test response"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("setting", [None, False, True])
+async def test_reasoning_setting_reaches_openrouter(setting):
+    import json
+
+    requests = []
+
+    def respond(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "id": "test",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "test",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "# Summary"},
+                        "finish_reason": "stop",
+                    }
+                ],
+            },
+        )
+
+    async with AsyncOpenAI(
+        api_key="test",
+        base_url="https://openrouter.test/api/v1",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+    ) as client:
+        if setting is None:
+            await tldw.get_llm_response(client, "Transcript", "Summarize")
+        else:
+            await tldw.get_llm_response(
+                client, "Transcript", "Summarize", reasoning=setting
+            )
+    if setting is None:
+        assert "reasoning" not in requests[0]
+    else:
+        assert requests[0]["reasoning"] == {"enabled": setting}
+    assert requests[0]["models"] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("setting", [False, True])
+async def test_reasoning_command_updates_requests(mocker, setting):
+    cog = object.__new__(tldw.TLDWatch)
+    stored = {"value": None}
+
+    async def read_setting():
+        return stored["value"]
+
+    async def write_setting(value):
+        stored["value"] = value
+
+    cog.config = SimpleNamespace(
+        model=mocker.AsyncMock(return_value="test-model"),
+        other_models=mocker.AsyncMock(return_value=[]),
+        system_prompt=mocker.AsyncMock(return_value="Summarize"),
+    )
+
+    # Special methods are looked up on the type rather than the instance.
+    class Setting:
+        __call__ = staticmethod(read_setting)
+        set = staticmethod(write_setting)
+
+    cog.config.reasoning = Setting()
+    cog.llm_client = SimpleNamespace(api_key="test")
+    ctx = SimpleNamespace(send=mocker.AsyncMock())
+    await tldw.TLDWatch.set_reasoning.callback(cog, ctx, setting)
+    assert stored["value"] is setting
+    request = mocker.patch.object(
+        tldw, "get_llm_response", new_callable=mocker.AsyncMock
+    )
+    await cog.generate_summary("Transcript")
+    assert request.call_args.kwargs["reasoning"] is setting
+    await tldw.TLDWatch.set_reasoning.callback(cog, ctx)
+    assert ("enabled" if setting else "disabled") in ctx.send.call_args.args[0].lower()
