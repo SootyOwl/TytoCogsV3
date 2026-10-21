@@ -76,7 +76,7 @@ def exponential_backoff_retry(
                         continue
                     else:
                         # Last attempt failed, re-raise the exception
-                        raise e
+                        raise
 
             # This should not be reached, but just in case
             if last_exception:
@@ -228,16 +228,16 @@ class IspyFJ(commands.Cog):
                 # Try to remove the preview embed from the triggering message
                 try:
                     await ctx.message.edit(suppress=True)
-                except Exception as e:
-                    logger.debug(f"Failed to suppress embed: {e}")
+                except Exception:
+                    logger.debug("Failed to suppress embed", exc_info=True)
 
                 # Send the video
                 try:
                     video_file = None
                     video_file = await self.video_url_to_file(video_url)
                     await ctx.reply(file=video_file)
-                except Exception as e:
-                    logger.exception(f"Failed to send video file: {e}")
+                except Exception:
+                    logger.exception("Failed to send video file")
                     # Just send the URL if we can't download the file
                     await ctx.reply(f"{video_url}")
                 finally:
@@ -245,8 +245,8 @@ class IspyFJ(commands.Cog):
                     if video_file and hasattr(video_file, "close"):
                         try:
                             video_file.close()
-                        except Exception as e:
-                            logger.debug(f"Failed to close video file: {e}")
+                        except Exception:
+                            logger.debug("Failed to close video file", exc_info=True)
 
             except VideoNotFoundError as e:
                 # Handle video not found error
@@ -257,7 +257,7 @@ class IspyFJ(commands.Cog):
 
             except Exception as e:
                 # Handle general errors
-                logger.error(f"Error processing FunnyJunk link: {e}", exc_info=True)
+                logger.exception("Error processing FunnyJunk link")
                 await ctx.reply(f"An error occurred: {e!s}", ephemeral=True)
 
     async def get_video_url(self, link: str) -> str:
@@ -348,8 +348,10 @@ class IspyFJ(commands.Cog):
                             else "https://funnyjunk.com" + video_url
                         )
                     return video_url
-            except Exception as e:
-                logger.debug(f"Error in extraction method {method.__name__}: {e}")
+            except Exception:
+                logger.debug(
+                    "Error in extraction method %s", method.__name__, exc_info=True
+                )
                 continue
 
         return None
@@ -542,12 +544,12 @@ class IspyFJ(commands.Cog):
         ) as video_response:
             video_response.raise_for_status()
             # check the size of the file
-            if video_response.content_length is not None:
-                if (
-                    video_response.content_length > 25 * 1024 * 1024
-                ):  # 25 MB limit on discord
-                    # we should send the url instead, so raise an exception
-                    raise VideoTooLargeError("Video too large to send directly.")
+            if (
+                video_response.content_length is not None
+                and video_response.content_length > 25 * 1024 * 1024
+            ):  # 25 MB limit on discord
+                # we should send the url instead, so raise an exception
+                raise VideoTooLargeError("Video too large to send directly.")
 
             # Create a BytesIO object to hold the video in memory
             video_file = BytesIO()
@@ -569,7 +571,7 @@ class IspyFJ(commands.Cog):
             "cache_duration": await self.config.cache_duration(),
             "debug_mode": await self.config.debug_mode(),
             "username": await self.config.username(),
-            "password?": True if await self.config.password() else False,
+            "password?": bool(await self.config.password()),
         }
 
     @commands.group(name="fjset")
@@ -589,8 +591,8 @@ class IspyFJ(commands.Cog):
         # delete the ctx message immediately
         try:
             await ctx.message.delete()
-        except Exception as e:
-            logger.debug(f"Failed to delete message: {e}")
+        except Exception:
+            logger.debug("Failed to delete message", exc_info=True)
         # Set the credentials in the config
         await self.config.username.set(username)
         await self.config.password.set(password)

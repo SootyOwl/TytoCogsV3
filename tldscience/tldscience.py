@@ -1,4 +1,6 @@
+import asyncio
 import base64
+import logging
 
 import discord
 import httpx
@@ -6,6 +8,8 @@ from anthropic import AsyncAnthropic
 from anthropic.types.text_block import TextBlock
 from redbot.core import Config, commands
 from redbot.core.bot import Red
+
+log = logging.getLogger("red.cogs.tldscience")
 
 
 class TLDScience(commands.Cog):
@@ -122,7 +126,8 @@ class TLDScience(commands.Cog):
             # check content type of the url
             # if not a pdf, return an error
             # # get headers
-            headers = httpx.head(url).headers
+            response = await asyncio.to_thread(httpx.head, url)
+            headers = response.headers
             content_type = headers.get(
                 "content-type", headers.get("Content-Type", "")
             ).lower()
@@ -134,10 +139,10 @@ class TLDScience(commands.Cog):
 
         # try to get the pdf data from the url
         try:
-            pdf_data = base64.standard_b64encode(httpx.get(pdf_url).content).decode(
-                "utf-8"
-            )
+            response = await asyncio.to_thread(httpx.get, pdf_url)
+            pdf_data = base64.standard_b64encode(response.content).decode("utf-8")
         except Exception:
+            log.exception("Failed to retrieve the PDF")
             return await ctx.send("Something went wrong getting the PDF.")
 
         # Check if we have text to process
@@ -154,6 +159,7 @@ class TLDScience(commands.Cog):
                 await ctx.send(str(e))
                 return
             except Exception as e:
+                log.exception("Failed to summarize the PDF")
                 await ctx.send(f"An unexpected error occurred: {e!s}")
                 return
 

@@ -32,7 +32,7 @@ def extract_spotify_track_id(url: str) -> str | None:
             return path_parts[1]
 
         return None
-    except Exception:
+    except (AttributeError, TypeError, ValueError):
         return None
 
 

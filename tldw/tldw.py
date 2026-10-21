@@ -172,8 +172,7 @@ class TLDWatch(commands.Cog):
                         "Could not send migration notification to the bot owner. Please check their DM settings."
                     )
         except Exception:
-            # Silently fail if we can't send the notification
-            pass
+            log.debug("Could not send the migration notification", exc_info=True)
 
     async def cog_load(self) -> None:
         """Called when the cog is loaded"""
@@ -244,17 +243,19 @@ class TLDWatch(commands.Cog):
 
         # validate the model name against the available models
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get("https://openrouter.ai/api/v1/models") as resp:
-                try:
-                    resp.raise_for_status()
-                except aiohttp.ClientResponseError as e:
-                    await ctx.send(
-                        f"Failed to fetch available models: {e}. Please check your internet connection or try again later."
-                    )
-                    return
-                data = await resp.json()
-                available_models = data.get("data", [])
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get("https://openrouter.ai/api/v1/models") as resp,
+        ):
+            try:
+                resp.raise_for_status()
+            except aiohttp.ClientResponseError as e:
+                await ctx.send(
+                    f"Failed to fetch available models: {e}. Please check your internet connection or try again later."
+                )
+                return
+            data = await resp.json()
+            available_models = data.get("data", [])
 
         if model not in [m["id"] for m in available_models]:
             await ctx.send(
@@ -513,7 +514,7 @@ class TLDWatch(commands.Cog):
                 await self.reply_in_thread(ctx, summary)
                 return
             except Exception:
-                pass
+                log.exception("Failed to create thread for summary")
         await ctx.reply(embed=summary)
 
     async def summarize_msg_callback(
@@ -555,7 +556,7 @@ class TLDWatch(commands.Cog):
             raise ValueError("message must be provided when ctx is an Interaction")
         # check we have permissions to create threads
         if not isinstance(ctx, (commands.Context, discord.Interaction)):
-            raise ValueError("ctx must be a commands.Context or discord.Interaction")
+            raise TypeError("ctx must be a commands.Context or discord.Interaction")
         if not ctx.guild or not ctx.channel:
             raise ValueError("Threads can only be created in guilds.")
         if (
@@ -567,7 +568,7 @@ class TLDWatch(commands.Cog):
             )
 
         if not isinstance(ctx.channel, (discord.TextChannel)):
-            raise ValueError("Threads can only be created in text or forum channels.")
+            raise TypeError("Threads can only be created in text or forum channels.")
 
         if not hasattr(ctx.channel, "create_thread"):
             raise ValueError("This channel does not support threads.")
@@ -600,7 +601,7 @@ class TLDWatch(commands.Cog):
         try:
             summary = await self.handlesummarize(message.content)
         except Exception as e:
-            raise Exception(f"An error occurred: {e}")
+            raise ValueError(f"An error occurred: {e}") from e
 
         return summary
 
@@ -899,6 +900,9 @@ def _extract_message_text(message: t.Any) -> str | None:
             try:
                 payload = helper()
             except Exception:  # pragma: no cover - defensive
+                log.debug(
+                    "Could not read provider message using %s", attr, exc_info=True
+                )
                 continue
             content = payload.get("content") if isinstance(payload, dict) else None
             if content is None:
@@ -939,7 +943,7 @@ async def get_llm_response(
     text: str,
     system_prompt: str,
     model: str = "openrouter/auto",
-    other_models: list[str] = [],
+    other_models: list[str] | None = None,
 ) -> ChatCompletion:
     response: ChatCompletion = await llm_client.chat.completions.create(
         model=model,
@@ -950,7 +954,7 @@ async def get_llm_response(
         # The `extra_body` parameter with the `models` key is specific to OpenRouter.
         # It enables OpenRouter's model fallback feature, allowing the use of alternative models.
         extra_body={
-            "models": other_models,
+            "models": other_models if other_models is not None else [],
         },
         # discord character limit is 4096, and tokens are roughly 2-4 chars each, so 1000 tokens should be safe
         max_tokens=1000,
