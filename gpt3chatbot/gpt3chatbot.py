@@ -280,7 +280,7 @@ class GPT3ChatBot(commands.Cog):
     async def _set_persona_for_group(self, ctx, group, persona):
         # get persona global dict
         persona_dict = await self.config.personalities()
-        if persona.capitalize() not in persona_dict.keys():
+        if persona.capitalize() not in persona_dict:
             return await ctx.send(
                 content="Not a valid persona name. Use [p]listpersonas or [p]plist.\n"
                 f"Your current persona is `{await group.personality()}`"
@@ -297,7 +297,7 @@ class GPT3ChatBot(commands.Cog):
             title="My personas",
             description="A list of configured personas by name, with description.",
         )
-        for persona in (persona_dict := await self.config.personalities()).keys():
+        for persona in (persona_dict := await self.config.personalities()):
             personas_mbed.add_field(
                 name=persona, value=persona_dict[persona]["description"], inline=False
             )
@@ -364,7 +364,7 @@ class GPT3ChatBot(commands.Cog):
 
     @commands.is_owner()
     @gptset.command(name="model", aliases=["engine", "m"])
-    async def set_model(self, ctx: commands.Context, model: str = None):
+    async def set_model(self, ctx: commands.Context, model: str | None = None):
         """Get or set OpenAI model.
 
         This allows you to set the cost and power level of the AI's response.

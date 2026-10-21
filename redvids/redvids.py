@@ -107,5 +107,5 @@ def check_url(url: str) -> bool:
         return hostname == "reddit.com" or (
             hostname and hostname.endswith(".reddit.com")
         )
-    except Exception:
+    except (AttributeError, TypeError, ValueError):
         return False
