@@ -1,10 +1,10 @@
 version = 1
-revision = 2
+revision = 5
 requires-python = ">=3.10, <3.12"
 resolution-markers = [
     "python_full_version >= '3.11' and implementation_name == 'pypy' and sys_platform == 'win32'",
-    "python_full_version < '3.11' and implementation_name == 'pypy' and sys_platform == 'win32'",
     "(python_full_version >= '3.11' and implementation_name != 'pypy') or (python_full_version >= '3.11' and sys_platform != 'win32')",
+    "python_full_version < '3.11' and implementation_name == 'pypy' and sys_platform == 'win32'",
     "(python_full_version < '3.11' and implementation_name != 'pypy') or (python_full_version < '3.11' and sys_platform != 'win32')",
 ]
 
@@ -574,7 +574,7 @@ name = "exceptiongroup"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0b/9f/a65090624ecf468cdca03533906e7c69ed7588582240cfe7cc9e770b50eb/exceptiongroup-1.3.0.tar.gz", hash = "sha256:b241f5885f560bc56a59ee63ca4c6a8bfa46ae4ad651af316d4e81817bb9fd88", size = 29749, upload-time = "2025-05-10T17:42:51.123Z" }
 wheels = [
@@ -763,17 +763,17 @@ resolution-markers = [
     "(python_full_version < '3.11' and implementation_name != 'pypy') or (python_full_version < '3.11' and sys_platform != 'win32')",
 ]
 dependencies = [
-    { name = "colorama", marker = "python_full_version < '3.11' and sys_platform == 'win32'" },
-    { name = "decorator", marker = "python_full_version < '3.11'" },
-    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
-    { name = "jedi", marker = "python_full_version < '3.11'" },
-    { name = "matplotlib-inline", marker = "python_full_version < '3.11'" },
-    { name = "pexpect", marker = "python_full_version < '3.11' and sys_platform != 'emscripten' and sys_platform != 'win32'" },
-    { name = "prompt-toolkit", marker = "python_full_version < '3.11'" },
-    { name = "pygments", marker = "python_full_version < '3.11'" },
-    { name = "stack-data", marker = "python_full_version < '3.11'" },
-    { name = "traitlets", marker = "python_full_version < '3.11'" },
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "decorator" },
+    { name = "exceptiongroup" },
+    { name = "jedi" },
+    { name = "matplotlib-inline" },
+    { name = "pexpect", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "prompt-toolkit" },
+    { name = "pygments" },
+    { name = "stack-data" },
+    { name = "traitlets" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/85/31/10ac88f3357fc276dc8a64e8880c82e80e7459326ae1d0a211b40abf6665/ipython-8.37.0.tar.gz", hash = "sha256:ca815841e1a41a1e6b73a0b08f3038af9b2252564d01fc405356d34033012216", size = 5606088, upload-time = "2025-05-31T16:39:09.613Z" }
 wheels = [
@@ -789,17 +789,17 @@ resolution-markers = [
     "(python_full_version >= '3.11' and implementation_name != 'pypy') or (python_full_version >= '3.11' and sys_platform != 'win32')",
 ]
 dependencies = [
-    { name = "colorama", marker = "python_full_version >= '3.11' and sys_platform == 'win32'" },
-    { name = "decorator", marker = "python_full_version >= '3.11'" },
-    { name = "ipython-pygments-lexers", marker = "python_full_version >= '3.11'" },
-    { name = "jedi", marker = "python_full_version >= '3.11'" },
-    { name = "matplotlib-inline", marker = "python_full_version >= '3.11'" },
-    { name = "pexpect", marker = "python_full_version >= '3.11' and sys_platform != 'emscripten' and sys_platform != 'win32'" },
-    { name = "prompt-toolkit", marker = "python_full_version >= '3.11'" },
-    { name = "pygments", marker = "python_full_version >= '3.11'" },
-    { name = "stack-data", marker = "python_full_version >= '3.11'" },
-    { name = "traitlets", marker = "python_full_version >= '3.11'" },
-    { name = "typing-extensions", marker = "python_full_version >= '3.11'" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "decorator" },
+    { name = "ipython-pygments-lexers" },
+    { name = "jedi" },
+    { name = "matplotlib-inline" },
+    { name = "pexpect", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "prompt-toolkit" },
+    { name = "pygments" },
+    { name = "stack-data" },
+    { name = "traitlets" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/29/e6/48c74d54039241a456add616464ea28c6ebf782e4110d419411b83dae06f/ipython-9.7.0.tar.gz", hash = "sha256:5f6de88c905a566c6a9d6c400a8fed54a638e1f7543d17aae2551133216b1e4e", size = 4422115, upload-time = "2025-11-05T12:18:54.646Z" }
 wheels = [
@@ -811,7 +811,7 @@ name = "ipython-pygments-lexers"
 version = "1.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pygments", marker = "python_full_version >= '3.11'" },
+    { name = "pygments" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ef/4c/5dd1d8af08107f88c7f741ead7a40854b8ac24ddf9ae850afbcf698aa552/ipython_pygments_lexers-1.1.1.tar.gz", hash = "sha256:09c0138009e56b6854f9535736f4171d855c8c08a563a0dcd8022f78355c7e81", size = 8393, upload-time = "2025-01-17T11:24:34.505Z" }
 wheels = [
@@ -1144,7 +1144,7 @@ name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess", marker = "implementation_name != 'pypy' or sys_platform != 'win32'" },
+    { name = "ptyprocess" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
@@ -1915,6 +1915,7 @@ dependencies = [
     { name = "python-youtube" },
     { name = "red-discordbot" },
     { name = "redvid" },
+    { name = "requests" },
     { name = "spotify" },
     { name = "wand" },
     { name = "yt-transcript-fetcher" },
@@ -1945,9 +1946,10 @@ requires-dist = [
     { name = "python-youtube", specifier = ">=0.9.8" },
     { name = "red-discordbot", specifier = ">=3.5.20,<4" },
     { name = "redvid", specifier = ">=2.0.5,<3" },
+    { name = "requests", specifier = ">=2.32.4,<3" },
     { name = "spotify", specifier = ">=0.10.2" },
     { name = "wand", specifier = ">=0.6.13,<0.7" },
-    { name = "yt-transcript-fetcher", specifier = ">=1.2.1,<2" },
+    { name = "yt-transcript-fetcher", specifier = ">=2.0.0,<3" },
 ]
 
 [package.metadata.requires-dev]
@@ -2083,15 +2085,15 @@ wheels = [
 
 [[package]]
 name = "yt-transcript-fetcher"
-version = "1.2.1"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "argcomplete" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1b/61/0a7d0d99a2414f19d63bf4bbe69dc406397816718b80f151309e3871fc1b/yt_transcript_fetcher-1.2.1.tar.gz", hash = "sha256:27587c0fec831adf5e2e155277566a2919a94deb256b0c334d5c2346632a4523", size = 112861, upload-time = "2025-12-29T16:22:04.661Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c6/3e/7bce12ea2babe5e52a0c8cf76b664104991ba4a30ca6fab1616c6251115a/yt_transcript_fetcher-2.0.0.tar.gz", hash = "sha256:5e97c73c7cc56e901db2b702874c1ff1e1c8afc24aece2ad7ed0ae38cbe077a2", size = 120908, upload-time = "2026-10-21T16:41:09.646Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/11/89/8c70688bd49d8cea5d14e41a312e78f40417d2e2fc7890f09f161ca8bf65/yt_transcript_fetcher-1.2.1-py3-none-any.whl", hash = "sha256:36666562539e3660f0c4b019ffa107a50b7d7e03effe95bae4f0de1959f5b629", size = 15395, upload-time = "2025-12-29T16:22:03.517Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/85/f900bbebf5cda1c88e3e8722d5bf5e69b970aae7e454311d954c22ec4e4e/yt_transcript_fetcher-2.0.0-py3-none-any.whl", hash = "sha256:687c1789ceed20f485141f0ad2bd1d1116db36b21b6ac0d3320d227b8051c030", size = 19768, upload-time = "2026-10-21T16:41:08.261Z" },
 ]
 
 [[package]]
