@@ -1,3 +1,10 @@
+## 0.8.1 (2026-10-21)
+
+### Fix
+
+- resolve repository lint failures (#119)
+- **tldw**: migrate to transcript fetcher v2 (#118)
+
 ## 0.8.0 (2026-02-18)
 
 ### Feat
