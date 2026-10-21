@@ -25,7 +25,11 @@ from yt_transcript_fetcher import (
     VideoNotFoundError,
     YouTubeTranscriptFetcher,
 )
-from yt_transcript_fetcher.exceptions import NoLanguageError, NoSegmentsError, YouTubeAPIError
+from yt_transcript_fetcher.exceptions import (
+    NoLanguageError,
+    NoSegmentsError,
+    YouTubeAPIError,
+)
 
 MAX_CACHE_SIZE = 100
 
@@ -64,7 +68,9 @@ class TLDWatch(commands.Cog):
         self.yt_transcript_fetcher = YouTubeTranscriptFetcher()
         # Requests sessions and the fetcher's language cache stay on one worker.
         # Cancelling an awaiting Discord command does not stop a running request.
-        self._transcript_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tldw-transcript")
+        self._transcript_executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="tldw-transcript"
+        )
 
         # context menu names must be between 1-32 characters
         self.youtube_summary_context_menu = app_commands.ContextMenu(
@@ -786,9 +792,7 @@ def _get_transcript(
         if not transcript or not transcript.text.strip():
             raise NoTranscriptError()
     except (NoTranscriptError, NoLanguageError, NoSegmentsError) as e:
-        raise ValueError(
-            f"No transcript is available for video {video_id}."
-        ) from e
+        raise ValueError(f"No transcript is available for video {video_id}.") from e
     except VideoNotFoundError as e:
         raise ValueError(
             f"Couldn't find transcript for video {video_id}. Please check the video ID exists and is accessible."
@@ -803,17 +807,27 @@ def _get_transcript(
             raise ValueError(
                 "YouTube is rate limiting transcript requests from this bot. Please try again later."
             ) from e
-        raise ValueError("YouTube rejected the transcript request. Please try again later.") from e
+        raise ValueError(
+            "YouTube rejected the transcript request. Please try again later."
+        ) from e
     except requests.Timeout as e:
-        raise ValueError("The transcript request to YouTube timed out. Please try again later.") from e
+        raise ValueError(
+            "The transcript request to YouTube timed out. Please try again later."
+        ) from e
     except requests.ConnectionError as e:
-        raise ValueError("Could not connect to YouTube to fetch the transcript. Please try again later.") from e
+        raise ValueError(
+            "Could not connect to YouTube to fetch the transcript. Please try again later."
+        ) from e
     except requests.RequestException as e:
-        raise ValueError("A network error prevented fetching the transcript. Please try again later.") from e
+        raise ValueError(
+            "A network error prevented fetching the transcript. Please try again later."
+        ) from e
     except ValueError:
         raise
     except Exception as e:
-        raise ValueError("An unexpected error occurred while fetching the transcript.") from e
+        raise ValueError(
+            "An unexpected error occurred while fetching the transcript."
+        ) from e
 
     # return the transcript as text
     return transcript.text

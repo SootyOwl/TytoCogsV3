@@ -7,7 +7,11 @@ from types import SimpleNamespace
 import pytest
 import requests
 from yt_transcript_fetcher import NoTranscriptError, VideoNotFoundError
-from yt_transcript_fetcher.exceptions import NoLanguageError, NoSegmentsError, YouTubeAPIError
+from yt_transcript_fetcher.exceptions import (
+    NoLanguageError,
+    NoSegmentsError,
+    YouTubeAPIError,
+)
 from yt_transcript_fetcher.models import Language, LanguageList
 
 from tldw import tldw
@@ -65,7 +69,9 @@ def http_error(status):
         (requests.RequestException("private upstream details"), "network"),
     ],
 )
-async def test_transcript_failures_are_actionable_and_keep_the_cause(stage, error, expected):
+async def test_transcript_failures_are_actionable_and_keep_the_cause(
+    stage, error, expected
+):
     fetcher = Fetcher(error=error, stage=stage)
     with pytest.raises(ValueError) as caught:
         await tldw.get_transcript(fetcher, "dQw4w9WgXcQ")
@@ -78,7 +84,9 @@ async def test_transcript_failures_are_actionable_and_keep_the_cause(stage, erro
 
 async def test_language_preferences_select_the_first_available_language():
     fetcher = Fetcher()
-    text = await tldw.get_transcript(fetcher, "dQw4w9WgXcQ", languages=["fr", "de", "en"])
+    text = await tldw.get_transcript(
+        fetcher, "dQw4w9WgXcQ", languages=["fr", "de", "en"]
+    )
     assert text == "Transcript text"
     assert fetcher.calls[-1] == ("transcript", "dQw4w9WgXcQ", "de")
 
@@ -126,7 +134,11 @@ async def test_summary_flow_caches_success_and_keeps_transcript_text(cog, mocker
     cog.yt_transcript_fetcher = fetcher
     cog.generate_summary = mocker.AsyncMock(
         return_value=SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="# A title\nA summary."))],
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content="# A title\nA summary.")
+                )
+            ],
             model="test-model",
             usage=None,
             created=0,
@@ -168,7 +180,9 @@ async def test_cog_serializes_shared_session_even_after_cancellation(cog, mocker
     cog.yt_transcript_fetcher = BlockingFetcher()
     cog.generate_summary = mocker.AsyncMock(
         return_value=SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="# Title\nSummary"))],
+            choices=[
+                SimpleNamespace(message=SimpleNamespace(content="# Title\nSummary"))
+            ],
             model="test-model",
             usage=None,
             created=0,
@@ -186,7 +200,9 @@ async def test_cog_serializes_shared_session_even_after_cancellation(cog, mocker
         assert not await asyncio.to_thread(second_started.wait, 0.1)
     finally:
         release.set()
-        await asyncio.gather(first, *([second] if second else []), return_exceptions=True)
+        await asyncio.gather(
+            first, *([second] if second else []), return_exceptions=True
+        )
     assert second_started.is_set()
 
 
@@ -203,7 +219,9 @@ async def test_command_waiting_for_config_does_not_fetch_after_unload(cog, mocke
     resume = asyncio.Event()
     fetcher = Fetcher()
     cog.yt_transcript_fetcher = fetcher
-    cog.generate_summary = mocker.AsyncMock(side_effect=AssertionError("LLM invoked after unload"))
+    cog.generate_summary = mocker.AsyncMock(
+        side_effect=AssertionError("LLM invoked after unload")
+    )
 
     async def languages():
         entered.set()
@@ -235,12 +253,16 @@ async def test_unload_during_fetch_does_not_use_the_closed_llm_client(cog, mocke
 
     cog.yt_transcript_fetcher = BlockingFetcher()
     cog.yt_transcript_fetcher.session.close = closed.set
-    cog.generate_summary = mocker.AsyncMock(side_effect=AssertionError("LLM invoked after unload"))
+    cog.generate_summary = mocker.AsyncMock(
+        side_effect=AssertionError("LLM invoked after unload")
+    )
     task = asyncio.create_task(cog.handlesummarize("https://youtu.be/dQw4w9WgXcQ"))
     try:
         assert await asyncio.to_thread(started.wait, 1)
         await cog.cog_unload()
-        assert not closed.is_set(), "The session must stay open while its request is running"
+        assert not closed.is_set(), (
+            "The session must stay open while its request is running"
+        )
         release.set()
         with pytest.raises(ValueError, match="reload"):
             await task
