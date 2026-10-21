@@ -1,0 +1,33 @@
+name: Live Service Checks
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-services:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: pyproject.toml
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+      - name: Setup FFmpeg
+        uses: federicocarboni/setup-ffmpeg@v3.1
+      - name: Run explicitly requested live checks
+        env:
+          FUNNYJUNK_USERNAME: ${{ secrets.FUNNYJUNK_USERNAME }}
+          FUNNYJUNK_PASSWORD: ${{ secrets.FUNNYJUNK_PASSWORD }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+          HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
+        run: uv run pytest --live -m live -ra

@@ -130,8 +130,31 @@ pre-commit install
 ### Running Tests
 
 ```bash
-pytest
+uv run pytest
 ```
+
+Normal tests block network access and skip checks marked `live`, even when API
+keys are configured. Required PR tests run only these ordinary tests and receive
+no service credentials.
+
+To explicitly run live external-service checks:
+
+```bash
+uv run pytest --live -m live -ra
+```
+
+These checks contact YouTube, FunnyJunk, Minecraft servers, and OpenRouter. The
+OpenRouter check can incur API charges. Configure `OPENROUTER_API_KEY` (or the
+legacy `OPENAI_API_KEY`) for that check, and `FUNNYJUNK_USERNAME` plus
+`FUNNYJUNK_PASSWORD` for authenticated FunnyJunk checks. Missing or blank
+credentials cause the relevant tests to skip; configured but invalid credentials
+still fail. Local `.env` files are supported.
+
+On GitHub, use **Actions → Live Service Checks → Run workflow**. This workflow is
+manual only: it does not run on pushes, pull requests, or a schedule. Repository
+Actions secrets provide credentials and optional `HTTP_PROXY` / `HTTPS_PROXY`;
+tests whose credentials are absent skip. Existing disabled X checks remain skipped.
+
 
 ### Code Style
 

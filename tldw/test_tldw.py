@@ -1,3 +1,4 @@
+import os
 from types import SimpleNamespace
 
 import httpx
@@ -67,6 +68,7 @@ def ytt_api():
     ],
 )
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_get_transcript(ytt_api, video_id, expected):
     transcript = await tldw.get_transcript(ytt_api, video_id)
     # YouTube's modern panels can group caption lines differently.
@@ -74,6 +76,7 @@ async def test_get_transcript(ytt_api, video_id, expected):
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_get_transcript_languages(ytt_api):
     video_id = "rnCVlVSE5pI"  # de
     transcript = await tldw.get_transcript(ytt_api, video_id, languages=["en", "de"])
@@ -82,6 +85,7 @@ async def test_get_transcript_languages(ytt_api):
 
 # test get_transcript function with invalid video id
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_get_transcript_invalid_video_id(ytt_api):
     video_id = "invalid_video_id"
     with pytest.raises(ValueError):
@@ -190,18 +194,25 @@ async def test_get_llm_response_strips_reasoning_parts(mocker: MockerFixture):
 
 # test without mocking
 @pytest.fixture
-def llm_client():
-    # load the .env file and get the api key
+async def llm_client(require_credentials):
     from dotenv import load_dotenv
 
-    from tldw.tldw import AsyncOpenAI
-
     load_dotenv()
-
-    return AsyncOpenAI(base_url="https://openrouter.ai/api/v1")
+    # Preserve OPENAI_API_KEY support for existing CI/local configurations.
+    key_name = (
+        "OPENROUTER_API_KEY"
+        if os.getenv("OPENROUTER_API_KEY", "").strip()
+        else "OPENAI_API_KEY"
+    )
+    credentials = require_credentials(key_name)
+    async with AsyncOpenAI(
+        api_key=credentials[key_name], base_url="https://openrouter.ai/api/v1"
+    ) as client:
+        yield client
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_get_llm_response_without_mocker(llm_client):
     """Test the get_llm_response function without mocking."""
     # Test the get_llm_response function

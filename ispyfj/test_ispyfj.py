@@ -1,5 +1,4 @@
 import io
-import os
 import sys
 
 import aiohttp
@@ -122,6 +121,7 @@ async def test_extraction_methods(html_content, expected_url, extraction_method,
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_video_url_to_file(funnyjunk_credentials, cog):
     """Test file creation from video URL."""
     await cog.cog_load()
@@ -166,14 +166,15 @@ async def test_find_video_url(cog):
 
 
 @pytest.fixture
-def funnyjunk_credentials():
+def funnyjunk_credentials(require_credentials):
     from dotenv import load_dotenv
 
     load_dotenv()
 
+    credentials = require_credentials("FUNNYJUNK_USERNAME", "FUNNYJUNK_PASSWORD")
     return {
-        "username": os.getenv("FUNNYJUNK_USERNAME", "test_username"),
-        "password": os.getenv("FUNNYJUNK_PASSWORD", "test_password"),
+        "username": credentials["FUNNYJUNK_USERNAME"],
+        "password": credentials["FUNNYJUNK_PASSWORD"],
     }
 
 
@@ -200,6 +201,7 @@ def funnyjunk_credentials():
         ),
     ],
 )
+@pytest.mark.live
 async def test_get_video_url(name, input_url, expected_url, cog):
     """Test the get_video_url method"""
     video_url = await cog.get_video_url(input_url)
@@ -207,6 +209,7 @@ async def test_get_video_url(name, input_url, expected_url, cog):
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_get_video_url_login_required(funnyjunk_credentials, cog, mocker):
     """Test the get_video_url method with login required."""
     url = "https://funnyjunk.com/White+people+things/jcveTwp/"

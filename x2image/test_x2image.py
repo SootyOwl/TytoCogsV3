@@ -35,6 +35,7 @@ async def test_oembed_request_does_not_block_discord(status, mocker):
 
 @pytest.mark.skip(reason="Skipped due to deprecated / disabled cog.")
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_get_twitter_embed():
     link = "https://x.com/elonmusk/status/1812102074588426669"
     embed = await get_twitter_embed(link)
@@ -48,6 +49,7 @@ async def test_get_twitter_embed():
     reason="This test is expected to fail due to chrome's headless mode changes.",
 )
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_convert_html_to_image():
     hti = Html2Image(
         custom_flags=[
