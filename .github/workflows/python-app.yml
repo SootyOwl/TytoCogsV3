@@ -25,6 +25,28 @@ jobs:
         python-version-file: "pyproject.toml"
     - name: Install the project
       run: uv sync --locked --all-extras --dev
+    - name: Check standalone TLDW dependency installation
+      run: |
+        uv run python - <<'PY'
+        import json
+        import subprocess
+        import sys
+        import tempfile
+        from pathlib import Path
+
+        requirements = json.loads(Path("tldw/info.json").read_text())["requirements"]
+        with tempfile.TemporaryDirectory() as target:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--upgrade", "--target", target, *requirements],
+                check=True,
+            )
+            # Red imports typing_extensions before Downloader installs cog dependencies.
+            # A fresh target must still import with that module already cached.
+            subprocess.run(
+                [sys.executable, "-c", "import sys, typing_extensions; sys.path.insert(0, sys.argv[1]); from tldw import TLDWatch", target],
+                check=True,
+            )
+        PY
     - name: Setup FFmpeg
       uses: federicocarboni/setup-ffmpeg@v3.1
     - name: Test with pytest
