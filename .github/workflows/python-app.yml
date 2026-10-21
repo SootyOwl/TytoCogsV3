@@ -47,14 +47,5 @@ jobs:
                 check=True,
             )
         PY
-    - name: Setup FFmpeg
-      uses: federicocarboni/setup-ffmpeg@v3.1
-    - name: Test with pytest
-      env:  # set secrets as input
-        FUNNYJUNK_USERNAME: ${{ secrets.FUNNYJUNK_USERNAME }}
-        FUNNYJUNK_PASSWORD: ${{ secrets.FUNNYJUNK_PASSWORD }}
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
-        HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
-      run: uv run pytest
+    - name: Test with pytest (no live services)
+      run: uv run pytest -m "not live"

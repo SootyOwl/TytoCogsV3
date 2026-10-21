@@ -18,6 +18,7 @@ from mcinfo.helpers import (
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_get_status_returns_status_response():
     resp = await fetch_server_status("mc.tyto.cc:25565")
     assert isinstance(resp, JavaStatusResponse)
@@ -27,18 +28,21 @@ async def test_get_status_returns_status_response():
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_get_status_bad_address():
     with pytest.raises(ConnectionError):
         await fetch_server_status(address="notvalid:25565")
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_get_status_not_online():
     with pytest.raises(ConnectionError):
         await fetch_server_status(address="www.google.com:25565")
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_fetch_servers():
     addresses = ["mc.tyto.cc:25565", "mc.hypixel.net"]
     results = await fetch_servers(addresses)
@@ -50,6 +54,7 @@ async def test_fetch_servers():
 
 
 @pytest.mark.asyncio
+@pytest.mark.live
 async def test_fetch_servers_with_invalid_address():
     addresses = ["mc.tyto.cc:25565", "notvalid:25565"]
     results = await fetch_servers(addresses)
