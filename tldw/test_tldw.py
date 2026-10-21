@@ -48,7 +48,9 @@ def test_get_video_id_invalid_input(video_url):
 
 @pytest.fixture
 def ytt_api():
-    return YouTubeTranscriptFetcher()
+    fetcher = YouTubeTranscriptFetcher()
+    yield fetcher
+    fetcher.session.close()
 
 
 @pytest.mark.parametrize(
@@ -65,7 +67,8 @@ def ytt_api():
 @pytest.mark.asyncio
 async def test_get_transcript(ytt_api, video_id, expected):
     transcript = await tldw.get_transcript(ytt_api, video_id)
-    assert expected in transcript
+    # YouTube's modern panels can group caption lines differently.
+    assert " ".join(expected.split()) in " ".join(transcript.split())
 
 
 @pytest.mark.asyncio
