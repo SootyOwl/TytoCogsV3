@@ -1,5 +1,12 @@
 # tldw changelog
 
+## Reasoning control
+
+- Add owner-only `tldwset reasoning on/off` to request or disable model reasoning.
+  With no argument, show the current setting. Existing installations retain the
+  model default until explicitly configured. Models with mandatory reasoning may
+  not support disabling it.
+
 ## Dependency compatibility fix
 
 - Constrain Pydantic to the 2.11 series in the cog installer as well as the project

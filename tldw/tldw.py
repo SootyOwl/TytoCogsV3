@@ -52,6 +52,7 @@ class TLDWatch(commands.Cog):
             "api_key": None,
             "model": "openrouter/auto",
             "other_models": [],
+            "reasoning": None,  # Preserve the model default until explicitly set.
             "system_prompt": ("You are a YouTube video note taker and summarizer."),
             "languages": ["en-US", "en-GB", "en"],
             "migration_notified": False,  # Track if user has been notified about OpenRouter migration
@@ -265,6 +266,26 @@ class TLDWatch(commands.Cog):
 
         await self.config.model.set(model)
         await ctx.send(f"Model set to: {model}")
+
+    @commands.is_owner()
+    @tldwset.command(name="reasoning")
+    async def set_reasoning(
+        self, ctx: commands.Context, enabled: bool | None = None
+    ) -> None:
+        """Enable or disable model reasoning (owner only).
+
+        Use on/off, or omit the argument to show the current setting.
+        Some models require reasoning and cannot disable it.
+        """
+        if enabled is not None:
+            await self.config.reasoning.set(enabled)
+        current = await self.config.reasoning()
+        state = (
+            "model default" if current is None else "enabled" if current else "disabled"
+        )
+        await ctx.send(
+            f"Reasoning: {state}. Models must support the requested setting."
+        )
 
     @commands.is_owner()
     @tldwset.command(name="apikey")
@@ -709,6 +730,7 @@ class TLDWatch(commands.Cog):
                 system_prompt,
                 model=model,
                 other_models=other_models,
+                reasoning=await self.config.reasoning(),
             )
         except Exception as e:
             raise ValueError(f"Error generating summary: {e}") from e
@@ -944,6 +966,7 @@ async def get_llm_response(
     system_prompt: str,
     model: str = "openrouter/auto",
     other_models: list[str] | None = None,
+    reasoning: bool | None = None,
 ) -> ChatCompletion:
     response: ChatCompletion = await llm_client.chat.completions.create(
         model=model,
@@ -955,6 +978,7 @@ async def get_llm_response(
         # It enables OpenRouter's model fallback feature, allowing the use of alternative models.
         extra_body={
             "models": other_models if other_models is not None else [],
+            **({"reasoning": {"enabled": reasoning}} if reasoning is not None else {}),
         },
         # discord character limit is 4096, and tokens are roughly 2-4 chars each, so 1000 tokens should be safe
         max_tokens=1000,
