@@ -1,5 +1,16 @@
 # tldw changelog
 
+## Dependency compatibility fix
+
+- Constrain Pydantic to the 2.11 series in the cog installer as well as the project
+  environment. Red 3.5.24 pins `typing-extensions==4.13.2`, which lacks the `Sentinel`
+  API required by newer Pydantic releases.
+- Keep the standalone install's typing dependency at Red's version so other SDK
+  dependencies also resolve against the APIs available in the running bot.
+- For an existing installation with this import error, restore
+  `openai==2.8.1`, `pydantic==2.11.10`, and Red's `typing-extensions==4.13.2`
+  together, then restart the bot.
+
 ## Unreleased
 
 ### Changed
