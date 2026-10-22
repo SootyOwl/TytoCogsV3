@@ -17,7 +17,7 @@
     "disabled": false,
     "required_cogs": {},
     "requirements": [
-        "mcstatus==11.1.1"
+        "mcstatus>=14.2.0,<15"
     ],
     "tags": [
         "minecraft",
