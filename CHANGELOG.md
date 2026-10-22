@@ -1,3 +1,9 @@
+## 0.10.0 (2026-10-22)
+
+### Feat
+
+- **mcinfo**: show MOTD and reported modded status (#140)
+
 ## 0.9.1 (2026-10-22)
 
 ### Fix
