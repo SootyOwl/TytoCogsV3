@@ -13,7 +13,7 @@ dependencies = [
   "typing-extensions==4.13.2",
   "beautifulsoup4>=4.12.3,<5",
   "html2image>=2.0.6,<3",
-  "wand>=0.6.13,<0.7",
+  "wand>=0.6.13,<0.8",
   "redvid>=2.0.5,<3",
   "anthropic>=0.51.0,<0.52",
   "mcstatus>=14.2.0,<15",
