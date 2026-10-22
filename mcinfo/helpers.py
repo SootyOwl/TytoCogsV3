@@ -38,59 +38,51 @@ async def fetch_servers(addresses: list[str]) -> dict[str, JavaStatusResponse | 
     return server_status
 
 
-async def format_channel_desc(address, status: JavaStatusResponse | None) -> str:
-    """Format the server status for channel description."""
-    # if status is None, return a message indicating the server is offline
-    if status is None:
-        description = f"Server info for {address}:\n\nOnline: No"
-        return description
+def _truncate(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1] + "…"
 
-    # format the server status
-    description = (
-        "Server info for {address}:\n\n"
-        "Online: Yes\n"
-        "Online count: {online_count}/{max_count}\n"
-        "Online players: {online_players}\n"
-        "Version: {version}"
+
+def _format_server_details(status: JavaStatusResponse) -> str:
+    online = "Online: Yes" + (" · 🧩 Modded" if status.is_modded else "")
+    players = (
+        ", ".join(player.name for player in status.players.sample)
+        if status.players.sample
+        else "None"
     )
-    fillers = {
-        "address": address,
-        "online_count": status.players.online,
-        "max_count": status.players.max,
-        "online_players": (
-            ", ".join(player.name for player in status.players.sample)
-            if status.players.sample
-            else "None"
-        ),
-        "version": status.version.name,
-    }
+    details = (
+        f"{online}\nOnline count: {status.players.online}/{status.players.max}"
+        f"\nOnline players: {players}\nVersion: {status.version.name}"
+    )
+    motd = status.motd.to_plain().strip()
+    if motd:
+        motd = discord.utils.escape_markdown(discord.utils.escape_mentions(motd))
+        details += f"\nMOTD: {motd}"
+    return details
 
-    # format the description
-    description = description.format(**fillers)
-    return description
+
+async def format_channel_desc(address, status: JavaStatusResponse | None) -> str:
+    """Format the server status within Discord's channel topic limit."""
+    details = "Online: No" if status is None else _format_server_details(status)
+    return _truncate(f"Server info for {address}:\n\n{details}", 1024)
 
 
 async def format_message_embed(
     statuses: dict[str, JavaStatusResponse | None],
 ) -> discord.Embed:
-    """Format the server status for a message embed."""
-    # create an embed object
+    """Format status and MOTD while respecting Discord's field and embed limits."""
     embed = discord.Embed(title="Minecraft Server Status", color=discord.Color.green())
-
-    # iterate over the statuses and add fields to the embed
     for address, status in statuses.items():
-        if status is None:
-            embed.add_field(name=address, value="Offline", inline=False)
-        else:
-            online_players = (
-                ", ".join(player.name for player in status.players.sample)
-                if status.players.sample
-                else "None"
-            )
-            embed.add_field(
-                name=address,
-                value=f"Online: Yes\nOnline count: {status.players.online}/{status.players.max}\nOnline players: {online_players}\nVersion: {status.version.name}",
-                inline=False,
-            )
-
+        name = _truncate(address, 256)
+        # Reserve room to explain omitted servers if the embed fills up.
+        available = min(1024, 6000 - len(embed) - len(name) - 50)
+        if len(embed.fields) >= 25 or available < 1:
+            break
+        details = "Offline" if status is None else _format_server_details(status)
+        embed.add_field(name=name, value=_truncate(details, available), inline=False)
+    omitted = len(statuses) - len(embed.fields)
+    if omitted:
+        noun = "server" if omitted == 1 else "servers"
+        embed.set_footer(text=f"{omitted} additional {noun} not shown.")
     return embed

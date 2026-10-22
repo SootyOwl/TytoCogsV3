@@ -109,7 +109,8 @@ async def test_format_channel_desc(server_status: JavaStatusResponse):
         "Online: Yes\n"
         "Online count: 1/20\n"
         "Online players: Player1\n"
-        "Version: Paper 1.21.1"
+        "Version: Paper 1.21.1\n"
+        "MOTD: Let's kill the dragon at the weekend!"
     )
 
 
@@ -144,7 +145,8 @@ async def test_format_channel_desc_multiple_players(server_status: JavaStatusRes
         "Online: Yes\n"
         "Online count: 2/20\n"
         "Online players: Player1, Player2\n"
-        "Version: Paper 1.21.1"
+        "Version: Paper 1.21.1\n"
+        "MOTD: Let's kill the dragon at the weekend!"
     )
 
 
@@ -166,7 +168,8 @@ async def test_format_message_embed(server_status: JavaStatusResponse):
         "Online: Yes\n"
         "Online count: 1/20\n"
         "Online players: Player1\n"
-        "Version: Paper 1.21.1"
+        "Version: Paper 1.21.1\n"
+        "MOTD: Let's kill the dragon at the weekend!"
     )
 
 
@@ -196,14 +199,16 @@ async def test_format_message_embed_multiple_servers(server_status: JavaStatusRe
         "Online: Yes\n"
         "Online count: 1/20\n"
         "Online players: Player1\n"
-        "Version: Paper 1.21.1"
+        "Version: Paper 1.21.1\n"
+        "MOTD: Let's kill the dragon at the weekend!"
     )
     assert embed.fields[1].name == "mc.hypixel.net"
     assert embed.fields[1].value == (
         "Online: Yes\n"
         "Online count: 2/20\n"
         "Online players: Player1, Player2\n"
-        "Version: Paper 1.21.1"
+        "Version: Paper 1.21.1\n"
+        "MOTD: Let's kill the dragon at the weekend!"
     )
 
 
@@ -267,3 +272,64 @@ async def test_lookup_handles_real_mcstatus_dns_path(mocker):
     with pytest.raises(ConnectionError) as caught:
         await fetch_server_status("offline.example")
     assert caught.value.__cause__ is failure
+
+
+@pytest.mark.parametrize("modded", [False, True])
+async def test_motd_and_reported_modded_badge(server_status, modded):
+    status = JavaStatusResponse.build(
+        {
+            **server_status.raw,
+            "description": "§aHello\n§b@everyone **friends**",
+            "isModded": modded,
+        },
+        latency=12345,
+    )
+    topic = await format_channel_desc("example.org", status)
+    embed = await format_message_embed({"example.org": status})
+    for text in [topic, embed.fields[0].value]:
+        assert "MOTD: Hello\n@\u200beveryone \\*\\*friends\\*\\*" in text
+        assert "§" not in text
+        assert ("🧩 Modded" in text) is modded
+        assert "Vanilla" not in text
+        assert "Latency:" not in text
+
+
+@pytest.mark.parametrize("motd", ["", "  ", "\n"])
+async def test_empty_motd_is_omitted(server_status, motd):
+    status = JavaStatusResponse.build({**server_status.raw, "description": motd})
+    topic = await format_channel_desc("example.org", status)
+    embed = await format_message_embed({"example.org": status})
+    assert "MOTD:" not in topic
+    assert "MOTD:" not in embed.fields[0].value
+
+
+async def test_long_motd_fits_discord_limits(server_status):
+    status = JavaStatusResponse.build(
+        {**server_status.raw, "description": "Long MOTD " * 1000}
+    )
+    topic = await format_channel_desc("example.org", status)
+    embed = await format_message_embed({"example.org": status})
+    assert len(topic) <= 1024 and topic.endswith("…")
+    assert len(embed.fields[0].value) <= 1024
+    assert embed.fields[0].value.endswith("…")
+    assert len(embed) <= 6000
+
+
+async def test_many_long_motds_fit_one_embed(server_status):
+    status = JavaStatusResponse.build(
+        {**server_status.raw, "description": "Long MOTD " * 1000}
+    )
+    embed = await format_message_embed(
+        {f"server{i}.example": status for i in range(30)}
+    )
+    assert len(embed.fields) <= 25
+    assert len(embed) <= 6000
+    assert all(len(field.value) <= 1024 for field in embed.fields)
+    assert "additional servers not shown" in embed.footer.text
+
+
+async def test_more_than_25_servers_reports_omissions():
+    embed = await format_message_embed({f"server{i}.example": None for i in range(30)})
+    assert len(embed.fields) == 25
+    assert embed.footer.text == "5 additional servers not shown."
+    assert len(embed) <= 6000

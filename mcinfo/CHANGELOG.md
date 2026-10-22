@@ -1,5 +1,12 @@
 # mcinfo changelog
 
+## Status details
+
+- Show plain-text MOTD and a modded badge when a Java server reports modded status,
+  in both channel topics and status embeds. Omit empty MOTDs.
+- Escape MOTD formatting and mentions, truncate oversized content, and respect
+  Discord embed limits with a notice when additional servers cannot fit.
+
 ## mcstatus 14 migration
 
 - Require `mcstatus>=14.2.0,<15` in both the cog installer and development project.
