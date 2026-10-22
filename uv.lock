@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10, <3.12"
 resolution-markers = [
     "python_full_version >= '3.11' and implementation_name == 'pypy' and sys_platform == 'win32'",
@@ -949,15 +949,15 @@ wheels = [
 
 [[package]]
 name = "mcstatus"
-version = "11.1.1"
+version = "14.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asyncio-dgram" },
     { name = "dnspython" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ff/ad/2d0b0cdde02cb505221d5078c91c8123fbc5e467b56983b2321e45bb1858/mcstatus-11.1.1.tar.gz", hash = "sha256:b2856ee4032faf810b0c6af10a141381e6115caf14a7348c47edc8e3da84f5d4", size = 32949, upload-time = "2024-01-02T07:39:51.118Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/78/9b/c68055043bb276cff7926b13930a10927c7c988e15f2170f909bbfafa8b1/mcstatus-14.2.0.tar.gz", hash = "sha256:ab1a3145dc6b22b8051ea087a87e5b26cf91abfb8e1808539a2526bbfaaa0167", size = 171164, upload-time = "2026-09-02T19:45:29.095Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/f2/a39110f7982e5903314cb73912541932b13b9f95b010a81173854350121d/mcstatus-11.1.1-py3-none-any.whl", hash = "sha256:7f5f7f44fa1d17c4e05c0ae94ecc114d9d146ef572e7dd9f2d9da72771ce135c", size = 37422, upload-time = "2024-01-02T07:39:49.277Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/1e/0a6c2c1ed0329f37def02f9fca58fe3b862381d887b730d8c350edd05024/mcstatus-14.2.0-py3-none-any.whl", hash = "sha256:6099f9d6ae5c68eb5230cd3063b0888ea1ba4e9ae17189bf4c0f919c1ff673d1", size = 62094, upload-time = "2026-09-02T19:45:27.385Z" },
 ]
 
 [[package]]
@@ -1929,7 +1929,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.51.0,<0.52" },
     { name = "beautifulsoup4", specifier = ">=4.12.3,<5" },
     { name = "html2image", specifier = ">=2.0.6,<3" },
-    { name = "mcstatus", specifier = ">=11.1.1,<12" },
+    { name = "mcstatus", specifier = ">=14.2.0,<15" },
     { name = "openai", specifier = ">=2.8.1,<3" },
     { name = "pip", specifier = ">=25.1.1" },
     { name = "pydantic", specifier = ">=2.11.10,<2.12" },

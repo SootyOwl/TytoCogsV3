@@ -3,21 +3,21 @@
 import socket
 
 import discord
+from dns.exception import DNSException
+from dns.exception import Timeout as DNSTimeout
 from mcstatus import JavaServer
-from mcstatus.status_response import JavaStatusResponse
+from mcstatus.responses import JavaStatusResponse
 from redbot.core.utils import bounded_gather
 
 
 async def fetch_server_status(address: str) -> JavaStatusResponse:
-    # lookup the server
-    server = await JavaServer.async_lookup(address)
-    # query the server and return the response
     try:
+        server = await JavaServer.async_lookup(address)
         return await server.async_status()
-    except socket.gaierror as e:
-        raise ConnectionError(f"Could not resolve address {address}: {e}")
-    except TimeoutError as e:
-        raise ConnectionError(f"Connection timed out for address {address}: {e}")
+    except (TimeoutError, DNSTimeout) as e:
+        raise ConnectionError(f"Connection timed out for address {address}: {e}") from e
+    except (socket.gaierror, DNSException) as e:
+        raise ConnectionError(f"Could not resolve address {address}: {e}") from e
 
 
 async def fetch_servers(addresses: list[str]) -> dict[str, JavaStatusResponse | None]:
