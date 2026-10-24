@@ -233,15 +233,15 @@ wheels = [
 
 [[package]]
 name = "beautifulsoup4"
-version = "4.14.2"
+version = "4.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "soupsieve" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/77/e9/df2358efd7659577435e2177bfa69cba6c33216681af51a707193dec162a/beautifulsoup4-4.14.2.tar.gz", hash = "sha256:2a98ab9f944a11acee9cc848508ec28d9228abfd522ef0fad6a02a72e0ded69e", size = 625822, upload-time = "2025-09-29T10:05:42.613Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/65/318323f98dbee45d42dff61d8f047181bc6f2268a9068cfad035a46be5af/beautifulsoup4-4.15.0.tar.gz", hash = "sha256:288e3ca7d54b06f2ac191970bc275c1939cb46d450b255bf6718b04aa37ab4f7", size = 632571, upload-time = "2026-06-07T16:44:20.453Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/94/fe/3aed5d0be4d404d12d36ab97e2f1791424d9ca39c2f754a6285d59a3b01d/beautifulsoup4-4.14.2-py3-none-any.whl", hash = "sha256:5ef6fa3a8cbece8488d66985560f97ed091e22bbc4e9c2338508a9d5de6d4515", size = 106392, upload-time = "2025-09-29T10:05:43.771Z" },
+    { url = "https://files.pythonhosted.org/packages/88/c6/92fcd42f1ba33e1184263f25bfabf3d27c383410470f169e4b8163bf9c17/beautifulsoup4-4.15.0-py3-none-any.whl", hash = "sha256:d6f88de62e1d4e38ecb1077eb9724cd0eff29d2a08ca16a401e9b9e93f117cf9", size = 109924, upload-time = "2026-06-07T16:44:21.566Z" },
 ]
 
 [[package]]
@@ -1470,7 +1470,7 @@ wheels = [
 
 [[package]]
 name = "python-youtube"
-version = "0.9.8"
+version = "0.9.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dataclasses-json" },
@@ -1478,9 +1478,9 @@ dependencies = [
     { name = "requests" },
     { name = "requests-oauthlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c8/d4/856cd88fc64b40992cc5af4e247d347ee9605fdea3bf21f7c936e5411cb2/python_youtube-0.9.8.tar.gz", hash = "sha256:b6c679fbda07ecb114a95576c470a9f43f367ab71c61dc4b030dbfa2ea0826eb", size = 69499, upload-time = "2025-08-22T08:40:25.453Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/94/0ba396768cc1c4b7422febe32856dd92e4586525e7104411d2c3471fef73/python_youtube-0.9.9.tar.gz", hash = "sha256:57ff82d04d3ee91397edd3a74eee0bef52cdb251f9899177298d589a6c149e55", size = 70673, upload-time = "2026-04-17T09:34:02.344Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/36/f6/fd915b163fa18f95e420025fcc29acf74769c2f72f855e119edaf4ff1589/python_youtube-0.9.8-py3-none-any.whl", hash = "sha256:de45a56cc588fb8c5b19a0d4d9425edef2959f59cf9793892da25b3d5afb270f", size = 82254, upload-time = "2025-08-22T08:40:24.052Z" },
+    { url = "https://files.pythonhosted.org/packages/61/d3/31c0dfff2aa5d7c7d0fdb609ea8dcc50771f06009dac4150d200dabb8fb5/python_youtube-0.9.9-py3-none-any.whl", hash = "sha256:8609f0c246140be29516498b95136ccf989db9cc71e77d1201ea89e594650588", size = 83027, upload-time = "2026-04-17T09:34:03.635Z" },
 ]
 
 [[package]]
@@ -1688,7 +1688,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.33.0"
+version = "2.34.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -1696,9 +1696,9 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/34/64/8860370b167a9721e8956ae116825caff829224fbca0ca6e7bf8ddef8430/requests-2.33.0.tar.gz", hash = "sha256:c7ebc5e8b0f21837386ad0e1c8fe8b829fa5f544d8df3b2253bff14ef29d7652", size = 134232, upload-time = "2026-03-25T15:10:41.586Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/5d/c814546c2333ceea4ba42262d8c4d55763003e767fa169adc693bd524478/requests-2.33.0-py3-none-any.whl", hash = "sha256:3324635456fa185245e24865e810cecec7b4caf933d7eb133dcde67d48cee69b", size = 65017, upload-time = "2026-03-25T15:10:40.382Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
 ]
 
 [[package]]
@@ -1939,7 +1939,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.32.4,<3" },
     { name = "spotify", specifier = ">=0.10.2" },
     { name = "typing-extensions", specifier = "==4.13.2" },
-    { name = "wand", specifier = ">=0.6.13,<0.7" },
+    { name = "wand", specifier = ">=0.6.13,<0.8" },
     { name = "yt-transcript-fetcher", specifier = ">=2.0.0,<3" },
 ]
 
@@ -2003,11 +2003,11 @@ wheels = [
 
 [[package]]
 name = "wand"
-version = "0.6.13"
+version = "0.7.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/41/0b/005ab483df0bf48d65fe26cc1036ce222521ece3a84e55b501a4f966746c/Wand-0.6.13.tar.gz", hash = "sha256:f5013484eaf7a20eb22d1821aaefe60b50cc329722372b5f8565d46d4aaafcca", size = 11883700, upload-time = "2023-11-03T23:18:41.79Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/27/98de4383d028df318b9dd56e7ac2a8437684db18c2da7204c084f37e8f95/wand-0.7.2.tar.gz", hash = "sha256:0387fd08848d00cadd1d885fcb19a17dd4250df2029e5338b6b668b7fed64b5b", size = 11889993, upload-time = "2026-06-25T13:48:31.512Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/59/d5/1bdd7c9662d5e9078e25ba0eb69bdb122859295746d40ab8dfef3a7b4d42/Wand-0.6.13-py2.py3-none-any.whl", hash = "sha256:e5dda0ac2204a40c29ef5c4cb310770c95d3d05c37b1379e69c94ea79d7d19c0", size = 143789, upload-time = "2023-11-03T23:18:50.474Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/11/764bee6e793c01d6ce7b99f4872f9fd5ef89904b172cb9d8a0a1dae02f21/wand-0.7.2-py3-none-any.whl", hash = "sha256:7db97c5e51862fdd5e58866dbf34e2dcae295245511147367690a3e17f459984", size = 145045, upload-time = "2026-06-25T13:48:38.348Z" },
 ]
 
 [[package]]
