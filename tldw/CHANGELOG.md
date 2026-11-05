@@ -1,5 +1,11 @@
 # tldw changelog
 
+## Default-caption compatibility fix
+
+- Require `yt-transcript-fetcher>=2.0.1,<3` so updating this cog also installs
+  the default-track fix for videos with multiple automatic caption tracks.
+- Restart the bot after updating so it loads the upgraded transcript package.
+
 ## Reasoning control
 
 - Add owner-only `tldwset reasoning on/off` to request or disable model reasoning.
